@@ -1,0 +1,13 @@
+{
+  "name": "cody-web-core-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@11.7.0",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "build": "pnpm --filter @codycodeagent/cody-web-core build",
+    "test": "pnpm --filter @codycodeagent/cody-web-core test",
+    "typecheck": "pnpm --filter @codycodeagent/cody-web-core typecheck"
+  }
+}
+
