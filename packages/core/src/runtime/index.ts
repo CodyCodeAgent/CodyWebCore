@@ -10,6 +10,8 @@ import {
   normalizeRpcResponse,
 } from '../protocol/index.js'
 
+export type { RuntimeNotification, ServerRequest } from '../protocol/index.js'
+
 export type RpcOptions = { timeoutMs?: number }
 export type ServerRequestReply = { result?: unknown; error?: { code: number; message: string } }
 export type RuntimeNotificationListener = (notification: RuntimeNotification) => void

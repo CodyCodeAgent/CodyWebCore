@@ -1,5 +1,6 @@
 import { type ChildProcessWithoutNullStreams, type SpawnOptionsWithoutStdio } from 'node:child_process';
 import { type RuntimeNotification, type ServerRequest } from '../protocol/index.js';
+export type { RuntimeNotification, ServerRequest } from '../protocol/index.js';
 export type RpcOptions = {
     timeoutMs?: number;
 };
