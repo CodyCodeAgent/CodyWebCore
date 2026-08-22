@@ -1,13 +1,21 @@
 {
-  "name": "cody-web-core-workspace",
-  "private": true,
-  "version": "0.1.0",
+  "name": "@codycodeagent/cody-web-core",
+  "version": "0.1.1",
+  "description": "Shared Codex protocol, runtime, and conversation primitives for CodyWeb products",
+  "license": "MIT",
+  "type": "module",
   "packageManager": "pnpm@11.7.0",
+  "files": ["packages/core/dist", "README.md", "LICENSE"],
+  "exports": {
+    "./protocol": { "types": "./packages/core/dist/protocol/index.d.ts", "import": "./packages/core/dist/protocol/index.js" },
+    "./runtime": { "types": "./packages/core/dist/runtime/index.d.ts", "import": "./packages/core/dist/runtime/index.js" },
+    "./conversation": { "types": "./packages/core/dist/conversation/index.d.ts", "import": "./packages/core/dist/conversation/index.js" }
+  },
   "workspaces": ["packages/*"],
   "scripts": {
     "build": "pnpm --filter @codycodeagent/cody-web-core build",
+    "prepare": "pnpm --filter @codycodeagent/cody-web-core build",
     "test": "pnpm --filter @codycodeagent/cody-web-core test",
     "typecheck": "pnpm --filter @codycodeagent/cody-web-core typecheck"
   }
 }
-
