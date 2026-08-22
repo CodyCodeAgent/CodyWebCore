@@ -1,0 +1,75 @@
+export const READ_RECOVERY_METHODS = new Set(['thread/read', 'thread/loaded/list']);
+export function asRecord(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value)
+        ? value
+        : null;
+}
+export function readString(value) {
+    return typeof value === 'string' ? value.trim() : '';
+}
+export function readNestedString(value, paths) {
+    for (const path of paths) {
+        let cursor = value;
+        for (const key of path) {
+            const record = asRecord(cursor);
+            if (!record) {
+                cursor = null;
+                break;
+            }
+            cursor = record[key];
+        }
+        const text = readString(cursor);
+        if (text)
+            return text;
+    }
+    return '';
+}
+export function readThreadId(params) {
+    return readNestedString(params, [
+        ['threadId'], ['thread_id'], ['thread', 'id'], ['turn', 'threadId'], ['turn', 'thread_id'], ['request', 'threadId'],
+    ]);
+}
+export function readTurnId(params) {
+    return readNestedString(params, [
+        ['turnId'], ['turn_id'], ['turn', 'id'], ['request', 'turnId'], ['request', 'turn_id'],
+    ]);
+}
+export function readItemId(params) {
+    return readNestedString(params, [
+        ['itemId'], ['item_id'], ['item', 'id'], ['request', 'itemId'], ['request', 'item_id'],
+    ]);
+}
+export function normalizeRpcResponse(value) {
+    const record = asRecord(value);
+    if (!record)
+        return null;
+    const id = typeof record.id === 'number' || typeof record.id === 'string' || record.id === null ? record.id : undefined;
+    const method = typeof record.method === 'string' ? record.method : undefined;
+    const errorValue = asRecord(record.error);
+    const error = errorValue && typeof errorValue.code === 'number' && typeof errorValue.message === 'string'
+        ? { code: errorValue.code, message: errorValue.message, ...(errorValue.data === undefined ? {} : { data: errorValue.data }) }
+        : undefined;
+    if (id === undefined && !method)
+        return null;
+    return {
+        ...(record.jsonrpc === '2.0' ? { jsonrpc: '2.0' } : {}),
+        ...(id === undefined ? {} : { id }),
+        ...(method ? { method } : {}),
+        ...(record.params === undefined ? {} : { params: record.params }),
+        ...(record.result === undefined ? {} : { result: record.result }),
+        ...(error ? { error } : {}),
+    };
+}
+export function isServerRequest(response) {
+    return typeof response.id === 'number' && typeof response.method === 'string';
+}
+export function isNotification(response) {
+    return response.id === undefined && typeof response.method === 'string';
+}
+export function capabilitySet(methods, protocolVersion = 'unknown') {
+    return { protocolVersion, supports: new Set(methods) };
+}
+export function hasCapability(capabilities, method) {
+    return !capabilities || capabilities.supports.size === 0 || capabilities.supports.has(method);
+}
+//# sourceMappingURL=index.js.map
