@@ -55,6 +55,20 @@ function isOptimistic(message: ConversationMessage): boolean {
   return message.role === 'user' && message.messageType === 'userMessage.optimistic'
 }
 
+function isLiveAssistant(message: ConversationMessage): boolean {
+  return message.role === 'assistant'
+    && (message.messageType === 'agentMessage.live' || message.messageType === 'plan.live')
+}
+
+function reconcilesLiveAssistant(live: ConversationMessage, persisted: ConversationMessage): boolean {
+  if (!isLiveAssistant(live) || persisted.role !== 'assistant') return false
+  if (!live.turnId || live.turnId !== persisted.turnId) return false
+  const liveText = normalizeMessageText(live.text)
+  const persistedText = normalizeMessageText(persisted.text)
+  if (!liveText || !persistedText) return false
+  return liveText === persistedText || persistedText.startsWith(liveText)
+}
+
 function isSameUserMessage(first: ConversationMessage, second: ConversationMessage): boolean {
   return first.role === 'user' && second.role === 'user' && userIdentity(first) === userIdentity(second)
 }
@@ -79,6 +93,10 @@ export function mergeMessages<T extends ConversationMessage>(previous: T[], inco
     if (oldMessage.role === 'user' && oldMessage.turnId) {
       const replay = dedupedIncoming.find((message) => !consumed.has(message.id) && message.turnId === oldMessage.turnId && isSameUserMessage(oldMessage, message))
       if (replay) { consumed.add(replay.id); return replay }
+    }
+    if (isLiveAssistant(oldMessage)) {
+      const persisted = dedupedIncoming.find((message) => !consumed.has(message.id) && reconcilesLiveAssistant(oldMessage, message))
+      if (persisted) { consumed.add(persisted.id); return persisted }
     }
     return oldMessage
   })
@@ -152,4 +170,3 @@ export function groupConsecutiveFileChanges<T extends ConversationMessage>(messa
   }
   return groups
 }
-

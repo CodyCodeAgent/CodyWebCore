@@ -11,6 +11,15 @@ describe('conversation core', () => {
     expect(output).toEqual([{ id: 'persisted', turnId: 't1', role: 'user', text: 'hello' }])
   })
 
+  it('replaces an assistant realtime overlay with the durable item', () => {
+    const output = mergeMessages(
+      [{ id: 'live:item-1', turnId: 'turn-1', role: 'assistant' as const, text: 'Hello ', messageType: 'agentMessage.live' }],
+      [{ id: 'item-1', turnId: 'turn-1', role: 'assistant' as const, text: 'Hello world' }],
+      { preserveMissing: true },
+    )
+    expect(output).toEqual([{ id: 'item-1', turnId: 'turn-1', role: 'assistant', text: 'Hello world' }])
+  })
+
   it('keeps realtime deltas in one row', () => {
     const once = upsertLiveDelta([], { messageId: 'a', textDelta: 'one', messageType: 'agentMessage.live' })
     const twice = upsertLiveDelta(once, { messageId: 'a', textDelta: ' two', messageType: 'agentMessage.live' })
@@ -24,4 +33,3 @@ describe('conversation core', () => {
     expect(previewToolOutput('a\nb\nc', 2).truncated).toBe(true)
   })
 })
-

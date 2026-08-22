@@ -26,6 +26,21 @@ function userIdentity(message) {
 function isOptimistic(message) {
     return message.role === 'user' && message.messageType === 'userMessage.optimistic';
 }
+function isLiveAssistant(message) {
+    return message.role === 'assistant'
+        && (message.messageType === 'agentMessage.live' || message.messageType === 'plan.live');
+}
+function reconcilesLiveAssistant(live, persisted) {
+    if (!isLiveAssistant(live) || persisted.role !== 'assistant')
+        return false;
+    if (!live.turnId || live.turnId !== persisted.turnId)
+        return false;
+    const liveText = normalizeMessageText(live.text);
+    const persistedText = normalizeMessageText(persisted.text);
+    if (!liveText || !persistedText)
+        return false;
+    return liveText === persistedText || persistedText.startsWith(liveText);
+}
 function isSameUserMessage(first, second) {
     return first.role === 'user' && second.role === 'user' && userIdentity(first) === userIdentity(second);
 }
@@ -56,6 +71,13 @@ export function mergeMessages(previous, incoming, options = {}) {
             if (replay) {
                 consumed.add(replay.id);
                 return replay;
+            }
+        }
+        if (isLiveAssistant(oldMessage)) {
+            const persisted = dedupedIncoming.find((message) => !consumed.has(message.id) && reconcilesLiveAssistant(oldMessage, message));
+            if (persisted) {
+                consumed.add(persisted.id);
+                return persisted;
             }
         }
         return oldMessage;
