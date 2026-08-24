@@ -1,5 +1,5 @@
 <template>
-  <form class="cody-composer" data-cody-component="composer-surface" @submit.prevent="emit('send')">
+  <form class="cody-composer" :data-variant="variant" data-cody-component="composer-surface" @submit.prevent="emit('send')">
     <div class="cody-composer-shell">
       <div v-if="selectedSkills.length" class="cody-composer-selected" aria-label="Selected skills">
         <span v-for="skill in selectedSkills" :key="skill" class="cody-composer-chip">
@@ -65,8 +65,10 @@ const props = withDefaults(defineProps<{
   selectedPermission?: string
   skills?: CodyComposerOption[]
   selectedSkills?: string[]
+  /** Standalone preserves CodyWeb's dark canvas; embedded inherits the host workbench surface. */
+  variant?: 'standalone' | 'embedded'
 }>(), {
-  placeholder: '输入消息…', collaborationModes: () => [], selectedCollaborationMode: '', submitModes: () => [], selectedSubmitMode: '', models: () => [], selectedModel: '', reasoningOptions: () => [], selectedReasoning: '', permissionOptions: () => [], selectedPermission: '', skills: () => [], selectedSkills: () => [],
+  placeholder: '输入消息…', collaborationModes: () => [], selectedCollaborationMode: '', submitModes: () => [], selectedSubmitMode: '', models: () => [], selectedModel: '', reasoningOptions: () => [], selectedReasoning: '', permissionOptions: () => [], selectedPermission: '', skills: () => [], selectedSkills: () => [], variant: 'standalone',
 })
 const emit = defineEmits<{
   'update:draft': [value: string]

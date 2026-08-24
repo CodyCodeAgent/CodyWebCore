@@ -1,5 +1,5 @@
 <template>
-  <section class="cody-conversation" data-cody-component="conversation-surface">
+  <section class="cody-conversation" :data-variant="variant" data-cody-component="conversation-surface">
     <div v-if="loading" class="cody-conversation-loading" role="status">正在同步对话…</div>
     <div v-else-if="entries.length === 0" class="cody-conversation-empty"><slot name="empty">开始这个需求的开发</slot></div>
     <template v-else v-for="entry in entries" :key="entry.id">
@@ -28,7 +28,9 @@
 import type { CodyConversationEntry } from './types.js'
 import { renderCodyMarkdown } from './markdown.js'
 
-defineProps<{ entries: CodyConversationEntry[]; loading?: boolean }>()
+withDefaults(defineProps<{ entries: CodyConversationEntry[]; loading?: boolean; variant?: 'standalone' | 'embedded' }>(), {
+  variant: 'standalone',
+})
 const emit = defineEmits<{ copy: [text: string] }>()
 
 function toolTone(status: string): 'neutral' | 'running' | 'success' | 'danger' {

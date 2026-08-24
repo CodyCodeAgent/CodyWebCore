@@ -16,6 +16,8 @@ type __VLS_Props = {
     selectedPermission?: string;
     skills?: CodyComposerOption[];
     selectedSkills?: string[];
+    /** Standalone preserves CodyWeb's dark canvas; embedded inherits the host workbench surface. */
+    variant?: 'standalone' | 'embedded';
 };
 declare var __VLS_1: {}, __VLS_43: {};
 type __VLS_Slots = {} & {
@@ -44,6 +46,7 @@ declare const __VLS_component: import("vue").DefineComponent<__VLS_Props, {}, {}
     "onUpdate:selected-skills"?: ((value: string[]) => any) | undefined;
     onSend?: (() => any) | undefined;
 }>, {
+    variant: "standalone" | "embedded";
     placeholder: string;
     collaborationModes: CodyComposerOption[];
     selectedCollaborationMode: string;

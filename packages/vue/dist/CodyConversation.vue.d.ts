@@ -2,6 +2,7 @@ import type { CodyConversationEntry } from './types.js';
 type __VLS_Props = {
     entries: CodyConversationEntry[];
     loading?: boolean;
+    variant?: 'standalone' | 'embedded';
 };
 declare var __VLS_1: {}, __VLS_3: {
     message: import("./types.js", { with: { "resolution-mode": "import" } }).CodyMessage;
@@ -15,7 +16,9 @@ declare const __VLS_component: import("vue").DefineComponent<__VLS_Props, {}, {}
     copy: (text: string) => any;
 }, string, import("vue").PublicProps, Readonly<__VLS_Props> & Readonly<{
     onCopy?: ((text: string) => any) | undefined;
-}>, {}, {}, {}, {}, string, import("vue").ComponentProvideOptions, false, {}, any>;
+}>, {
+    variant: "standalone" | "embedded";
+}, {}, {}, {}, string, import("vue").ComponentProvideOptions, false, {}, any>;
 declare const _default: __VLS_WithSlots<typeof __VLS_component, __VLS_Slots>;
 export default _default;
 type __VLS_WithSlots<T, S> = T & {
