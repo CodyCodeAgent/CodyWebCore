@@ -37,7 +37,8 @@ function codeBlockHtml(content: string, language = '', labels = DEFAULT_CODY_MAR
   const isCompact = lines.length <= 2 && lines.every((line) => line.length <= 96)
   const isCollapsible = lines.length > 10
   const languageLabel = language || 'text'
-  const codeClass = /^[A-Za-z0-9_-]+$/u.test(language) ? ` class="language-${language}"` : ''
+  const codeClasses = [isCompact ? 'is-compact-code' : '', /^[A-Za-z0-9_-]+$/u.test(language) ? `language-${language}` : ''].filter(Boolean).join(' ')
+  const codeClass = codeClasses ? ` class="${codeClasses}"` : ''
   const shellClasses = [isCompact ? 'is-compact' : '', isCollapsible ? 'is-collapsible is-collapsed' : ''].filter(Boolean).join(' ')
   const languageMeta = isCollapsible ? `${languageLabel} · ${labels.lineCount(lines.length)}` : languageLabel
   const collapseButton = isCollapsible ? `<button type="button" class="markdown-tool-button markdown-code-collapse" data-markdown-action="toggle-code" aria-label="${labels.collapseCode}" title="${labels.collapseCode}" aria-expanded="false">${labels.collapseCode}</button>` : ''
