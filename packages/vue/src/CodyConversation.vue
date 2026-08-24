@@ -9,7 +9,7 @@
         <div class="cody-message-stack">
           <div class="cody-message-label">{{ entry.message.role === 'user' ? '你' : entry.message.role === 'assistant' ? 'Codex Agent' : '系统' }}</div>
           <ul v-if="entry.message.skills?.length" class="cody-message-skills"><li v-for="skill in entry.message.skills" :key="`${skill.name}:${skill.path}`">${{ skill.displayName || skill.name }}</li></ul>
-          <div v-if="entry.message.text" class="cody-message-body"><slot name="markdown" :message="entry.message"><div class="cody-markdown" v-html="renderCodyMarkdown(entry.message.text)" /></slot></div>
+          <div v-if="entry.message.text" class="cody-message-body"><slot name="markdown" :message="entry.message"><CodyMarkdown :text="entry.message.text" @open-file="emit('openFile', $event)" /></slot></div>
           <div v-if="entry.message.images?.length" class="cody-message-images"><img v-for="image in entry.message.images" :key="image" :src="image" alt="对话图片" loading="lazy"></div>
           <button v-if="entry.message.text" class="cody-copy-button" type="button" @click="emit('copy', entry.message.text)">复制</button>
         </div>
@@ -26,12 +26,12 @@
 
 <script setup lang="ts">
 import type { CodyConversationEntry } from './types.js'
-import { renderCodyMarkdown } from './markdown.js'
+import CodyMarkdown from './CodyMarkdown.vue'
 
 withDefaults(defineProps<{ entries: CodyConversationEntry[]; loading?: boolean; variant?: 'standalone' | 'embedded' }>(), {
   variant: 'standalone',
 })
-const emit = defineEmits<{ copy: [text: string] }>()
+const emit = defineEmits<{ copy: [text: string]; openFile: [{ path: string; line: number }] }>()
 
 function toolTone(status: string): 'neutral' | 'running' | 'success' | 'danger' {
   if (/fail|error|cancel|reject/iu.test(status)) return 'danger'

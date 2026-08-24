@@ -1,6 +1,6 @@
 {
   "name": "@codycodeagent/cody-web-core",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "Shared Codex protocol, runtime, and conversation primitives for CodyWeb products",
   "license": "MIT",
   "type": "module",
@@ -16,7 +16,7 @@
   "workspaces": ["packages/*"],
   "scripts": {
     "build": "pnpm --filter @codycodeagent/cody-web-core build && pnpm --filter @codycodeagent/cody-web-ui build",
-    "test": "pnpm --filter @codycodeagent/cody-web-core test",
+    "test": "pnpm --filter @codycodeagent/cody-web-core test && pnpm --filter @codycodeagent/cody-web-ui test",
     "typecheck": "pnpm --filter @codycodeagent/cody-web-core typecheck && pnpm --filter @codycodeagent/cody-web-ui typecheck"
   }
 }

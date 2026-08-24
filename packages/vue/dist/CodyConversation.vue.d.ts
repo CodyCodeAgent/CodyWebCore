@@ -13,8 +13,16 @@ type __VLS_Slots = {} & {
     markdown?: (props: typeof __VLS_3) => any;
 };
 declare const __VLS_component: import("vue").DefineComponent<__VLS_Props, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {
+    openFile: (args_0: {
+        path: string;
+        line: number;
+    }) => any;
     copy: (text: string) => any;
 }, string, import("vue").PublicProps, Readonly<__VLS_Props> & Readonly<{
+    onOpenFile?: ((args_0: {
+        path: string;
+        line: number;
+    }) => any) | undefined;
     onCopy?: ((text: string) => any) | undefined;
 }>, {
     variant: "standalone" | "embedded";

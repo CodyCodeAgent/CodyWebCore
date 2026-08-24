@@ -10,6 +10,16 @@ export default defineConfig({
       formats: ['es'],
       fileName: 'index',
     },
-    rollupOptions: { external: ['vue'] },
+    // Keep renderer dependencies external: applications install the package's
+    // declared dependencies, while the core release stays small and versionable.
+    rollupOptions: {
+      external: (id) => id === 'vue'
+        || id === 'dompurify'
+        || id === 'markdown-it'
+        || id === 'markdown-it-footnote'
+        || id === 'markdown-it-task-lists'
+        || id === 'mermaid'
+        || id.startsWith('highlight.js/'),
+    },
   },
 })
