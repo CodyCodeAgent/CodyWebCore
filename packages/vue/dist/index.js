@@ -1,196 +1,293 @@
-import { defineComponent as $, openBlock as s, createElementBlock as o, renderSlot as k, createTextVNode as f, Fragment as g, renderList as y, createElementVNode as a, toDisplayString as l, createCommentVNode as c, unref as _, withModifiers as v, withKeys as C } from "vue";
-function L(t) {
-  return t.replace(/[&<>"']/gu, (r) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[r] ?? r);
+import { defineComponent as w, openBlock as o, createElementBlock as d, renderSlot as S, createTextVNode as O, Fragment as y, renderList as f, createElementVNode as n, toDisplayString as r, createCommentVNode as b, unref as v, h as C, computed as M, withModifiers as x, withKeys as L, createBlock as B, createVNode as V } from "vue";
+function N(e) {
+  return e.replace(/[&<>"']/gu, (k) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[k] ?? k);
 }
-function w(t) {
-  return L(t).replace(/```([^\n]*)\n([\s\S]*?)```/gu, (m, d, n) => `<pre><code data-language="${d.trim()}">${n.trimEnd()}</code></pre>`).replace(/`([^`]+)`/gu, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/gu, "<strong>$1</strong>").replace(/\n/g, "<br>");
+function U(e) {
+  return N(e).replace(/```([^\n]*)\n([\s\S]*?)```/gu, (u, i, c) => `<pre><code data-language="${i.trim()}">${c.trimEnd()}</code></pre>`).replace(/`([^`]+)`/gu, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/gu, "<strong>$1</strong>").replace(/\n/g, "<br>");
 }
-const x = {
+const q = {
   class: "cody-conversation",
   "data-cody-component": "conversation-surface"
-}, B = {
+}, P = {
   key: 0,
   class: "cody-conversation-loading",
   role: "status"
-}, M = {
+}, T = {
   key: 1,
   class: "cody-conversation-empty"
-}, N = {
+}, E = {
   key: 0,
   class: "cody-worked-divider"
-}, S = ["data-role"], T = ["data-role"], E = { class: "cody-message-stack" }, H = { class: "cody-message-label" }, V = {
+}, H = ["data-role"], A = ["data-role"], D = { class: "cody-message-stack" }, K = { class: "cody-message-label" }, j = {
   key: 0,
   class: "cody-message-skills"
-}, K = {
+}, z = {
   key: 1,
   class: "cody-message-body"
-}, R = ["innerHTML"], j = {
+}, F = ["innerHTML"], I = {
   key: 2,
   class: "cody-message-images"
-}, q = ["src"], z = ["onClick"], A = ["data-tone", "open"], D = { key: 0 }, F = { key: 1 }, I = {
+}, W = ["src"], G = ["onClick"], J = ["data-tone", "open"], Q = { key: 0 }, X = { key: 1 }, Y = {
   key: 3,
   class: "cody-reasoning-card"
-}, ee = /* @__PURE__ */ $({
+}, re = /* @__PURE__ */ w({
   __name: "CodyConversation",
   props: {
     entries: {},
     loading: { type: Boolean }
   },
   emits: ["copy"],
-  setup(t, { emit: r }) {
-    const u = r;
-    function m(n) {
-      return /fail|error|cancel|reject/iu.test(n) ? "danger" : /complete|success|done|approved/iu.test(n) ? "success" : /run|start|pending|wait/iu.test(n) ? "running" : "neutral";
+  setup(e, { emit: k }) {
+    const g = k;
+    function u(c) {
+      return /fail|error|cancel|reject/iu.test(c) ? "danger" : /complete|success|done|approved/iu.test(c) ? "success" : /run|start|pending|wait/iu.test(c) ? "running" : "neutral";
     }
-    function d(n) {
-      return n.length > 12e3 ? `${n.slice(0, 12e3)}
-…输出已截断` : n;
+    function i(c) {
+      return c.length > 12e3 ? `${c.slice(0, 12e3)}
+…输出已截断` : c;
     }
-    return (n, p) => (s(), o("section", x, [
-      t.loading ? (s(), o("div", B, "正在同步对话…")) : t.entries.length === 0 ? (s(), o("div", M, [
-        k(n.$slots, "empty", {}, () => [
-          p[0] || (p[0] = f("开始这个需求的开发", -1))
+    return (c, p) => (o(), d("section", q, [
+      e.loading ? (o(), d("div", P, "正在同步对话…")) : e.entries.length === 0 ? (o(), d("div", T, [
+        S(c.$slots, "empty", {}, () => [
+          p[0] || (p[0] = O("开始这个需求的开发", -1))
         ])
-      ])) : (s(!0), o(g, { key: 2 }, y(t.entries, (e) => {
-        var b, h;
-        return s(), o(g, {
-          key: e.id
+      ])) : (o(!0), d(y, { key: 2 }, f(e.entries, (t) => {
+        var $, h;
+        return o(), d(y, {
+          key: t.id
         }, [
-          e.kind === "worked" ? (s(), o("div", N, [
-            a("span", null, l(e.label), 1)
-          ])) : e.kind === "message" ? (s(), o("article", {
+          t.kind === "worked" ? (o(), d("div", E, [
+            n("span", null, r(t.label), 1)
+          ])) : t.kind === "message" ? (o(), d("article", {
             key: 1,
             class: "cody-message",
-            "data-role": e.message.role
+            "data-role": t.message.role
           }, [
-            a("div", {
+            n("div", {
               class: "cody-message-identity",
-              "data-role": e.message.role
-            }, l(e.message.role === "user" ? "你" : "CW"), 9, T),
-            a("div", E, [
-              a("div", H, l(e.message.role === "user" ? "你" : e.message.role === "assistant" ? "Codex Agent" : "系统"), 1),
-              (b = e.message.skills) != null && b.length ? (s(), o("ul", V, [
-                (s(!0), o(g, null, y(e.message.skills, (i) => (s(), o("li", {
-                  key: `${i.name}:${i.path}`
-                }, "$" + l(i.displayName || i.name), 1))), 128))
-              ])) : c("", !0),
-              e.message.text ? (s(), o("div", K, [
-                k(n.$slots, "markdown", {
-                  message: e.message
+              "data-role": t.message.role
+            }, r(t.message.role === "user" ? "你" : "CW"), 9, A),
+            n("div", D, [
+              n("div", K, r(t.message.role === "user" ? "你" : t.message.role === "assistant" ? "Codex Agent" : "系统"), 1),
+              ($ = t.message.skills) != null && $.length ? (o(), d("ul", j, [
+                (o(!0), d(y, null, f(t.message.skills, (m) => (o(), d("li", {
+                  key: `${m.name}:${m.path}`
+                }, "$" + r(m.displayName || m.name), 1))), 128))
+              ])) : b("", !0),
+              t.message.text ? (o(), d("div", z, [
+                S(c.$slots, "markdown", {
+                  message: t.message
                 }, () => [
-                  a("div", {
+                  n("div", {
                     class: "cody-markdown",
-                    innerHTML: _(w)(e.message.text)
-                  }, null, 8, R)
+                    innerHTML: v(U)(t.message.text)
+                  }, null, 8, F)
                 ])
-              ])) : c("", !0),
-              (h = e.message.images) != null && h.length ? (s(), o("div", j, [
-                (s(!0), o(g, null, y(e.message.images, (i) => (s(), o("img", {
-                  key: i,
-                  src: i,
+              ])) : b("", !0),
+              (h = t.message.images) != null && h.length ? (o(), d("div", I, [
+                (o(!0), d(y, null, f(t.message.images, (m) => (o(), d("img", {
+                  key: m,
+                  src: m,
                   alt: "对话图片",
                   loading: "lazy"
-                }, null, 8, q))), 128))
-              ])) : c("", !0),
-              e.message.text ? (s(), o("button", {
+                }, null, 8, W))), 128))
+              ])) : b("", !0),
+              t.message.text ? (o(), d("button", {
                 key: 3,
                 class: "cody-copy-button",
                 type: "button",
-                onClick: (i) => u("copy", e.message.text)
-              }, "复制", 8, z)) : c("", !0)
+                onClick: (m) => g("copy", t.message.text)
+              }, "复制", 8, G)) : b("", !0)
             ])
-          ], 8, S)) : e.kind === "tool" ? (s(), o("details", {
+          ], 8, H)) : t.kind === "tool" ? (o(), d("details", {
             key: 2,
             class: "cody-tool-card",
-            "data-tone": m(e.tool.status),
-            open: m(e.tool.status) === "running"
+            "data-tone": u(t.tool.status),
+            open: u(t.tool.status) === "running"
           }, [
-            a("summary", null, [
-              p[1] || (p[1] = a("span", null, "⌁", -1)),
-              a("strong", null, l(e.tool.title), 1),
-              a("small", null, l(e.tool.status), 1)
+            n("summary", null, [
+              p[1] || (p[1] = n("span", null, "⌁", -1)),
+              n("strong", null, r(t.tool.title), 1),
+              n("small", null, r(t.tool.status), 1)
             ]),
-            a("p", null, l(e.tool.summary), 1),
-            e.tool.details.length ? (s(), o("ul", D, [
-              (s(!0), o(g, null, y(e.tool.details, (i) => (s(), o("li", { key: i }, l(i), 1))), 128))
-            ])) : c("", !0),
-            e.tool.output ? (s(), o("pre", F, l(d(e.tool.output)), 1)) : c("", !0)
-          ], 8, A)) : (s(), o("details", I, [
-            a("summary", null, "✦ " + l(e.title || "推理过程"), 1),
-            a("pre", null, l(e.text), 1)
+            n("p", null, r(t.tool.summary), 1),
+            t.tool.details.length ? (o(), d("ul", Q, [
+              (o(!0), d(y, null, f(t.tool.details, (m) => (o(), d("li", { key: m }, r(m), 1))), 128))
+            ])) : b("", !0),
+            t.tool.output ? (o(), d("pre", X, r(i(t.tool.output)), 1)) : b("", !0)
+          ], 8, J)) : (o(), d("details", Y, [
+            n("summary", null, "✦ " + r(t.title || "推理过程"), 1),
+            n("pre", null, r(t.text), 1)
           ]))
         ], 64);
       }), 128))
     ]));
   }
-}), O = { class: "cody-composer-shell" }, W = ["value", "disabled", "placeholder"], G = { class: "cody-composer-controls" }, J = {
+}), Z = { class: "cody-composer-shell" }, _ = {
   key: 0,
-  class: "cody-composer-pill"
-}, P = {
+  class: "cody-composer-selected",
+  "aria-label": "Selected skills"
+}, ee = ["disabled", "aria-label", "onClick"], le = ["value", "disabled", "placeholder"], se = { class: "cody-composer-controls" }, te = {
+  key: 0,
+  class: "cody-composer-compact-control cody-composer-skill-control",
+  title: "为本轮显式选择 Skill"
+}, oe = ["disabled"], de = ["value"], ae = { class: "cody-composer-actions" }, ne = ["disabled"], ie = ["disabled", "aria-label"], ue = {
   key: 1,
-  class: "cody-composer-pill"
-}, Q = {
-  key: 2,
-  class: "cody-composer-pill"
-}, U = {
-  key: 3,
-  class: "cody-composer-pill"
-}, X = ["disabled"], Y = ["disabled"], se = /* @__PURE__ */ $({
+  class: "cody-composer-policy"
+}, me = /* @__PURE__ */ w({
   __name: "CodyComposer",
   props: {
     draft: {},
     disabled: { type: Boolean },
     isRunning: { type: Boolean },
     placeholder: { default: "输入消息…" },
-    modeLabel: {},
-    modelLabel: {},
-    reasoningLabel: {},
-    permissionLabel: {}
+    collaborationModes: { default: () => [] },
+    selectedCollaborationMode: { default: "" },
+    submitModes: { default: () => [] },
+    selectedSubmitMode: { default: "" },
+    models: { default: () => [] },
+    selectedModel: { default: "" },
+    reasoningOptions: { default: () => [] },
+    selectedReasoning: { default: "" },
+    permissionOptions: { default: () => [] },
+    selectedPermission: { default: "" },
+    skills: { default: () => [] },
+    selectedSkills: { default: () => [] }
   },
-  emits: ["update:draft", "send", "stop"],
-  setup(t, { emit: r }) {
-    const u = r;
-    return (m, d) => (s(), o("form", {
+  emits: ["update:draft", "update:collaboration-mode", "update:submit-mode", "update:model", "update:reasoning", "update:permission", "update:selected-skills", "send", "stop"],
+  setup(e, { emit: k }) {
+    const g = w({
+      name: "CodyComposerSelect",
+      props: { label: { type: String, required: !0 }, modelValue: { type: String, required: !0 }, options: { type: Array, required: !0 }, disabled: Boolean },
+      emits: ["update:modelValue"],
+      setup(a, { emit: l }) {
+        return () => C("label", { class: "cody-composer-compact-control", title: a.label }, [
+          C("select", { value: a.modelValue, disabled: a.disabled, "aria-label": a.label, onChange: (s) => l("update:modelValue", s.target.value) }, a.options.map((s) => C("option", { value: s.value }, s.label)))
+        ]);
+      }
+    }), u = e, i = k, c = M(() => u.skills.filter((a) => !u.selectedSkills.includes(a.value))), p = M(() => {
+      var a;
+      return ((a = u.permissionOptions.find((l) => l.value === u.selectedPermission)) == null ? void 0 : a.description) ?? "";
+    }), t = M(() => u.isRunning && u.selectedSubmitMode === "guide" ? "发送引导" : u.isRunning ? "加入队列" : "发送");
+    function $(a, l) {
+      var s;
+      return ((s = a.find((R) => R.value === l)) == null ? void 0 : s.label) ?? l;
+    }
+    function h(a) {
+      a && !u.selectedSkills.includes(a) && i("update:selected-skills", [...u.selectedSkills, a]);
+    }
+    function m(a) {
+      i("update:selected-skills", u.selectedSkills.filter((l) => l !== a));
+    }
+    return (a, l) => (o(), d("form", {
       class: "cody-composer",
       "data-cody-component": "composer-surface",
-      onSubmit: d[3] || (d[3] = v((n) => u("send"), ["prevent"]))
+      onSubmit: l[9] || (l[9] = x((s) => i("send"), ["prevent"]))
     }, [
-      a("div", O, [
-        a("textarea", {
-          value: t.draft,
+      n("div", Z, [
+        e.selectedSkills.length ? (o(), d("div", _, [
+          (o(!0), d(y, null, f(e.selectedSkills, (s) => (o(), d("span", {
+            key: s,
+            class: "cody-composer-chip"
+          }, [
+            O(" $" + r($(e.skills, s)) + " ", 1),
+            n("button", {
+              type: "button",
+              disabled: e.disabled,
+              "aria-label": `移除 Skill ${$(e.skills, s)}`,
+              onClick: (R) => m(s)
+            }, "×", 8, ee)
+          ]))), 128))
+        ])) : b("", !0),
+        n("textarea", {
+          value: e.draft,
           rows: "1",
-          disabled: t.disabled,
-          placeholder: t.placeholder,
-          onInput: d[0] || (d[0] = (n) => u("update:draft", n.target.value)),
-          onKeydown: d[1] || (d[1] = C(v((n) => u("send"), ["exact", "prevent"]), ["enter"]))
-        }, null, 40, W),
-        a("div", G, [
-          k(m.$slots, "leading"),
-          t.modeLabel ? (s(), o("span", J, l(t.modeLabel), 1)) : c("", !0),
-          t.modelLabel ? (s(), o("span", P, l(t.modelLabel), 1)) : c("", !0),
-          t.reasoningLabel ? (s(), o("span", Q, l(t.reasoningLabel), 1)) : c("", !0),
-          t.permissionLabel ? (s(), o("span", U, l(t.permissionLabel), 1)) : c("", !0),
-          k(m.$slots, "controls"),
-          t.isRunning ? (s(), o("button", {
-            key: 4,
-            class: "cody-composer-stop",
-            type: "button",
-            disabled: t.disabled,
-            onClick: d[2] || (d[2] = (n) => u("stop"))
-          }, "停止", 8, X)) : (s(), o("button", {
-            key: 5,
-            class: "cody-composer-send",
-            type: "submit",
-            disabled: t.disabled || !t.draft.trim(),
-            "aria-label": "发送"
-          }, "↑", 8, Y))
-        ])
+          disabled: e.disabled,
+          placeholder: e.placeholder,
+          onInput: l[0] || (l[0] = (s) => i("update:draft", s.target.value)),
+          onKeydown: l[1] || (l[1] = L(x((s) => i("send"), ["exact", "prevent"]), ["enter"]))
+        }, null, 40, le),
+        n("div", se, [
+          S(a.$slots, "leading"),
+          e.skills.length ? (o(), d("label", te, [
+            l[11] || (l[11] = n("span", {
+              class: "cody-composer-icon",
+              "aria-hidden": "true"
+            }, "✦", -1)),
+            n("select", {
+              value: "",
+              disabled: e.disabled,
+              "aria-label": "添加 Skill",
+              onChange: l[2] || (l[2] = (s) => h(s.target.value))
+            }, [
+              l[10] || (l[10] = n("option", { value: "" }, "Skills", -1)),
+              (o(!0), d(y, null, f(c.value, (s) => (o(), d("option", {
+                key: s.value,
+                value: s.value
+              }, "$" + r(s.label), 9, de))), 128))
+            ], 40, oe)
+          ])) : b("", !0),
+          e.collaborationModes.length ? (o(), B(v(g), {
+            key: 1,
+            label: "协作模式",
+            "model-value": e.selectedCollaborationMode,
+            options: e.collaborationModes,
+            disabled: e.disabled || e.isRunning,
+            "onUpdate:modelValue": l[3] || (l[3] = (s) => i("update:collaboration-mode", s))
+          }, null, 8, ["model-value", "options", "disabled"])) : b("", !0),
+          V(v(g), {
+            label: "提交策略",
+            "model-value": e.selectedSubmitMode,
+            options: e.submitModes,
+            disabled: e.disabled,
+            "onUpdate:modelValue": l[4] || (l[4] = (s) => i("update:submit-mode", s))
+          }, null, 8, ["model-value", "options", "disabled"]),
+          e.models.length ? (o(), B(v(g), {
+            key: 2,
+            label: "模型",
+            "model-value": e.selectedModel,
+            options: e.models,
+            disabled: e.disabled || e.isRunning,
+            "onUpdate:modelValue": l[5] || (l[5] = (s) => i("update:model", s))
+          }, null, 8, ["model-value", "options", "disabled"])) : b("", !0),
+          V(v(g), {
+            label: "推理强度",
+            "model-value": e.selectedReasoning,
+            options: e.reasoningOptions,
+            disabled: e.disabled || e.isRunning,
+            "onUpdate:modelValue": l[6] || (l[6] = (s) => i("update:reasoning", s))
+          }, null, 8, ["model-value", "options", "disabled"]),
+          V(v(g), {
+            label: "权限",
+            "model-value": e.selectedPermission,
+            options: e.permissionOptions,
+            disabled: e.disabled || e.isRunning,
+            "onUpdate:modelValue": l[7] || (l[7] = (s) => i("update:permission", s))
+          }, null, 8, ["model-value", "options", "disabled"]),
+          S(a.$slots, "controls"),
+          n("div", ae, [
+            e.isRunning ? (o(), d("button", {
+              key: 0,
+              class: "cody-composer-stop",
+              type: "button",
+              disabled: e.disabled,
+              onClick: l[8] || (l[8] = (s) => i("stop"))
+            }, "停止", 8, ne)) : b("", !0),
+            n("button", {
+              class: "cody-composer-send",
+              type: "submit",
+              disabled: e.disabled || !e.draft.trim(),
+              "aria-label": t.value
+            }, "↑", 8, ie)
+          ])
+        ]),
+        p.value ? (o(), d("p", ue, r(p.value), 1)) : b("", !0)
       ])
     ], 32));
   }
 });
 export {
-  se as CodyComposer,
-  ee as CodyConversation,
-  w as renderCodyMarkdown
+  me as CodyComposer,
+  re as CodyConversation,
+  U as renderCodyMarkdown
 };

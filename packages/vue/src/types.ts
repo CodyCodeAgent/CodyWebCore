@@ -1,5 +1,12 @@
 export type CodyMessageRole = 'user' | 'assistant' | 'system'
 
+/** A product supplies these choices; the shared component owns interaction and presentation. */
+export type CodyComposerOption = {
+  value: string
+  label: string
+  description?: string
+}
+
 export type CodyTool = {
   kind: string
   title: string
