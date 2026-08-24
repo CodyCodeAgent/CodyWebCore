@@ -1,20 +1,22 @@
 {
   "name": "@codycodeagent/cody-web-core",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "Shared Codex protocol, runtime, and conversation primitives for CodyWeb products",
   "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@11.7.0",
-  "files": ["packages/core/dist", "README.md", "LICENSE"],
+  "files": ["packages/core/dist", "packages/vue/dist", "packages/vue/src/style.css", "README.md", "LICENSE"],
   "exports": {
     "./protocol": { "types": "./packages/core/dist/protocol/index.d.ts", "import": "./packages/core/dist/protocol/index.js" },
     "./runtime": { "types": "./packages/core/dist/runtime/index.d.ts", "import": "./packages/core/dist/runtime/index.js" },
-    "./conversation": { "types": "./packages/core/dist/conversation/index.d.ts", "import": "./packages/core/dist/conversation/index.js" }
+    "./conversation": { "types": "./packages/core/dist/conversation/index.d.ts", "import": "./packages/core/dist/conversation/index.js" },
+    "./vue": { "types": "./packages/vue/dist/index.d.ts", "import": "./packages/vue/dist/index.js" },
+    "./vue/style.css": "./packages/vue/src/style.css"
   },
   "workspaces": ["packages/*"],
   "scripts": {
-    "build": "pnpm --filter @codycodeagent/cody-web-core build",
+    "build": "pnpm --filter @codycodeagent/cody-web-core build && pnpm --filter @codycodeagent/cody-web-ui build",
     "test": "pnpm --filter @codycodeagent/cody-web-core test",
-    "typecheck": "pnpm --filter @codycodeagent/cody-web-core typecheck"
+    "typecheck": "pnpm --filter @codycodeagent/cody-web-core typecheck && pnpm --filter @codycodeagent/cody-web-ui typecheck"
   }
 }
