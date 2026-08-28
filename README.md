@@ -20,6 +20,7 @@ Framework-neutral Codex App Server primitives shared by CodyWebUI and CodyWork.
 
 | Core | Codex App Server boundary | Product migration |
 | --- | --- | --- |
+| 0.6.1 | Same 0.6.0 runtime/protocol contract; fixes terminal-event conversation authority | Products should upgrade together so failed historical diagnostics cannot leave the composer in a false running state |
 | 0.6.0 | Same Codex 0.148.x wire schema as 0.5.1; adds Core-only runtime failure diagnostics (no generated protocol change) | Products may adopt `failureReport()` incrementally; existing host calls remain unchanged |
 | 0.5.1 | Codex 0.148.x generated schema; current `permissions` profiles and `runtimeWorkspaceRoots`; unknown notifications are retained as `provider.extension` | CodyWebUI and CodyWork use the same runtime, protocol readers and conversation rules |
 | 0.5.0 | Earlier generated schema with legacy `readOnlyAccess` compatibility | Superseded; products must upgrade together |

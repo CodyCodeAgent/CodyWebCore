@@ -365,7 +365,9 @@ function updateTurn(state: ConversationState, event: CodexEvent, lifecycle: Turn
   const retryMessage = lifecycle === 'retrying' ? eventText(event.data, 'Reconnecting…') : undefined
   return {
     ...state,
-    activeTurnId: terminal && state.activeTurnId === turnId ? '' : turnId,
+    activeTurnId: terminal
+      ? (state.activeTurnId === turnId ? '' : state.activeTurnId)
+      : turnId,
     turns: {
       ...state.turns,
       [turnId]: {

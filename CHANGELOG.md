@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.1
+
+- Fixed the conversation reducer so terminal-only diagnostic events never become the active turn.
+- Preserved a newer active turn when a late terminal event arrives for an older turn.
+
 ## 0.6.0
 
 - Added immutable, JSON-serializable runtime failure reports for initialization/RPC timeouts, process exits, stdin failures and malformed stdout.
