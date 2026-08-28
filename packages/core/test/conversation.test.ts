@@ -46,4 +46,30 @@ describe('conversation core', () => {
     expect(state.turns['turn-1']).toMatchObject({ lifecycle: 'completed' })
     expect(state.activeTurnId).toBe('')
   })
+
+  it('never promotes a terminal-only diagnostic turn to active', () => {
+    const state = reduceConversationEvents(createConversationState('thread-1'), [{
+      id: 'local-failure',
+      type: 'turn.failed',
+      threadId: 'thread-1',
+      turnId: 'local-turn',
+      atIso: '2026-01-01T00:00:00.000Z',
+      data: { error: 'runtime disconnected' },
+    }])
+
+    expect(state.turns['local-turn']).toMatchObject({ lifecycle: 'failed' })
+    expect(state.activeTurnId).toBe('')
+  })
+
+  it('does not clear a newer active turn when an older turn finishes late', () => {
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { id: 'old-start', type: 'turn.started', threadId: 'thread-1', turnId: 'old-turn', atIso: '2026-01-01T00:00:00.000Z', data: {} },
+      { id: 'new-start', type: 'turn.started', threadId: 'thread-1', turnId: 'new-turn', atIso: '2026-01-01T00:00:01.000Z', data: {} },
+      { id: 'old-done', type: 'turn.completed', threadId: 'thread-1', turnId: 'old-turn', atIso: '2026-01-01T00:00:02.000Z', data: {} },
+    ])
+
+    expect(state.activeTurnId).toBe('new-turn')
+    expect(state.turns['old-turn']).toMatchObject({ lifecycle: 'completed' })
+    expect(state.turns['new-turn']).toMatchObject({ lifecycle: 'running' })
+  })
 })
