@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AppServerDiagnostics, AppServerHost, RuntimeNotification, RuntimeNotificationListener, ServerRequestReply } from '../src/runtime/index.js'
 import { CodexSessionManager, normalizeThreadHistory } from '../src/session/index.js'
 import { createConversationState, reduceConversationEvents, type CodexEvent } from '../src/conversation/index.js'
@@ -25,6 +25,7 @@ class FakeHost implements AppServerHost {
   diagnostics(): AppServerDiagnostics {
     return { status: 'running', initialized: true, pid: 1, startedAtIso: '', exitedAtIso: null, exitCode: null, exitSignal: null, pendingClientRequestCount: 0, pendingServerRequestCount: 0, sentClientRequestCount: 0, completedClientRequestCount: 0, failedClientRequestCount: 0, notificationCount: 0, serverRequestCount: 0, notificationCountsByMethod: {}, recentLogs: [] }
   }
+  failureReport() { return null }
   async dispose(): Promise<void> {}
   emit(method: string, params: unknown): void {
     const value: RuntimeNotification = { method, params, receivedAtIso: '2026-01-01T00:00:00.000Z' }
@@ -33,6 +34,8 @@ class FakeHost implements AppServerHost {
 }
 
 const context = { thread: { cwd: '/repo', experimentalRawEvents: false } }
+
+afterEach(() => { vi.useRealTimers() })
 
 describe('CodexSessionManager', () => {
   it('sends current permission-profile fields without legacy readOnlyAccess', async () => {
@@ -137,6 +140,57 @@ describe('CodexSessionManager', () => {
     expect(settled).toBe(false)
     host.emit('turn/completed', { threadId: 'thread-1', turn: { id: second.turnId, status: 'completed' } })
     await expect(manager.waitForTurn(second)).resolves.toMatchObject({ type: 'turn.completed' })
+    await manager.dispose()
+  })
+
+  it('keeps a long turn alive while events continue to make progress', async () => {
+    vi.useFakeTimers()
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host, turnInactivityTimeoutMs: 1_000 })
+    await manager.create('conversation-1', context)
+    const events: CodexEvent[] = []
+    manager.subscribe((event) => events.push(event))
+    const handle = await manager.send('conversation-1', { input: [{ type: 'text', text: 'long task', text_elements: [] }] })
+    const terminal = manager.waitForTurn(handle)
+
+    for (let minute = 0; minute < 12; minute += 1) {
+      await vi.advanceTimersByTimeAsync(900)
+      host.emit('item/reasoning/textDelta', { threadId: 'thread-1', turnId: handle.turnId, delta: `progress-${String(minute)}` })
+    }
+    expect(events.some((event) => event.type === 'turn.failed')).toBe(false)
+
+    host.emit('turn/completed', { threadId: 'thread-1', turn: { id: handle.turnId, status: 'completed' } })
+    await expect(terminal).resolves.toMatchObject({ type: 'turn.completed' })
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(events.filter((event) => event.type === 'turn.completed')).toHaveLength(1)
+    expect(events.filter((event) => event.type === 'turn.failed')).toHaveLength(0)
+    await manager.dispose()
+  })
+
+  it('emits one authoritative terminal failure after true turn inactivity', async () => {
+    vi.useFakeTimers()
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host, turnInactivityTimeoutMs: 1_000 })
+    await manager.create('conversation-1', context)
+    const events: CodexEvent[] = []
+    manager.subscribe((event) => events.push(event))
+    const handle = await manager.send('conversation-1', { input: [{ type: 'text', text: 'silent task', text_elements: [] }] })
+    const terminal = manager.waitForTurn(handle)
+
+    await vi.advanceTimersByTimeAsync(1_001)
+    await expect(terminal).resolves.toMatchObject({
+      type: 'turn.failed',
+      data: expect.objectContaining({ cause: 'inactivity_timeout', error: expect.stringContaining('had no progress') }),
+    })
+    expect(host.calls.filter((call) => call.method === 'turn/interrupt')).toEqual([
+      { method: 'turn/interrupt', params: handle },
+    ])
+    expect(await manager.interrupt('conversation-1')).toBe(false)
+
+    host.emit('turn/completed', { threadId: 'thread-1', turn: { id: handle.turnId, status: 'completed' } })
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(events.filter((event) => event.type === 'turn.failed' || event.type === 'turn.completed')).toHaveLength(1)
+    expect(events.filter((event) => event.type === 'turn.failed')).toHaveLength(1)
     await manager.dispose()
   })
 })

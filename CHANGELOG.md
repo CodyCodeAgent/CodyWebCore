@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0
+
+- Added immutable, JSON-serializable runtime failure reports for initialization/RPC timeouts, process exits, stdin failures and malformed stdout.
+- Added redacted, bounded logs, safe pending-request timing summaries, process/counter snapshots and conservative remediation hints.
+- Added start/deadline/duration tracking for pending client RPCs without exposing request parameters or environment values.
+- Replaced process-timing-dependent runtime tests with a deterministic fake App Server covering initialization deduplication and failure modes.
+- Replaced the session manager's fixed wall-clock turn timeout with an inactivity watchdog that resets on progress, emits one normalized terminal failure after genuine silence and ignores late duplicate terminal notifications.
+- Added a shared Vue approval-card interaction contract test so product adapters cannot render approval controls without wiring their decision callback.
+
 ## 0.5.1
 
 - Regenerated TypeScript and JSON protocol snapshots from Codex App Server 0.148.x.
