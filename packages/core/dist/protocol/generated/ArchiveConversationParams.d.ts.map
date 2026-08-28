@@ -1,0 +1,1 @@
+{"version":3,"file":"ArchiveConversationParams.d.ts","sourceRoot":"","sources":["../../../src/protocol/generated/ArchiveConversationParams.ts"],"names":[],"mappings":"AAGA,OAAO,KAAK,EAAE,QAAQ,EAAE,MAAM,YAAY,CAAC;AAE3C,MAAM,MAAM,yBAAyB,GAAG;IAAE,cAAc,EAAE,QAAQ,CAAC;IAAC,WAAW,EAAE,MAAM,CAAC;CAAE,CAAC"}

@@ -1,0 +1,1 @@
+{"version":3,"file":"SendUserMessageParams.d.ts","sourceRoot":"","sources":["../../../src/protocol/generated/SendUserMessageParams.ts"],"names":[],"mappings":"AAGA,OAAO,KAAK,EAAE,SAAS,EAAE,MAAM,aAAa,CAAC;AAC7C,OAAO,KAAK,EAAE,QAAQ,EAAE,MAAM,YAAY,CAAC;AAE3C,MAAM,MAAM,qBAAqB,GAAG;IAAE,cAAc,EAAE,QAAQ,CAAC;IAAC,KAAK,EAAE,KAAK,CAAC,SAAS,CAAC,CAAC;CAAE,CAAC"}

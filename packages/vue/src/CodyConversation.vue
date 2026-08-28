@@ -19,7 +19,16 @@
         <p>{{ entry.tool.summary }}</p><ul v-if="entry.tool.details.length"><li v-for="detail in entry.tool.details" :key="detail">{{ detail }}</li></ul>
         <pre v-if="entry.tool.output">{{ previewOutput(entry.tool.output) }}</pre>
       </details>
-      <details v-else class="cody-reasoning-card"><summary>✦ {{ entry.title || '推理过程' }}</summary><pre>{{ entry.text }}</pre></details>
+      <details v-else-if="entry.kind === 'reasoning'" class="cody-reasoning-card"><summary>✦ {{ entry.title || '推理过程' }}</summary><pre>{{ entry.text }}</pre></details>
+      <details v-else-if="entry.kind === 'plan'" class="cody-plan-card" open><summary>计划</summary><CodyMarkdown :text="entry.text" @open-file="emit('openFile', $event)" /></details>
+      <article v-else-if="entry.kind === 'request'" class="cody-request-card" :data-kind="entry.request.kind">
+        <div><strong>{{ entry.request.kind === 'approval' ? '需要你的确认' : 'Codex 需要补充信息' }}</strong><small>Agent 已暂停等待</small></div>
+        <p>{{ requestSummary(entry.request.params) }}</p>
+        <slot name="request" :request="entry.request">
+          <div v-if="entry.request.kind === 'approval'" class="cody-request-actions"><button type="button" @click="emit('resolveApproval', entry.request.id, 'accept')">允许一次</button><button type="button" data-tone="danger" @click="emit('resolveApproval', entry.request.id, 'decline')">拒绝</button></div>
+        </slot>
+      </article>
+      <details v-else-if="entry.kind === 'failure'" class="cody-failure-card"><summary>本次回复失败</summary><p>{{ entry.text }}</p></details>
     </template>
   </section>
 </template>
@@ -31,7 +40,11 @@ import CodyMarkdown from './CodyMarkdown.vue'
 withDefaults(defineProps<{ entries: CodyConversationEntry[]; loading?: boolean; variant?: 'standalone' | 'embedded' }>(), {
   variant: 'standalone',
 })
-const emit = defineEmits<{ copy: [text: string]; openFile: [{ path: string; line: number }] }>()
+const emit = defineEmits<{
+  copy: [text: string]
+  openFile: [{ path: string; line: number }]
+  resolveApproval: [requestId: string, decision: 'accept' | 'decline']
+}>()
 
 function toolTone(status: string): 'neutral' | 'running' | 'success' | 'danger' {
   if (/fail|error|cancel|reject/iu.test(status)) return 'danger'
@@ -41,4 +54,17 @@ function toolTone(status: string): 'neutral' | 'running' | 'success' | 'danger' 
 }
 
 function previewOutput(value: string): string { return value.length > 12_000 ? `${value.slice(0, 12_000)}\n…输出已截断` : value }
+function requestSummary(value: unknown): string {
+  if (!value || typeof value !== 'object') return 'Codex 请求执行一项受保护操作。'
+  const row = value as Record<string, unknown>
+  const direct = row.reason ?? row.question ?? row.command
+  if (typeof direct === 'string' && direct.trim()) return direct
+  const questions = Array.isArray(row.questions) ? row.questions : []
+  const first = questions[0]
+  if (first && typeof first === 'object') {
+    const question = (first as Record<string, unknown>).question ?? (first as Record<string, unknown>).detail
+    if (typeof question === 'string' && question.trim()) return question
+  }
+  return 'Codex 请求执行一项受保护操作。'
+}
 </script>

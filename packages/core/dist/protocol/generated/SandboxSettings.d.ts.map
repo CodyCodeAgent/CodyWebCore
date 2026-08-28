@@ -1,0 +1,1 @@
+{"version":3,"file":"SandboxSettings.d.ts","sourceRoot":"","sources":["../../../src/protocol/generated/SandboxSettings.ts"],"names":[],"mappings":"AAGA,OAAO,KAAK,EAAE,eAAe,EAAE,MAAM,mBAAmB,CAAC;AAEzD,MAAM,MAAM,eAAe,GAAG;IAAE,aAAa,EAAE,KAAK,CAAC,eAAe,CAAC,CAAC;IAAC,aAAa,EAAE,OAAO,GAAG,IAAI,CAAC;IAAC,mBAAmB,EAAE,OAAO,GAAG,IAAI,CAAC;IAAC,eAAe,EAAE,OAAO,GAAG,IAAI,CAAC;CAAE,CAAC"}

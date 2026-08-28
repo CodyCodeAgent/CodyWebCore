@@ -1,3 +1,4 @@
+export * from './methods.js';
 export const READ_RECOVERY_METHODS = new Set(['thread/read', 'thread/loaded/list']);
 export function asRecord(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -5,7 +6,32 @@ export function asRecord(value) {
         : null;
 }
 export function readString(value) {
-    return typeof value === 'string' ? value.trim() : '';
+    return typeof value === 'string' ? value : '';
+}
+export function readNumber(value) {
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+export function readIsoTimestampMs(value) {
+    if (typeof value === 'number' && Number.isFinite(value))
+        return value < 10_000_000_000 ? value * 1000 : value;
+    if (typeof value !== 'string' || value.length === 0)
+        return null;
+    const milliseconds = new Date(value).getTime();
+    return Number.isNaN(milliseconds) ? null : milliseconds;
+}
+export function readIsoTimestampString(value) {
+    if (typeof value === 'string')
+        return value;
+    const milliseconds = readIsoTimestampMs(value);
+    return milliseconds === null ? '' : new Date(milliseconds).toISOString();
+}
+export function toRawPayload(value) {
+    try {
+        return JSON.stringify(value, null, 2);
+    }
+    catch {
+        return String(value);
+    }
 }
 export function readNestedString(value, paths) {
     for (const path of paths) {
@@ -18,7 +44,7 @@ export function readNestedString(value, paths) {
             }
             cursor = record[key];
         }
-        const text = readString(cursor);
+        const text = readString(cursor).trim();
         if (text)
             return text;
     }

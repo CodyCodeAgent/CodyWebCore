@@ -21,12 +21,18 @@ export type AppServerDiagnostics = {
   status: 'running' | 'stopped'
   initialized: boolean
   pid: number | null
+  startedAtIso: string | null
+  exitedAtIso: string | null
+  exitCode: number | null
+  exitSignal: string | null
   pendingClientRequestCount: number
   pendingServerRequestCount: number
   sentClientRequestCount: number
   completedClientRequestCount: number
   failedClientRequestCount: number
   notificationCount: number
+  serverRequestCount: number
+  notificationCountsByMethod: Record<string, number>
   recentLogs: AppServerLog[]
 }
 
@@ -83,6 +89,12 @@ export function createAppServerHost(options: AppServerHostOptions = {}): AppServ
   let completed = 0
   let failed = 0
   let notifications = 0
+  let serverRequests = 0
+  let startedAtIso: string | null = null
+  let exitedAtIso: string | null = null
+  let exitCode: number | null = null
+  let exitSignal: string | null = null
+  const notificationCountsByMethod = new Map<string, number>()
 
   const pushLog = (level: AppServerLog['level'], source: AppServerLog['source'], raw: string): void => {
     const message = raw.replace(/\s+/gu, ' ').trim()
@@ -93,6 +105,7 @@ export function createAppServerHost(options: AppServerHostOptions = {}): AppServ
 
   const emit = (method: string, params: unknown): void => {
     notifications += 1
+    notificationCountsByMethod.set(method, (notificationCountsByMethod.get(method) ?? 0) + 1)
     const notification = { method, params, receivedAtIso: new Date().toISOString() }
     for (const listener of listeners) listener(notification)
   }
@@ -116,10 +129,12 @@ export function createAppServerHost(options: AppServerHostOptions = {}): AppServ
     if (isNotification(message)) { emit(message.method, message.params ?? null); return }
     if (isServerRequest(message)) {
       const request: ServerRequest = { id: message.id, method: message.method, params: message.params ?? null, receivedAtIso: new Date().toISOString() }
+      serverRequests += 1
+      pendingServerRequests.set(request.id, request)
       void Promise.resolve(options.onServerRequest?.(request)).then(async (reply) => {
         if (reply) await resolveServerRequest(request.id, reply)
-        else { pendingServerRequests.set(request.id, request); emit('server/request', request) }
-      }).catch((error) => { pushLog('error', 'bridge', error instanceof Error ? error.message : String(error)); pendingServerRequests.set(request.id, request); emit('server/request', request) })
+        else emit('server/request', request)
+      }).catch((error) => { pushLog('error', 'bridge', error instanceof Error ? error.message : String(error)); emit('server/request', request) })
     }
   }
 
@@ -130,6 +145,10 @@ export function createAppServerHost(options: AppServerHostOptions = {}): AppServ
     stopping = false
     process = spawnAppServer(command, args, { cwd: options.cwd, env: { ...globalThis.process.env, ...options.env }, stdio: ['pipe', 'pipe', 'pipe'] })
     const child = process
+    startedAtIso = new Date().toISOString()
+    exitedAtIso = null
+    exitCode = null
+    exitSignal = null
     pushLog('info', 'bridge', `App Server started${child.pid ? ` (pid ${String(child.pid)})` : ''}.`)
     child.stdout.setEncoding('utf8')
     child.stdout.on('data', (chunk: string) => {
@@ -143,14 +162,22 @@ export function createAppServerHost(options: AppServerHostOptions = {}): AppServ
     })
     child.stderr.setEncoding('utf8')
     child.stderr.on('data', (chunk: string) => chunk.split(/\r?\n/u).forEach((line) => pushLog('warning', 'stderr', line)))
+    child.stdin.on('error', (error) => pushLog('error', 'bridge', `stdin: ${error.message}`))
     child.on('error', (error) => pushLog('error', 'bridge', error.message))
     child.on('exit', (code, signal) => {
       const reason = new Error(stopping ? 'Codex App Server stopped' : `Codex App Server exited (${String(code ?? signal ?? 'unknown')})`)
       rejectPending(reason)
+      exitedAtIso = new Date().toISOString()
+      exitCode = typeof code === 'number' ? code : null
+      exitSignal = signal ?? null
+      if (!stopping) {
+        for (const request of pendingServerRequests.values()) emit('server/request/expired', { ...request, error: reason.message })
+        emit('runtime/disconnected', { error: reason.message })
+      }
       pendingServerRequests.clear()
       process = null; initialized = false; initializePromise = null; buffer = ''
       pushLog(stopping ? 'info' : 'error', 'bridge', reason.message)
-      options.onDisconnected?.(reason)
+      if (!stopping) options.onDisconnected?.(reason)
     })
   }
 
@@ -200,10 +227,15 @@ export function createAppServerHost(options: AppServerHostOptions = {}): AppServ
     if (initializePromise) return initializePromise
     initializePromise = (async () => {
       if (Date.now() < restartAt) await new Promise<void>((resolve) => setTimeout(resolve, restartAt - Date.now()))
-      await call('initialize', options.initializeParams ?? {
-        clientInfo: { name: 'cody-web-core', title: 'Cody Web Core', version: '0.1.0' },
-        capabilities: { experimentalApi: true, requestAttestation: false },
-      })
+      try {
+        await call('initialize', options.initializeParams ?? {
+          clientInfo: { name: 'cody-web-core', title: 'Cody Web Core', version: '0.5.0' },
+          capabilities: { experimentalApi: true, requestAttestation: false },
+        })
+      } catch (error) {
+        if (!(error instanceof Error) || !/already initialized/iu.test(error.message)) throw error
+        pushLog('warning', 'bridge', 'App Server was already initialized; reusing the current process.')
+      }
       initialized = true
     })().finally(() => { initializePromise = null })
     return initializePromise
@@ -227,7 +259,14 @@ export function createAppServerHost(options: AppServerHostOptions = {}): AppServ
     listPendingRequests() { return [...pendingServerRequests.values()] },
     resolveServerRequest,
     diagnostics() {
-      return { status: process ? 'running' : 'stopped', initialized, pid: process?.pid ?? null, pendingClientRequestCount: pending.size, pendingServerRequestCount: pendingServerRequests.size, sentClientRequestCount: sent, completedClientRequestCount: completed, failedClientRequestCount: failed, notificationCount: notifications, recentLogs: [...logs] }
+      return {
+        status: process ? 'running' : 'stopped', initialized, pid: process?.pid ?? null,
+        startedAtIso, exitedAtIso, exitCode, exitSignal,
+        pendingClientRequestCount: pending.size, pendingServerRequestCount: pendingServerRequests.size,
+        sentClientRequestCount: sent, completedClientRequestCount: completed, failedClientRequestCount: failed,
+        notificationCount: notifications, serverRequestCount: serverRequests,
+        notificationCountsByMethod: Object.fromEntries(notificationCountsByMethod), recentLogs: [...logs],
+      }
     },
     dispose,
   }

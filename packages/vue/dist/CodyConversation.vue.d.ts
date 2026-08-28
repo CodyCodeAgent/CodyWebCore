@@ -5,12 +5,16 @@ type __VLS_Props = {
     variant?: 'standalone' | 'embedded';
 };
 declare var __VLS_1: {}, __VLS_3: {
-    message: import("./types.js", { with: { "resolution-mode": "import" } }).CodyMessage;
+    message: import("@codycodeagent/cody-web-core/conversation", { with: { "resolution-mode": "import" } }).ConversationMessage;
+}, __VLS_19: {
+    request: import("@codycodeagent/cody-web-core/conversation", { with: { "resolution-mode": "import" } }).ConversationRequest;
 };
 type __VLS_Slots = {} & {
     empty?: (props: typeof __VLS_1) => any;
 } & {
     markdown?: (props: typeof __VLS_3) => any;
+} & {
+    request?: (props: typeof __VLS_19) => any;
 };
 declare const __VLS_component: import("vue").DefineComponent<__VLS_Props, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {
     openFile: (args_0: {
@@ -18,12 +22,14 @@ declare const __VLS_component: import("vue").DefineComponent<__VLS_Props, {}, {}
         line: number;
     }) => any;
     copy: (text: string) => any;
+    resolveApproval: (requestId: string, decision: "accept" | "decline") => any;
 }, string, import("vue").PublicProps, Readonly<__VLS_Props> & Readonly<{
     onOpenFile?: ((args_0: {
         path: string;
         line: number;
     }) => any) | undefined;
     onCopy?: ((text: string) => any) | undefined;
+    onResolveApproval?: ((requestId: string, decision: "accept" | "decline") => any) | undefined;
 }>, {
     variant: "standalone" | "embedded";
 }, {}, {}, {}, string, import("vue").ComponentProvideOptions, false, {}, any>;

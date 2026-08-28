@@ -1,0 +1,1 @@
+{"version":3,"file":"CommandExecutionApprovalDecision.d.ts","sourceRoot":"","sources":["../../../../src/protocol/generated/v2/CommandExecutionApprovalDecision.ts"],"names":[],"mappings":"AAGA,OAAO,KAAK,EAAE,mBAAmB,EAAE,MAAM,uBAAuB,CAAC;AAEjE,MAAM,MAAM,gCAAgC,GAAG,QAAQ,GAAG,kBAAkB,GAAG;IAAE,+BAA+B,EAAE;QAAE,oBAAoB,EAAE,mBAAmB,CAAC;KAAE,CAAA;CAAE,GAAG,SAAS,GAAG,QAAQ,CAAC"}

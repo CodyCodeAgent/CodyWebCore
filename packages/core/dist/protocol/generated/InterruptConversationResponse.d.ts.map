@@ -1,0 +1,1 @@
+{"version":3,"file":"InterruptConversationResponse.d.ts","sourceRoot":"","sources":["../../../src/protocol/generated/InterruptConversationResponse.ts"],"names":[],"mappings":"AAGA,OAAO,KAAK,EAAE,eAAe,EAAE,MAAM,mBAAmB,CAAC;AAEzD,MAAM,MAAM,6BAA6B,GAAG;IAAE,WAAW,EAAE,eAAe,CAAC;CAAE,CAAC"}

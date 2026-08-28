@@ -1,0 +1,1 @@
+{"version":3,"file":"AddConversationListenerParams.d.ts","sourceRoot":"","sources":["../../../src/protocol/generated/AddConversationListenerParams.ts"],"names":[],"mappings":"AAGA,OAAO,KAAK,EAAE,QAAQ,EAAE,MAAM,YAAY,CAAC;AAE3C,MAAM,MAAM,6BAA6B,GAAG;IAAE,cAAc,EAAE,QAAQ,CAAC;IAAC,qBAAqB,EAAE,OAAO,CAAC;CAAE,CAAC"}

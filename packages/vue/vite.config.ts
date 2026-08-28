@@ -4,6 +4,11 @@ import { resolve } from 'node:path'
 
 export default defineConfig({
   plugins: [vue()],
+  resolve: {
+    alias: {
+      '@codycodeagent/cody-web-core/conversation': resolve(import.meta.dirname, '../core/dist/conversation/index.js'),
+    },
+  },
   build: {
     lib: {
       entry: resolve(import.meta.dirname, 'src/index.ts'),

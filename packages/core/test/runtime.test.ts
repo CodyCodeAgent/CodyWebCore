@@ -26,4 +26,27 @@ describe('AppServerHost', () => {
     await expect(pending).resolves.toEqual(expect.objectContaining({ approved: true }))
     await expect(host.call('exit')).rejects.toThrow('exited')
   })
+
+  it('can resolve a server request synchronously from the policy callback', async () => {
+    const host = createAppServerHost({
+      command,
+      onServerRequest: () => ({ result: { decision: 'decline' } }),
+    })
+    await host.ensureInitialized()
+    await expect(host.call<{ approved: boolean; reply: unknown }>('ask')).resolves.toEqual({
+      approved: true,
+      reply: { decision: 'decline' },
+    })
+    expect(host.listPendingRequests()).toEqual([])
+    await host.dispose()
+  })
+
+  it('does not report an intentional dispose as a disconnect', async () => {
+    const disconnected: string[] = []
+    const host = createAppServerHost({ command, onDisconnected: error => disconnected.push(error.message) })
+    await host.ensureInitialized()
+    await host.dispose()
+    expect(disconnected).toEqual([])
+    expect(host.diagnostics()).toEqual(expect.objectContaining({ status: 'stopped', initialized: false }))
+  })
 })

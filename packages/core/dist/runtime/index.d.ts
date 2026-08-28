@@ -23,12 +23,18 @@ export type AppServerDiagnostics = {
     status: 'running' | 'stopped';
     initialized: boolean;
     pid: number | null;
+    startedAtIso: string | null;
+    exitedAtIso: string | null;
+    exitCode: number | null;
+    exitSignal: string | null;
     pendingClientRequestCount: number;
     pendingServerRequestCount: number;
     sentClientRequestCount: number;
     completedClientRequestCount: number;
     failedClientRequestCount: number;
     notificationCount: number;
+    serverRequestCount: number;
+    notificationCountsByMethod: Record<string, number>;
     recentLogs: AppServerLog[];
 };
 export type SpawnAppServer = (command: string, args: string[], options: SpawnOptionsWithoutStdio) => ChildProcessWithoutNullStreams;

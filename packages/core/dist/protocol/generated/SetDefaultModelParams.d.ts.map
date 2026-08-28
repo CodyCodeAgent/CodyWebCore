@@ -1,0 +1,1 @@
+{"version":3,"file":"SetDefaultModelParams.d.ts","sourceRoot":"","sources":["../../../src/protocol/generated/SetDefaultModelParams.ts"],"names":[],"mappings":"AAGA,OAAO,KAAK,EAAE,eAAe,EAAE,MAAM,mBAAmB,CAAC;AAEzD,MAAM,MAAM,qBAAqB,GAAG;IAAE,KAAK,EAAE,MAAM,GAAG,IAAI,CAAC;IAAC,eAAe,EAAE,eAAe,GAAG,IAAI,CAAC;CAAE,CAAC"}

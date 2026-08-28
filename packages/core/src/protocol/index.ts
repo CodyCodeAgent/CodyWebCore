@@ -46,6 +46,18 @@ export type ProtocolMethod =
   | 'model/list'
   | 'skills/list'
 
+export type { ClientRequest } from './generated/ClientRequest.js'
+export type { ServerNotification } from './generated/ServerNotification.js'
+export type { ServerRequest as GeneratedServerRequest } from './generated/ServerRequest.js'
+export type { Thread } from './generated/v2/Thread.js'
+export type { ThreadItem } from './generated/v2/ThreadItem.js'
+export type { Turn } from './generated/v2/Turn.js'
+export type { UserInput } from './generated/v2/UserInput.js'
+export type { ReasoningEffort } from './generated/ReasoningEffort.js'
+export type { CollaborationMode } from './generated/CollaborationMode.js'
+
+export * from './methods.js'
+
 export const READ_RECOVERY_METHODS = new Set(['thread/read', 'thread/loaded/list'])
 
 export function asRecord(value: unknown): JsonRecord | null {
@@ -55,7 +67,28 @@ export function asRecord(value: unknown): JsonRecord | null {
 }
 
 export function readString(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : ''
+  return typeof value === 'string' ? value : ''
+}
+
+export function readNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+export function readIsoTimestampMs(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value < 10_000_000_000 ? value * 1000 : value
+  if (typeof value !== 'string' || value.length === 0) return null
+  const milliseconds = new Date(value).getTime()
+  return Number.isNaN(milliseconds) ? null : milliseconds
+}
+
+export function readIsoTimestampString(value: unknown): string {
+  if (typeof value === 'string') return value
+  const milliseconds = readIsoTimestampMs(value)
+  return milliseconds === null ? '' : new Date(milliseconds).toISOString()
+}
+
+export function toRawPayload(value: unknown): string {
+  try { return JSON.stringify(value, null, 2) } catch { return String(value) }
 }
 
 export function readNestedString(value: unknown, paths: readonly string[][]): string {
@@ -66,7 +99,7 @@ export function readNestedString(value: unknown, paths: readonly string[][]): st
       if (!record) { cursor = null; break }
       cursor = record[key]
     }
-    const text = readString(cursor)
+    const text = readString(cursor).trim()
     if (text) return text
   }
   return ''
@@ -125,4 +158,3 @@ export function capabilitySet(methods: Iterable<string>, protocolVersion = 'unkn
 export function hasCapability(capabilities: CapabilitySet | undefined, method: string): boolean {
   return !capabilities || capabilities.supports.size === 0 || capabilities.supports.has(method)
 }
-

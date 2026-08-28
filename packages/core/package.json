@@ -1,6 +1,7 @@
 {
-  "name": "@codycodeagent/cody-web-core",
-  "version": "0.1.5",
+  "name": "@codycodeagent/cody-web-core-build",
+  "version": "0.5.0",
+  "private": true,
   "description": "Shared Codex protocol, runtime, and conversation primitives for CodyWeb products",
   "license": "MIT",
   "type": "module",

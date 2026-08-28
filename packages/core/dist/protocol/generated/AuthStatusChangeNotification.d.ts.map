@@ -1,0 +1,1 @@
+{"version":3,"file":"AuthStatusChangeNotification.d.ts","sourceRoot":"","sources":["../../../src/protocol/generated/AuthStatusChangeNotification.ts"],"names":[],"mappings":"AAGA,OAAO,KAAK,EAAE,QAAQ,EAAE,MAAM,YAAY,CAAC;AAE3C;;GAEG;AACH,MAAM,MAAM,4BAA4B,GAAG;IAAE,UAAU,EAAE,QAAQ,GAAG,IAAI,CAAC;CAAE,CAAC"}
