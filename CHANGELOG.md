@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.3
+
+- Normalized the title and summary of an already-coalesced multi-file change card.
+
 ## 0.6.2
 
 - Coalesced item-level file changes and turn-level diff notifications into one stable per-turn timeline entry.

@@ -93,7 +93,17 @@ export function conversationEntriesFromState(state: ConversationState): CodyConv
     const groupId = `file-group:${row.turnId ?? row.id}`
     const previous = entries.at(-1)
     if (!previous || previous.kind !== 'tool' || previous.id !== groupId) {
-      const entry: Extract<CodyConversationEntry, { kind: 'tool' }> = { id: groupId, kind: 'tool', tool: { ...row.tool } }
+      const details = [...new Set(row.tool.details)]
+      const entry: Extract<CodyConversationEntry, { kind: 'tool' }> = {
+        id: groupId,
+        kind: 'tool',
+        tool: {
+          ...row.tool,
+          title: details.length > 1 ? `文件变更 · ${String(details.length)} 个文件` : '文件变更',
+          summary: details.length ? `${String(details.length)} 个文件已更新` : row.tool.summary,
+          details,
+        },
+      }
       entries.push(entry)
       seen.add(row.id)
       return
