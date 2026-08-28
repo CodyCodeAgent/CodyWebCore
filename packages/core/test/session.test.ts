@@ -25,6 +25,7 @@ class FakeHost implements AppServerHost {
   diagnostics(): AppServerDiagnostics {
     return { status: 'running', initialized: true, pid: 1, startedAtIso: '', exitedAtIso: null, exitCode: null, exitSignal: null, pendingClientRequestCount: 0, pendingServerRequestCount: 0, sentClientRequestCount: 0, completedClientRequestCount: 0, failedClientRequestCount: 0, notificationCount: 0, serverRequestCount: 0, notificationCountsByMethod: {}, recentLogs: [] }
   }
+  failureReport() { return null }
   async dispose(): Promise<void> {}
   emit(method: string, params: unknown): void {
     const value: RuntimeNotification = { method, params, receivedAtIso: '2026-01-01T00:00:00.000Z' }
