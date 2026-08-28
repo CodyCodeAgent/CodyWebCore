@@ -64,6 +64,8 @@ export type CodexSessionManagerOptions = {
     host: AppServerHost;
     policy?: ExecutionPolicyProvider;
     nowIso?: () => string;
+    /** Maximum silence between events for an active turn. Progress resets this watchdog. */
+    turnInactivityTimeoutMs?: number;
     onDiagnostic?: (diagnostic: CodexSessionDiagnostic) => void;
 };
 export declare function normalizeThreadHistory(payload: unknown, fallbackThreadId?: string): CodexEvent[];
@@ -73,6 +75,7 @@ export declare class CodexSessionManager {
     private readonly sessionIdByThreadId;
     private readonly listeners;
     private readonly waiters;
+    private readonly turnWatchdogs;
     private readonly terminalEvents;
     private readonly pendingRequests;
     private readonly client;
@@ -90,7 +93,7 @@ export declare class CodexSessionManager {
     send(bindingId: string, input: TurnInput, mode?: 'queue' | 'steer'): Promise<TurnHandle>;
     run(bindingId: string, input: TurnInput, mode?: 'queue' | 'steer'): Promise<TurnOutcome>;
     interrupt(bindingId: string): Promise<boolean>;
-    waitForTurn(handle: TurnHandle, timeoutMs?: number): Promise<CodexEvent>;
+    waitForTurn(handle: TurnHandle): Promise<CodexEvent>;
     respondApproval(bindingId: string, requestId: string, decision: 'accept' | 'acceptForSession' | 'decline' | 'cancel'): Promise<void>;
     respondQuestion(bindingId: string, requestId: string, answer: unknown): Promise<void>;
     dispose(): Promise<void>;
@@ -102,6 +105,10 @@ export declare class CodexSessionManager {
     private eventId;
     private emit;
     private finishTurn;
+    private ensureTurnWatchdog;
+    private armTurnWatchdog;
+    private refreshTurnInactivity;
+    private clearTurnWatchdog;
     private turnKey;
     private handleNotification;
     private handleServerRequest;

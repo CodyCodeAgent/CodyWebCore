@@ -62,3 +62,9 @@ The failure causes are `initialize_timeout`, `rpc_timeout`, `process_exit`, `std
 Logs are capped at 80 entries and 500 normalized characters per entry. Common authorization, bearer-token, API-key, token, secret, password, URL-userinfo and private-key forms are replaced with `[REDACTED]`. Products must still treat reports as operational data and apply their normal access and retention policy; heuristic redaction is not a substitute for avoiding secrets in process logs.
 
 The pre-existing `diagnostics()` method remains the lightweight current-state/counter view. Use `failureReport()` when presenting or exporting the last classified failure snapshot. A later process failure replaces the previous report, except that an immediately following exit does not hide the stdin failure that caused it.
+
+## Turn liveness contract
+
+`CodexSessionManager` treats `turnInactivityTimeoutMs` as a silence watchdog, not a maximum turn duration. Every normalized non-terminal event for the active turn resets the watchdog, so long-running commands, tool calls and reasoning streams can continue for as long as they keep making observable progress. The default inactivity window is ten minutes.
+
+If the provider produces no event for the full window, Core emits one authoritative `turn.failed` event with `data.cause === 'inactivity_timeout'`, clears the active turn and resolves all turn waiters with that same event. A later provider `turn/completed` or `turn.failed` notification for the same turn is ignored. Product code should consume the normalized terminal event and must not add a second wall-clock turn timeout.

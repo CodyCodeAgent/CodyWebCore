@@ -63,6 +63,8 @@ export type CodexSessionManagerOptions = {
   host: AppServerHost
   policy?: ExecutionPolicyProvider
   nowIso?: () => string
+  /** Maximum silence between events for an active turn. Progress resets this watchdog. */
+  turnInactivityTimeoutMs?: number
   onDiagnostic?: (diagnostic: CodexSessionDiagnostic) => void
 }
 
@@ -77,8 +79,15 @@ type AttachedSession = {
 type TurnWaiter = {
   resolve: (event: CodexEvent) => void
   reject: (error: Error) => void
-  timer: ReturnType<typeof setTimeout>
 }
+
+type TurnWatchdog = {
+  handle: TurnHandle
+  timer: ReturnType<typeof setTimeout>
+  inactivityTimeoutMs: number
+}
+
+const DEFAULT_TURN_INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000
 
 const APPROVAL_METHODS = new Set([
   'item/commandExecution/requestApproval',
@@ -245,6 +254,7 @@ export class CodexSessionManager {
   private readonly sessionIdByThreadId = new Map<string, string>()
   private readonly listeners = new Set<(event: CodexEvent) => void>()
   private readonly waiters = new Map<string, TurnWaiter[]>()
+  private readonly turnWatchdogs = new Map<string, TurnWatchdog>()
   private readonly terminalEvents = new Map<string, CodexEvent>()
   private readonly pendingRequests = new Map<string, { request: ServerRequest; bindingId: string; kind: 'approval' | 'question' }>()
   private readonly client: TypedCodexClient
@@ -360,19 +370,14 @@ export class CodexSessionManager {
     return true
   }
 
-  waitForTurn(handle: TurnHandle, timeoutMs = 10 * 60 * 1000): Promise<CodexEvent> {
+  waitForTurn(handle: TurnHandle): Promise<CodexEvent> {
     const key = this.turnKey(handle.threadId, handle.turnId)
     const terminal = this.terminalEvents.get(key)
     if (terminal) return Promise.resolve(terminal)
+    this.ensureTurnWatchdog(handle)
     return new Promise<CodexEvent>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        const rows = this.waiters.get(key) ?? []
-        this.waiters.set(key, rows.filter((row) => row.timer !== timer))
-        reject(new Error(`Codex turn ${handle.turnId} timed out after ${String(timeoutMs)}ms`))
-      }, timeoutMs)
-      timer.unref?.()
       const rows = this.waiters.get(key) ?? []
-      rows.push({ resolve, reject, timer })
+      rows.push({ resolve, reject })
       this.waiters.set(key, rows)
     })
   }
@@ -408,7 +413,9 @@ export class CodexSessionManager {
   async dispose(): Promise<void> {
     this.unlisten?.()
     this.unlisten = null
-    for (const rows of this.waiters.values()) for (const waiter of rows) { clearTimeout(waiter.timer); waiter.reject(new Error('Codex session manager disposed')) }
+    for (const watchdog of this.turnWatchdogs.values()) clearTimeout(watchdog.timer)
+    this.turnWatchdogs.clear()
+    for (const rows of this.waiters.values()) for (const waiter of rows) waiter.reject(new Error('Codex session manager disposed'))
     this.waiters.clear()
     this.sessions.clear()
     this.sessionIdByThreadId.clear()
@@ -465,6 +472,7 @@ export class CodexSessionManager {
       id: input.id ?? this.eventId(input.type, input.threadId, input.turnId, input.itemId),
       atIso: input.atIso ?? this.nowIso(),
     }
+    if (event.turnId && event.type !== 'turn.completed' && event.type !== 'turn.failed') this.refreshTurnInactivity(event.threadId, event.turnId)
     if (event.type === 'turn.completed' || event.type === 'turn.failed') this.finishTurn(event)
     for (const listener of this.listeners) listener(event)
     return event
@@ -480,7 +488,54 @@ export class CodexSessionManager {
     if (session?.activeTurnId === event.turnId) session.activeTurnId = ''
     const rows = this.waiters.get(key) ?? []
     this.waiters.delete(key)
-    for (const waiter of rows) { clearTimeout(waiter.timer); waiter.resolve(event) }
+    this.clearTurnWatchdog(key)
+    for (const waiter of rows) waiter.resolve(event)
+  }
+
+  private ensureTurnWatchdog(handle: TurnHandle): void {
+    const key = this.turnKey(handle.threadId, handle.turnId)
+    if (this.turnWatchdogs.has(key)) return
+    const watchdog: TurnWatchdog = {
+      handle,
+      timer: undefined as unknown as ReturnType<typeof setTimeout>,
+      inactivityTimeoutMs: Math.max(250, this.options.turnInactivityTimeoutMs ?? DEFAULT_TURN_INACTIVITY_TIMEOUT_MS),
+    }
+    this.turnWatchdogs.set(key, watchdog)
+    this.armTurnWatchdog(watchdog)
+  }
+
+  private armTurnWatchdog(watchdog: TurnWatchdog): void {
+    clearTimeout(watchdog.timer)
+    watchdog.timer = setTimeout(() => {
+      const key = this.turnKey(watchdog.handle.threadId, watchdog.handle.turnId)
+      if (this.turnWatchdogs.get(key) !== watchdog) return
+      void this.client.call('turn/interrupt', watchdog.handle).catch((error: unknown) => {
+        this.options.onDiagnostic?.({
+          level: 'warning',
+          message: `Failed to interrupt inactive Codex turn: ${textFromError(error) || 'unknown error'}`,
+          method: 'turn/interrupt',
+        })
+      })
+      this.emit({
+        type: 'turn.failed',
+        threadId: watchdog.handle.threadId,
+        turnId: watchdog.handle.turnId,
+        data: { error: `Codex turn ${watchdog.handle.turnId} had no progress for ${String(watchdog.inactivityTimeoutMs)}ms`, cause: 'inactivity_timeout' },
+      })
+    }, watchdog.inactivityTimeoutMs)
+    watchdog.timer.unref?.()
+  }
+
+  private refreshTurnInactivity(threadId: string, turnId: string): void {
+    const watchdog = this.turnWatchdogs.get(this.turnKey(threadId, turnId))
+    if (watchdog) this.armTurnWatchdog(watchdog)
+  }
+
+  private clearTurnWatchdog(key: string): void {
+    const watchdog = this.turnWatchdogs.get(key)
+    if (!watchdog) return
+    clearTimeout(watchdog.timer)
+    this.turnWatchdogs.delete(key)
   }
 
   private turnKey(threadId: string, turnId: string): string { return `${threadId}\u0000${turnId}` }
@@ -497,7 +552,8 @@ export class CodexSessionManager {
         this.emit({ type: 'runtime.disconnected', threadId: session.binding.threadId, ...(session.activeTurnId ? { turnId: session.activeTurnId } : {}), atIso: notification.receivedAtIso, data: { error } })
         if (session.activeTurnId) {
           const key = this.turnKey(session.binding.threadId, session.activeTurnId)
-          for (const waiter of this.waiters.get(key) ?? []) { clearTimeout(waiter.timer); waiter.reject(new Error(error)) }
+          this.clearTurnWatchdog(key)
+          for (const waiter of this.waiters.get(key) ?? []) waiter.reject(new Error(error))
           this.waiters.delete(key)
         }
         session.activeTurnId = ''

@@ -49,4 +49,29 @@ describe('shared conversation components', () => {
     expect(cards[0]!.attributes('open')).toBeUndefined()
     expect(cards[1]!.attributes('open')).toBe('')
   })
+
+  it('emits approval decisions from the shared request card', async () => {
+    const wrapper = mount(CodyConversation, {
+      props: {
+        entries: [{
+          id: 'approval-entry',
+          kind: 'request',
+          request: {
+            id: 'request-42',
+            kind: 'approval',
+            params: { command: 'pnpm test' },
+          },
+        }],
+      },
+    })
+
+    const buttons = wrapper.findAll('.cody-request-actions button')
+    await buttons[0]!.trigger('click')
+    await buttons[1]!.trigger('click')
+
+    expect(wrapper.emitted('resolveApproval')).toEqual([
+      ['request-42', 'accept'],
+      ['request-42', 'decline'],
+    ])
+  })
 })
