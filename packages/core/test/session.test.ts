@@ -100,13 +100,15 @@ describe('CodexSessionManager', () => {
     manager.subscribe((event) => events.push(event))
     const handle = await manager.send('conversation-1', { input: [{ type: 'text', text: 'hello', text_elements: [] }] })
     host.emit('turn/started', { threadId: 'thread-1', turn: { id: handle.turnId } })
+    host.emit('warning', { threadId: 'thread-1', turnId: handle.turnId, message: 'Response stream interrupted; reconnecting.' })
     for (let attempt = 1; attempt <= 5; attempt += 1) {
       host.emit('error', { threadId: 'thread-1', turnId: handle.turnId, willRetry: true, error: { message: `Reconnecting... ${String(attempt)}/5` } })
     }
     host.emit('turn/completed', { threadId: 'thread-1', turn: { id: handle.turnId, status: 'completed', items: [], error: null } })
     host.emit('turn/completed', { threadId: 'thread-1', turn: { id: handle.turnId, status: 'completed', items: [], error: null } })
     await expect(manager.waitForTurn(handle)).resolves.toMatchObject({ type: 'turn.completed' })
-    expect(events.filter((event) => event.type === 'turn.retrying')).toHaveLength(5)
+    expect(events.filter((event) => event.type === 'turn.retrying')).toHaveLength(6)
+    expect(events.find((event) => event.type === 'turn.retrying')?.data.error).toContain('reconnecting')
     expect(events.filter((event) => event.type === 'turn.failed')).toHaveLength(0)
     expect(events.filter((event) => event.type === 'turn.completed')).toHaveLength(1)
     const state = reduceConversationEvents(createConversationState('thread-1'), events)
@@ -233,5 +235,14 @@ describe('normalizeThreadHistory', () => {
 
     const unknown = normalizeThreadHistory({ thread: { id: 'thread-1', turns: [{ id: 'turn-unknown', status: 'completed', items: [] }] } })
     expect(unknown.at(-1)).toMatchObject({ data: { durationKnown: false } })
+  })
+
+  it('does not invent a terminal event for an in-progress native turn', () => {
+    const events = normalizeThreadHistory({ thread: { id: 'thread-1', turns: [{
+      id: 'turn-running', status: 'inProgress', items: [
+        { type: 'userMessage', id: 'u1', content: [{ type: 'text', text: 'still running', text_elements: [] }] },
+      ],
+    }] } })
+    expect(events.map((event) => event.type)).toEqual(['turn.started', 'user.completed'])
   })
 })

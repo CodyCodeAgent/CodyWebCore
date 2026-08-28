@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.5
+
+- Normalized App Server warning notifications as visible retrying turns instead of silently dropping reconnect progress.
+- Preserved native in-progress history without inventing a completed terminal event.
+
 ## 0.6.4
 
 - Added the canonical native turn-input builder shared by CodyWeb and CodyWork.

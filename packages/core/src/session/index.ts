@@ -269,13 +269,15 @@ export function normalizeThreadHistory(payload: unknown, fallbackThreadId = ''):
       }))
     }
     const status = readString(turn?.status)
-    const type = status === 'failed' ? 'turn.failed' : 'turn.completed'
-    events.push({
-      id: `history:${threadId}:${turnId}:terminal`, type, threadId, turnId, atIso: completedAtIso ?? atIso,
-      data: status === 'failed'
-        ? { error: textFromError(turn?.error) || 'Codex failed to complete this turn.', history: true, durationKnown }
-        : { status, history: true, durationKnown },
-    })
+    if (status === 'failed' || status === 'interrupted' || status === 'completed') {
+      const type = status === 'completed' ? 'turn.completed' : 'turn.failed'
+      events.push({
+        id: `history:${threadId}:${turnId}:terminal`, type, threadId, turnId, atIso: completedAtIso ?? atIso,
+        data: type === 'turn.failed'
+          ? { error: textFromError(turn?.error) || (status === 'interrupted' ? 'Codex turn was interrupted.' : 'Codex failed to complete this turn.'), status, history: true, durationKnown }
+          : { status, history: true, durationKnown },
+      })
+    }
   }
   return events
 }
@@ -625,6 +627,14 @@ export class CodexSessionManager {
     if (notification.method === 'error') {
       const willRetry = params.willRetry === true || params.will_retry === true
       this.emit({ type: willRetry ? 'turn.retrying' : 'turn.failed', ...common, data: { error: textFromError(params.error ?? params), willRetry, raw: params } })
+      return
+    }
+    if (notification.method === 'warning' && turnId) {
+      this.emit({
+        type: 'turn.retrying',
+        ...common,
+        data: { error: textFromError(params.message ?? params.error ?? params) || 'Codex is retrying the response stream.', willRetry: true, raw: params },
+      })
       return
     }
     if (notification.method === 'item/agentMessage/delta') { this.emit({ type: 'assistant.delta', ...common, data: { text: readDelta(params) } }); return }
