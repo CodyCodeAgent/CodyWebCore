@@ -209,4 +209,15 @@ describe('normalizeThreadHistory', () => {
     expect(state.messages.map((message) => message.text)).toEqual(['inspect', 'Done'])
     expect(state.timeline).toEqual([expect.objectContaining({ kind: 'tool', tool: expect.objectContaining({ summary: 'git status', output: 'clean' }) })])
   })
+
+  it('uses native turn timestamps and marks missing duration as unknown', () => {
+    const known = normalizeThreadHistory({ thread: { id: 'thread-1', turns: [{
+      id: 'turn-known', status: 'completed', items: [], startedAt: 1_700_000_000, completedAt: 1_700_000_002,
+    }] } })
+    expect(known[0]?.atIso).toBe('2023-11-14T22:13:20.000Z')
+    expect(known.at(-1)).toMatchObject({ atIso: '2023-11-14T22:13:22.000Z', data: { durationKnown: true } })
+
+    const unknown = normalizeThreadHistory({ thread: { id: 'thread-1', turns: [{ id: 'turn-unknown', status: 'completed', items: [] }] } })
+    expect(unknown.at(-1)).toMatchObject({ data: { durationKnown: false } })
+  })
 })

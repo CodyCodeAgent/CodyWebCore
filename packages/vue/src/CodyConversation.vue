@@ -21,13 +21,11 @@
       </details>
       <details v-else-if="entry.kind === 'reasoning'" class="cody-reasoning-card"><summary>✦ {{ entry.title || '推理过程' }}</summary><pre>{{ entry.text }}</pre></details>
       <details v-else-if="entry.kind === 'plan'" class="cody-plan-card" open><summary>计划</summary><CodyMarkdown :text="entry.text" @open-file="emit('openFile', $event)" /></details>
-      <article v-else-if="entry.kind === 'request'" class="cody-request-card" :data-kind="entry.request.kind">
-        <div><strong>{{ entry.request.kind === 'approval' ? '需要你的确认' : 'Codex 需要补充信息' }}</strong><small>Agent 已暂停等待</small></div>
-        <p>{{ requestSummary(entry.request.params) }}</p>
+      <template v-else-if="entry.kind === 'request'">
         <slot name="request" :request="entry.request">
-          <div v-if="entry.request.kind === 'approval'" class="cody-request-actions"><button type="button" @click="emit('resolveApproval', entry.request.id, 'accept')">允许一次</button><button type="button" data-tone="danger" @click="emit('resolveApproval', entry.request.id, 'decline')">拒绝</button></div>
+          <CodyRequestCard :request="entry.request" @resolve-approval="forwardApproval" @resolve-question="forwardQuestion" />
         </slot>
-      </article>
+      </template>
       <details v-else-if="entry.kind === 'failure'" class="cody-failure-card"><summary>本次回复失败</summary><p>{{ entry.text }}</p></details>
     </template>
   </section>
@@ -36,6 +34,7 @@
 <script setup lang="ts">
 import type { CodyConversationEntry } from './types.js'
 import CodyMarkdown from './CodyMarkdown.vue'
+import CodyRequestCard from './CodyRequestCard.vue'
 
 withDefaults(defineProps<{ entries: CodyConversationEntry[]; loading?: boolean; variant?: 'standalone' | 'embedded' }>(), {
   variant: 'standalone',
@@ -44,6 +43,7 @@ const emit = defineEmits<{
   copy: [text: string]
   openFile: [{ path: string; line: number }]
   resolveApproval: [requestId: string, decision: 'accept' | 'decline']
+  resolveQuestion: [requestId: string, answer: Record<string, { answers: string[] }>]
 }>()
 
 function toolTone(status: string): 'neutral' | 'running' | 'success' | 'danger' {
@@ -54,17 +54,6 @@ function toolTone(status: string): 'neutral' | 'running' | 'success' | 'danger' 
 }
 
 function previewOutput(value: string): string { return value.length > 12_000 ? `${value.slice(0, 12_000)}\n…输出已截断` : value }
-function requestSummary(value: unknown): string {
-  if (!value || typeof value !== 'object') return 'Codex 请求执行一项受保护操作。'
-  const row = value as Record<string, unknown>
-  const direct = row.reason ?? row.question ?? row.command
-  if (typeof direct === 'string' && direct.trim()) return direct
-  const questions = Array.isArray(row.questions) ? row.questions : []
-  const first = questions[0]
-  if (first && typeof first === 'object') {
-    const question = (first as Record<string, unknown>).question ?? (first as Record<string, unknown>).detail
-    if (typeof question === 'string' && question.trim()) return question
-  }
-  return 'Codex 请求执行一项受保护操作。'
-}
+function forwardApproval(requestId: string, decision: 'accept' | 'decline'): void { emit('resolveApproval', requestId, decision) }
+function forwardQuestion(requestId: string, answer: Record<string, { answers: string[] }>): void { emit('resolveQuestion', requestId, answer) }
 </script>

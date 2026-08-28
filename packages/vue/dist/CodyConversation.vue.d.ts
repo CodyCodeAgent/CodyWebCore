@@ -23,6 +23,9 @@ declare const __VLS_component: import("vue").DefineComponent<__VLS_Props, {}, {}
     }) => any;
     copy: (text: string) => any;
     resolveApproval: (requestId: string, decision: "accept" | "decline") => any;
+    resolveQuestion: (requestId: string, answer: Record<string, {
+        answers: string[];
+    }>) => any;
 }, string, import("vue").PublicProps, Readonly<__VLS_Props> & Readonly<{
     onOpenFile?: ((args_0: {
         path: string;
@@ -30,6 +33,9 @@ declare const __VLS_component: import("vue").DefineComponent<__VLS_Props, {}, {}
     }) => any) | undefined;
     onCopy?: ((text: string) => any) | undefined;
     onResolveApproval?: ((requestId: string, decision: "accept" | "decline") => any) | undefined;
+    onResolveQuestion?: ((requestId: string, answer: Record<string, {
+        answers: string[];
+    }>) => any) | undefined;
 }>, {
     variant: "standalone" | "embedded";
 }, {}, {}, {}, string, import("vue").ComponentProvideOptions, false, {}, any>;

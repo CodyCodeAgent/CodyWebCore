@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.2
+
+- Coalesced item-level file changes and turn-level diff notifications into one stable per-turn timeline entry.
+- Terminalized still-running tools when their turn completes or fails.
+- Preserved native turn timestamps and stopped fabricating `<1s` history receipts when duration is unknown.
+- Added a shared Vue request card with native multi-question, option, free-form and secret-answer support.
+- Exported framework-neutral question normalization and request-summary view models.
+
 ## 0.6.1
 
 - Fixed the conversation reducer so terminal-only diagnostic events never become the active turn.

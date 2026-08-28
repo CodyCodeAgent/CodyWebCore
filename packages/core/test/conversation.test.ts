@@ -72,4 +72,28 @@ describe('conversation core', () => {
     expect(state.turns['old-turn']).toMatchObject({ lifecycle: 'completed' })
     expect(state.turns['new-turn']).toMatchObject({ lifecycle: 'running' })
   })
+
+  it('coalesces item and turn diff notifications into one file-change row and closes it with the turn', () => {
+    const base = { threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:00.000Z' }
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { ...base, id: 'start', type: 'turn.started', data: {} },
+      { ...base, id: 'file-item', itemId: 'file-1', type: 'tool.started', data: { tool: { kind: 'fileChange', title: 'File change', status: 'running', summary: '1 file', details: ['a.ts'] } } },
+      { ...base, id: 'turn-diff', type: 'fileChange.updated', data: { tool: { kind: 'fileChange', title: 'File changes', status: 'running', summary: 'Diff updated', details: [], output: '+hello' } } },
+      { ...base, id: 'done', type: 'turn.completed', atIso: '2026-01-01T00:00:02.000Z', data: {} },
+    ])
+
+    expect(state.timeline).toEqual([expect.objectContaining({
+      id: 'tool:fileChange:turn-1',
+      tool: expect.objectContaining({ status: 'completed', details: ['a.ts'], output: '+hello' }),
+    })])
+    expect(state.presentation.filter((row) => row.id === 'tool:fileChange:turn-1')).toHaveLength(1)
+  })
+
+  it('does not fabricate a worked-duration receipt when native history has no timestamps', () => {
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { id: 'start', type: 'turn.started', threadId: 'thread-1', turnId: 'turn-1', atIso: '1970-01-01T00:00:00.000Z', data: { history: true, durationKnown: false } },
+      { id: 'done', type: 'turn.completed', threadId: 'thread-1', turnId: 'turn-1', atIso: '1970-01-01T00:00:00.000Z', data: { history: true, durationKnown: false } },
+    ])
+    expect(state.presentation).not.toContainEqual(expect.objectContaining({ kind: 'worked' }))
+  })
 })

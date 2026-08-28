@@ -6,6 +6,19 @@ export type CodyComposerOption = {
     label: string;
     description?: string;
 };
+export type CodyQuestionField = {
+    id: string;
+    header: string;
+    question: string;
+    isOther: boolean;
+    isSecret: boolean;
+    options: Array<{
+        label: string;
+        description: string;
+    }>;
+};
+export declare function questionFieldsFromParams(value: unknown): CodyQuestionField[];
+export declare function requestSummary(value: unknown): string;
 export type CodyTool = ConversationTool;
 export type CodyMessage = ConversationMessage;
 export type CodyConversationEntry = {

@@ -140,8 +140,11 @@ export function normalizeThreadHistory(payload, fallbackThreadId = '') {
     for (let turnIndex = 0; turnIndex < turns.length; turnIndex += 1) {
         const turn = asRecord(turns[turnIndex]);
         const turnId = readString(turn?.id) || `turn-${String(turnIndex)}`;
-        const atIso = new Date(0).toISOString();
-        events.push({ id: `history:${threadId}:${turnId}:started`, type: 'turn.started', threadId, turnId, atIso, data: { history: true } });
+        const startedAtIso = timestampIso(turn?.startedAt);
+        const completedAtIso = timestampIso(turn?.completedAt);
+        const atIso = startedAtIso ?? completedAtIso ?? new Date(0).toISOString();
+        const durationKnown = Boolean(startedAtIso && completedAtIso);
+        events.push({ id: `history:${threadId}:${turnId}:started`, type: 'turn.started', threadId, turnId, atIso, data: { history: true, durationKnown } });
         const items = Array.isArray(turn?.items) ? turn.items : [];
         for (let itemIndex = 0; itemIndex < items.length; itemIndex += 1) {
             const item = items[itemIndex];
@@ -154,11 +157,18 @@ export function normalizeThreadHistory(payload, fallbackThreadId = '') {
         const status = readString(turn?.status);
         const type = status === 'failed' ? 'turn.failed' : 'turn.completed';
         events.push({
-            id: `history:${threadId}:${turnId}:terminal`, type, threadId, turnId, atIso,
-            data: status === 'failed' ? { error: textFromError(turn?.error) || 'Codex failed to complete this turn.', history: true } : { status, history: true },
+            id: `history:${threadId}:${turnId}:terminal`, type, threadId, turnId, atIso: completedAtIso ?? atIso,
+            data: status === 'failed'
+                ? { error: textFromError(turn?.error) || 'Codex failed to complete this turn.', history: true, durationKnown }
+                : { status, history: true, durationKnown },
         });
     }
     return events;
+}
+function timestampIso(value) {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0)
+        return undefined;
+    return new Date(value * 1_000).toISOString();
 }
 export class CodexSessionManager {
     options;

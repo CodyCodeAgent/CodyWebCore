@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createConversationState, reduceConversationEvents, type CodexEvent } from '../../core/src/conversation/index.js'
-import { conversationEntriesFromState } from './types.js'
+import { conversationEntriesFromState, questionFieldsFromParams } from './types.js'
 
 const at = (second: number) => `2026-08-28T00:00:${String(second).padStart(2, '0')}.000Z`
 const event = (id: string, type: CodexEvent['type'], second: number, data: Record<string, unknown>, itemId?: string): CodexEvent => ({
@@ -19,5 +19,11 @@ describe('conversationEntriesFromState', () => {
 
     expect(conversationEntriesFromState(state).map((row) => row.kind)).toEqual(['message', 'tool', 'message', 'worked'])
     expect(conversationEntriesFromState(state).at(-1)).toMatchObject({ kind: 'worked', label: 'Worked for 6s' })
+  })
+
+  it('normalizes request_user_input questions without product-specific parsing', () => {
+    expect(questionFieldsFromParams({ questions: [{ id: 'q1', header: 'Scope', question: 'Choose', isOther: true, isSecret: false, options: [{ label: 'Alpha', description: 'A' }] }] })).toEqual([{
+      id: 'q1', header: 'Scope', question: 'Choose', isOther: true, isSecret: false, options: [{ label: 'Alpha', description: 'A' }],
+    }])
   })
 })

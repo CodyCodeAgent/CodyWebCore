@@ -46,8 +46,8 @@ declare const __VLS_component: import("vue").DefineComponent<__VLS_Props, {}, {}
     "onUpdate:selected-skills"?: ((value: string[]) => any) | undefined;
     onSend?: (() => any) | undefined;
 }>, {
-    variant: "standalone" | "embedded";
     placeholder: string;
+    variant: "standalone" | "embedded";
     collaborationModes: CodyComposerOption[];
     selectedCollaborationMode: string;
     submitModes: CodyComposerOption[];

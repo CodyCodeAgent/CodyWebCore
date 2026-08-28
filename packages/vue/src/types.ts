@@ -15,6 +15,49 @@ export type CodyComposerOption = {
   description?: string
 }
 
+export type CodyQuestionField = {
+  id: string
+  header: string
+  question: string
+  isOther: boolean
+  isSecret: boolean
+  options: Array<{ label: string; description: string }>
+}
+
+export function questionFieldsFromParams(value: unknown): CodyQuestionField[] {
+  if (!value || typeof value !== 'object') return []
+  const row = value as Record<string, unknown>
+  const questions = Array.isArray(row.questions) ? row.questions : []
+  return questions.flatMap((value, index) => {
+    if (!value || typeof value !== 'object') return []
+    const question = value as Record<string, unknown>
+    const text = typeof question.question === 'string' ? question.question.trim() : ''
+    if (!text) return []
+    const options = Array.isArray(question.options) ? question.options : []
+    return [{
+      id: typeof question.id === 'string' && question.id.trim() ? question.id.trim() : `question-${String(index + 1)}`,
+      header: typeof question.header === 'string' ? question.header.trim() : '',
+      question: text,
+      isOther: question.isOther === true,
+      isSecret: question.isSecret === true,
+      options: options.flatMap(option => {
+        if (!option || typeof option !== 'object') return []
+        const optionRow = option as Record<string, unknown>
+        const label = typeof optionRow.label === 'string' ? optionRow.label.trim() : ''
+        return label ? [{ label, description: typeof optionRow.description === 'string' ? optionRow.description.trim() : '' }] : []
+      }),
+    }]
+  })
+}
+
+export function requestSummary(value: unknown): string {
+  if (!value || typeof value !== 'object') return 'Codex 请求执行一项受保护操作。'
+  const row = value as Record<string, unknown>
+  const direct = row.reason ?? row.question ?? row.command
+  if (typeof direct === 'string' && direct.trim()) return direct
+  return questionFieldsFromParams(value)[0]?.question ?? 'Codex 请求执行一项受保护操作。'
+}
+
 export type CodyTool = ConversationTool
 
 export type CodyMessage = ConversationMessage

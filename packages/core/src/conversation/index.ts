@@ -329,8 +329,8 @@ function upsertTimelineTool(
   event: CodexEvent,
   phase: 'started' | 'updated' | 'completed',
 ): ConversationTimelineEntry[] {
-  const key = `tool:${event.itemId || event.id}`
   const incoming = eventTool(event.data)
+  const key = toolTimelineId(event, incoming)
   const index = timeline.findIndex((entry) => entry.kind === 'tool' && entry.id === key)
   const status = incoming.status && incoming.status !== 'unknown'
     ? incoming.status
@@ -352,6 +352,27 @@ function upsertTimelineTool(
     },
   }
   return next
+}
+
+function toolTimelineId(event: CodexEvent, tool = eventTool(event.data)): string {
+  // Codex emits both item/fileChange/* and turn/diff/updated for the same turn.
+  // They are two views of one operation, not two user-facing tools.
+  if (tool.kind === 'fileChange' && event.turnId) return `tool:fileChange:${event.turnId}`
+  return `tool:${event.itemId || event.id}`
+}
+
+function terminalizeTurnTools(
+  timeline: ConversationTimelineEntry[],
+  turnId: string,
+  status: 'completed' | 'failed',
+): ConversationTimelineEntry[] {
+  let changed = false
+  const next = timeline.map((entry) => {
+    if (entry.kind !== 'tool' || entry.turnId !== turnId || !/run|start|pending|wait|unknown/iu.test(entry.tool.status)) return entry
+    changed = true
+    return { ...entry, tool: { ...entry.tool, status } }
+  })
+  return changed ? next : timeline
 }
 
 function updateTurn(state: ConversationState, event: CodexEvent, lifecycle: TurnLifecycle): ConversationState {
@@ -434,12 +455,19 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
   if (event.type === 'turn.completed') {
     const updated = updateTurn(state, event, 'completed')
     const turnId = event.turnId || state.activeTurnId
-    return turnId ? { ...updated, presentation: appendPresentation(updated.presentation, { id: `worked:${turnId}`, kind: 'worked', turnId }) } : updated
+    if (!turnId) return updated
+    const timeline = terminalizeTurnTools(updated.timeline, turnId, 'completed')
+    const presentation = event.data.durationKnown === false
+      ? updated.presentation
+      : appendPresentation(updated.presentation, { id: `worked:${turnId}`, kind: 'worked', turnId })
+    return { ...updated, timeline, presentation }
   }
   if (event.type === 'turn.failed') {
     const updated = updateTurn(state, event, 'failed')
     const turnId = event.turnId || state.activeTurnId
-    return turnId ? { ...updated, presentation: appendPresentation(updated.presentation, { id: `failure:${turnId}`, kind: 'failure', turnId }) } : updated
+    return turnId
+      ? { ...updated, timeline: terminalizeTurnTools(updated.timeline, turnId, 'failed'), presentation: appendPresentation(updated.presentation, { id: `failure:${turnId}`, kind: 'failure', turnId }) }
+      : updated
   }
 
   if (event.type === 'user.completed') {
@@ -537,7 +565,7 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
   }
   if (event.type === 'tool.started' || event.type === 'tool.updated' || event.type === 'fileChange.updated' || event.type === 'tool.completed') {
     const phase = event.type === 'tool.started' ? 'started' : event.type === 'tool.completed' ? 'completed' : 'updated'
-    const toolId = `tool:${event.itemId || event.id}`
+    const toolId = toolTimelineId(event)
     return {
       ...state,
       timeline: upsertTimelineTool(state.timeline, event, phase),

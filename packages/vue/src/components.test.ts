@@ -74,4 +74,23 @@ describe('shared conversation components', () => {
       ['request-42', 'decline'],
     ])
   })
+
+  it('renders native question choices and emits the structured answer map', async () => {
+    const wrapper = mount(CodyConversation, {
+      props: {
+        entries: [{
+          id: 'question-entry', kind: 'request',
+          request: {
+            id: 'request-7', kind: 'question', threadId: 'thread-1', method: 'item/tool/requestUserInput', requestedAtIso: '2026-08-28T00:00:00.000Z',
+            params: { questions: [{ id: 'choice', header: '选择', question: '选哪个？', isOther: false, isSecret: false, options: [{ label: 'Alpha', description: '第一项' }, { label: 'Beta', description: '第二项' }] }] },
+          },
+        }],
+      },
+    })
+
+    await wrapper.findAll('.cody-question-options button')[1]!.trigger('click')
+    await wrapper.find('.cody-request-actions button').trigger('click')
+
+    expect(wrapper.emitted('resolveQuestion')).toEqual([['request-7', { choice: { answers: ['Beta'] } }]])
+  })
 })
