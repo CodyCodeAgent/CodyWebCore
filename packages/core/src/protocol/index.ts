@@ -57,6 +57,7 @@ export type { ReasoningEffort } from './generated/ReasoningEffort.js'
 export type { CollaborationMode } from './generated/CollaborationMode.js'
 
 export * from './methods.js'
+export * from './permission-profile.js'
 
 export const READ_RECOVERY_METHODS = new Set(['thread/read', 'thread/loaded/list'])
 

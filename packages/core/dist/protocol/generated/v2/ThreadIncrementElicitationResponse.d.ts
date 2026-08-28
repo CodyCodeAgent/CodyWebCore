@@ -1,0 +1,14 @@
+/**
+ * Response for `thread/increment_elicitation`.
+ */
+export type ThreadIncrementElicitationResponse = {
+    /**
+     * Current out-of-band elicitation count after the increment.
+     */
+    count: bigint;
+    /**
+     * Whether timeout accounting is paused after applying the increment.
+     */
+    paused: boolean;
+};
+//# sourceMappingURL=ThreadIncrementElicitationResponse.d.ts.map

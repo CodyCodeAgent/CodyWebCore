@@ -3,6 +3,6 @@ export type ThreadReadParams = {
     /**
      * When true, include turns and their items from rollout history.
      */
-    includeTurns: boolean;
+    includeTurns?: boolean;
 };
 //# sourceMappingURL=ThreadReadParams.d.ts.map

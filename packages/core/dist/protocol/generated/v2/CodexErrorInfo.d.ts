@@ -1,10 +1,11 @@
+import type { NonSteerableTurnKind } from "./NonSteerableTurnKind";
 /**
  * This translation layer make sure that we expose codex error code in camel case.
  *
  * When an upstream HTTP status is available (for example, from the Responses API or a provider),
  * it is forwarded in `httpStatusCode` on the relevant `codexErrorInfo` variant.
  */
-export type CodexErrorInfo = "contextWindowExceeded" | "usageLimitExceeded" | "serverOverloaded" | {
+export type CodexErrorInfo = "contextWindowExceeded" | "sessionBudgetExceeded" | "usageLimitExceeded" | "serverOverloaded" | "cyberPolicy" | "misalignmentPolicyViolation" | {
     "httpConnectionFailed": {
         httpStatusCode: number | null;
     };
@@ -19,6 +20,10 @@ export type CodexErrorInfo = "contextWindowExceeded" | "usageLimitExceeded" | "s
 } | {
     "responseTooManyFailedAttempts": {
         httpStatusCode: number | null;
+    };
+} | {
+    "activeTurnNotSteerable": {
+        turnKind: NonSteerableTurnKind;
     };
 } | "other";
 //# sourceMappingURL=CodexErrorInfo.d.ts.map

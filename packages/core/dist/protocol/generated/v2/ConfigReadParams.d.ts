@@ -1,5 +1,5 @@
 export type ConfigReadParams = {
-    includeLayers: boolean;
+    includeLayers?: boolean;
     /**
      * Optional working directory to resolve project config layers. If specified,
      * return the effective config as seen from that directory (i.e., including any

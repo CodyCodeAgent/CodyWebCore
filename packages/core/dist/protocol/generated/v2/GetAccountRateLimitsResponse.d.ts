@@ -1,3 +1,4 @@
+import type { RateLimitResetCreditsSummary } from "./RateLimitResetCreditsSummary";
 import type { RateLimitSnapshot } from "./RateLimitSnapshot";
 export type GetAccountRateLimitsResponse = {
     /**
@@ -10,5 +11,6 @@ export type GetAccountRateLimitsResponse = {
     rateLimitsByLimitId: {
         [key in string]?: RateLimitSnapshot;
     } | null;
+    rateLimitResetCredits: RateLimitResetCreditsSummary | null;
 };
 //# sourceMappingURL=GetAccountRateLimitsResponse.d.ts.map

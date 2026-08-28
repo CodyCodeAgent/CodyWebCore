@@ -1,0 +1,1 @@
+{"version":3,"file":"ThreadQueueListResponse.d.ts","sourceRoot":"","sources":["../../../../src/protocol/generated/v2/ThreadQueueListResponse.ts"],"names":[],"mappings":"AAGA,OAAO,KAAK,EAAE,gBAAgB,EAAE,MAAM,oBAAoB,CAAC;AAE3D,MAAM,MAAM,uBAAuB,GAAG;IAAE,IAAI,EAAE,KAAK,CAAC,gBAAgB,CAAC,CAAC;IACtE;;OAEG;IACH,UAAU,EAAE,MAAM,GAAG,IAAI,CAAC;CAAE,CAAC"}

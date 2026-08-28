@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.1
+
+- Regenerated TypeScript and JSON protocol snapshots from Codex App Server 0.148.x.
+- Removed deleted `readOnlyAccess` and `persistExtendedHistory` fields.
+- Added current named permission-profile and runtime workspace-root support.
+- Added reproducible protocol generation and a Codex compatibility matrix.
+
 ## 0.5.0
 
 - Added generated Codex App Server TypeScript and JSON schemas with typed RPC methods.

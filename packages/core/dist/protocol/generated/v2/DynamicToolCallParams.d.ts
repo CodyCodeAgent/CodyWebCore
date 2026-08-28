@@ -3,6 +3,7 @@ export type DynamicToolCallParams = {
     threadId: string;
     turnId: string;
     callId: string;
+    namespace: string | null;
     tool: string;
     arguments: JsonValue;
 };

@@ -1,3 +1,6 @@
+/**
+ * DEPRECATED: `thread/rollback` will be removed soon.
+ */
 export type ThreadRollbackParams = {
     threadId: string;
     /**

@@ -32,9 +32,49 @@ class FakeHost implements AppServerHost {
   }
 }
 
-const context = { thread: { cwd: '/repo', experimentalRawEvents: false, persistExtendedHistory: true } }
+const context = { thread: { cwd: '/repo', experimentalRawEvents: false } }
 
 describe('CodexSessionManager', () => {
+  it('sends current permission-profile fields without legacy readOnlyAccess', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host })
+    await manager.create('conversation-1', {
+      thread: {
+        cwd: '/repo',
+        permissions: 'codywork-write',
+        runtimeWorkspaceRoots: ['/repo'],
+        config: {
+          permissions: {
+            'codywork-write': {
+              filesystem: { ':minimal': 'read', '/repo': 'write' },
+            },
+          },
+        },
+      },
+    })
+    const handle = await manager.send('conversation-1', {
+      input: [{ type: 'text', text: 'hello', text_elements: [] }],
+      permissions: 'codywork-write',
+      runtimeWorkspaceRoots: ['/repo'],
+    })
+    expect(host.calls[0]).toEqual(expect.objectContaining({
+      method: 'thread/start',
+      params: expect.objectContaining({ permissions: 'codywork-write', runtimeWorkspaceRoots: ['/repo'] }),
+    }))
+    expect(host.calls[1]).toEqual({
+      method: 'turn/start',
+      params: {
+        threadId: 'thread-1',
+        input: [{ type: 'text', text: 'hello', text_elements: [] }],
+        permissions: 'codywork-write',
+        runtimeWorkspaceRoots: ['/repo'],
+      },
+    })
+    expect(JSON.stringify(host.calls)).not.toContain('readOnlyAccess')
+    host.emit('turn/completed', { threadId: 'thread-1', turn: { id: handle.turnId, status: 'completed' } })
+    await manager.dispose()
+  })
+
   it('classifies reconnect errors as one retrying turn and emits one terminal event', async () => {
     const host = new FakeHost()
     const manager = new CodexSessionManager({ host })

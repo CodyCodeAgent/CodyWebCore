@@ -1,8 +1,14 @@
+import type { LoginAppBrand } from "./LoginAppBrand";
 export type LoginAccountParams = {
     "type": "apiKey";
     apiKey: string;
 } | {
     "type": "chatgpt";
+    codexStreamlinedLogin?: boolean;
+    useHostedLoginSuccessPage?: boolean;
+    appBrand?: LoginAppBrand | null;
+} | {
+    "type": "chatgptDeviceCode";
 } | {
     "type": "chatgptAuthTokens";
     /**
@@ -21,5 +27,9 @@ export type LoginAccountParams = {
      * claims. If unavailable, the plan defaults to `unknown`.
      */
     chatgptPlanType?: string | null;
+} | {
+    "type": "amazonBedrock";
+    apiKey: string;
+    region: string;
 };
 //# sourceMappingURL=LoginAccountParams.d.ts.map

@@ -1,0 +1,1 @@
+{"version":3,"file":"ThreadRealtimeListVoicesResponse.d.ts","sourceRoot":"","sources":["../../../../src/protocol/generated/v2/ThreadRealtimeListVoicesResponse.ts"],"names":[],"mappings":"AAGA,OAAO,KAAK,EAAE,kBAAkB,EAAE,MAAM,uBAAuB,CAAC;AAEhE;;GAEG;AACH,MAAM,MAAM,gCAAgC,GAAG;IAAE,MAAM,EAAE,kBAAkB,CAAC;CAAE,CAAC"}

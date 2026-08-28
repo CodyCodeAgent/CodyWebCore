@@ -1,3 +1,4 @@
+import type { AbsolutePathBuf } from "../AbsolutePathBuf";
 import type { SkillDependencies } from "./SkillDependencies";
 import type { SkillInterface } from "./SkillInterface";
 import type { SkillScope } from "./SkillScope";
@@ -10,7 +11,7 @@ export type SkillMetadata = {
     shortDescription?: string;
     interface?: SkillInterface;
     dependencies?: SkillDependencies;
-    path: string;
+    path: AbsolutePathBuf;
     scope: SkillScope;
     enabled: boolean;
 };

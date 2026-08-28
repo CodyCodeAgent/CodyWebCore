@@ -1,3 +1,4 @@
+import type { ImageDetail } from "../ImageDetail";
 import type { TextElement } from "./TextElement";
 export type UserInput = {
     "type": "text";
@@ -8,9 +9,17 @@ export type UserInput = {
     text_elements: Array<TextElement>;
 } | {
     "type": "image";
+    detail?: ImageDetail;
     url: string;
 } | {
     "type": "localImage";
+    detail?: ImageDetail;
+    path: string;
+} | {
+    "type": "audio";
+    url: string;
+} | {
+    "type": "localAudio";
     path: string;
 } | {
     "type": "skill";

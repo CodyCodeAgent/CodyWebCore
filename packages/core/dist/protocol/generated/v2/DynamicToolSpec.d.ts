@@ -1,7 +1,8 @@
-import type { JsonValue } from "../serde_json/JsonValue";
+import type { DynamicToolFunctionSpec } from "./DynamicToolFunctionSpec";
+import type { DynamicToolNamespaceSpec } from "./DynamicToolNamespaceSpec";
 export type DynamicToolSpec = {
-    name: string;
-    description: string;
-    inputSchema: JsonValue;
-};
+    "type": "function";
+} & DynamicToolFunctionSpec | {
+    "type": "namespace";
+} & DynamicToolNamespaceSpec;
 //# sourceMappingURL=DynamicToolSpec.d.ts.map

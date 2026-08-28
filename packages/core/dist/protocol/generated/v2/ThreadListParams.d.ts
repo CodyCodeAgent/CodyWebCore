@@ -1,3 +1,4 @@
+import type { SortDirection } from "./SortDirection";
 import type { ThreadSortKey } from "./ThreadSortKey";
 import type { ThreadSourceKind } from "./ThreadSourceKind";
 export type ThreadListParams = {
@@ -14,6 +15,10 @@ export type ThreadListParams = {
      */
     sortKey?: ThreadSortKey | null;
     /**
+     * Optional sort direction; defaults to descending (newest first).
+     */
+    sortDirection?: SortDirection | null;
+    /**
      * Optional provider filter; when set, only sessions recorded under these
      * providers are returned. When present but empty, includes all providers.
      */
@@ -29,9 +34,33 @@ export type ThreadListParams = {
      */
     archived?: boolean | null;
     /**
-     * Optional cwd filter; when set, only threads whose session cwd exactly
-     * matches this path are returned.
+     * Omit to include every section, set to `null` for unsectioned threads,
+     * or provide a section ID to return only threads in that section.
      */
-    cwd?: string | null;
+    sectionId?: string | null;
+    /**
+     * Optional cwd filter or filters; when set, only threads whose session cwd
+     * exactly matches one of these paths are returned.
+     */
+    cwd?: string | Array<string> | null;
+    /**
+     * If true, return from the state DB without scanning JSONL rollouts to
+     * repair thread metadata. Omitted or false preserves scan-and-repair
+     * behavior.
+     */
+    useStateDbOnly?: boolean;
+    /**
+     * Optional substring filter for the extracted thread title.
+     */
+    searchTerm?: string | null;
+    /**
+     * Optional direct parent thread filter. Mutually exclusive with `ancestorThreadId`.
+     */
+    parentThreadId?: string | null;
+    /**
+     * Optional ancestor thread filter. Returns spawned descendants at any depth, excluding the
+     * ancestor itself. Mutually exclusive with `parentThreadId`.
+     */
+    ancestorThreadId?: string | null;
 };
 //# sourceMappingURL=ThreadListParams.d.ts.map

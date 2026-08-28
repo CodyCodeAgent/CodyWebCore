@@ -1,10 +1,14 @@
 import type { ApplyPatchApprovalParams } from "./ApplyPatchApprovalParams";
 import type { ExecCommandApprovalParams } from "./ExecCommandApprovalParams";
 import type { RequestId } from "./RequestId";
+import type { AttestationGenerateParams } from "./v2/AttestationGenerateParams";
 import type { ChatgptAuthTokensRefreshParams } from "./v2/ChatgptAuthTokensRefreshParams";
 import type { CommandExecutionRequestApprovalParams } from "./v2/CommandExecutionRequestApprovalParams";
+import type { CurrentTimeReadParams } from "./v2/CurrentTimeReadParams";
 import type { DynamicToolCallParams } from "./v2/DynamicToolCallParams";
 import type { FileChangeRequestApprovalParams } from "./v2/FileChangeRequestApprovalParams";
+import type { McpServerElicitationRequestParams } from "./v2/McpServerElicitationRequestParams";
+import type { PermissionsRequestApprovalParams } from "./v2/PermissionsRequestApprovalParams";
 import type { ToolRequestUserInputParams } from "./v2/ToolRequestUserInputParams";
 /**
  * Request initiated from the server and sent to the client.
@@ -22,6 +26,14 @@ export type ServerRequest = {
     id: RequestId;
     params: ToolRequestUserInputParams;
 } | {
+    "method": "mcpServer/elicitation/request";
+    id: RequestId;
+    params: McpServerElicitationRequestParams;
+} | {
+    "method": "item/permissions/requestApproval";
+    id: RequestId;
+    params: PermissionsRequestApprovalParams;
+} | {
     "method": "item/tool/call";
     id: RequestId;
     params: DynamicToolCallParams;
@@ -29,6 +41,14 @@ export type ServerRequest = {
     "method": "account/chatgptAuthTokens/refresh";
     id: RequestId;
     params: ChatgptAuthTokensRefreshParams;
+} | {
+    "method": "attestation/generate";
+    id: RequestId;
+    params: AttestationGenerateParams;
+} | {
+    "method": "currentTime/read";
+    id: RequestId;
+    params: CurrentTimeReadParams;
 } | {
     "method": "applyPatchApproval";
     id: RequestId;

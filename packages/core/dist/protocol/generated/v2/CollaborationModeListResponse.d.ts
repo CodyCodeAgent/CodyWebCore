@@ -1,4 +1,4 @@
-import type { CollaborationModeMask } from "../CollaborationModeMask";
+import type { CollaborationModeMask } from "./CollaborationModeMask";
 /**
  * EXPERIMENTAL - collaboration mode presets response.
  */

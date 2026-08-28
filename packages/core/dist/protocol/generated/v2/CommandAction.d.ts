@@ -1,8 +1,9 @@
+import type { LegacyAppPathString } from "../LegacyAppPathString";
 export type CommandAction = {
     "type": "read";
     command: string;
     name: string;
-    path: string;
+    path: LegacyAppPathString;
 } | {
     "type": "listFiles";
     command: string;

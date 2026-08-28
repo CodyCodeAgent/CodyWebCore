@@ -19,6 +19,9 @@ export type TurnInput = {
     effort?: TurnStartParams['effort'];
     collaborationMode?: TurnStartParams['collaborationMode'];
     approvalPolicy?: TurnStartParams['approvalPolicy'];
+    approvalsReviewer?: TurnStartParams['approvalsReviewer'];
+    permissions?: TurnStartParams['permissions'];
+    runtimeWorkspaceRoots?: TurnStartParams['runtimeWorkspaceRoots'];
     sandboxPolicy?: TurnStartParams['sandboxPolicy'];
 };
 export type TurnHandle = {

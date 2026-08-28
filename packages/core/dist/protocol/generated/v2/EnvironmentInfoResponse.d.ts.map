@@ -1,0 +1,1 @@
+{"version":3,"file":"EnvironmentInfoResponse.d.ts","sourceRoot":"","sources":["../../../../src/protocol/generated/v2/EnvironmentInfoResponse.ts"],"names":[],"mappings":"AAGA,OAAO,KAAK,EAAE,OAAO,EAAE,MAAM,YAAY,CAAC;AAC1C,OAAO,KAAK,EAAE,oBAAoB,EAAE,MAAM,wBAAwB,CAAC;AAEnE,MAAM,MAAM,uBAAuB,GAAG;IAAE,KAAK,EAAE,oBAAoB,CAAC;IACpE;;OAEG;IACH,GAAG,EAAE,OAAO,GAAG,IAAI,CAAC;CAAE,CAAC"}

@@ -1,0 +1,1 @@
+{"version":3,"file":"RemoteControlClientsListResponse.d.ts","sourceRoot":"","sources":["../../../../src/protocol/generated/v2/RemoteControlClientsListResponse.ts"],"names":[],"mappings":"AAGA,OAAO,KAAK,EAAE,mBAAmB,EAAE,MAAM,uBAAuB,CAAC;AAEjE,MAAM,MAAM,gCAAgC,GAAG;IAAE,IAAI,EAAE,KAAK,CAAC,mBAAmB,CAAC,CAAC;IAAC,UAAU,EAAE,MAAM,GAAG,IAAI,CAAC;CAAE,CAAC"}

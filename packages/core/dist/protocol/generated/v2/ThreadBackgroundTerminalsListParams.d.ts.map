@@ -1,0 +1,1 @@
+{"version":3,"file":"ThreadBackgroundTerminalsListParams.d.ts","sourceRoot":"","sources":["../../../../src/protocol/generated/v2/ThreadBackgroundTerminalsListParams.ts"],"names":[],"mappings":"AAIA,MAAM,MAAM,mCAAmC,GAAG;IAAE,QAAQ,EAAE,MAAM,CAAC;IACrE;;OAEG;IACH,MAAM,CAAC,EAAE,MAAM,GAAG,IAAI,CAAC;IACvB;;OAEG;IACH,KAAK,CAAC,EAAE,MAAM,GAAG,IAAI,CAAC;CAAE,CAAC"}

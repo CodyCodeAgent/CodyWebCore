@@ -20,6 +20,11 @@ Framework-neutral Codex App Server primitives shared by CodyWebUI and CodyWork.
 
 | Core | Codex App Server boundary | Product migration |
 | --- | --- | --- |
-| 0.5.x | Generated schemas plus capability detection; unknown notifications are retained as `provider.extension` | CodyWebUI and CodyWork use the same runtime, protocol readers and conversation rules |
+| 0.5.1 | Codex 0.148.x generated schema; current `permissions` profiles and `runtimeWorkspaceRoots`; unknown notifications are retained as `provider.extension` | CodyWebUI and CodyWork use the same runtime, protocol readers and conversation rules |
+| 0.5.0 | Earlier generated schema with legacy `readOnlyAccess` compatibility | Superseded; products must upgrade together |
 
 Schema snapshots live in `packages/core/schema/json`. Changes to generated schemas, normalized events, runtime recovery or Vue interaction contracts require a minor version and changelog entry.
+
+Run `pnpm generate:protocol` with the target `codex` binary on `PATH` to atomically regenerate both TypeScript and JSON snapshots. The command records the generator version in `packages/core/schema/CODEX_VERSION`.
+
+Named permission profiles supplied through `thread/start.config` are thread-start configuration. Codex reloads later `turn/start.permissions` selections from its process-level catalog, so products should either register reusable process-level profiles or keep a thread on its start profile. CodyWork uses the latter and applies the built-in read-only policy only for temporary Plan/read-only turns.

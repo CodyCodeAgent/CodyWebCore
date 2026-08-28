@@ -1,3 +1,4 @@
+import type { JsonValue } from "./serde_json/JsonValue";
 /**
  * Client-declared capabilities negotiated during initialize.
  */
@@ -7,9 +8,25 @@ export type InitializeCapabilities = {
      */
     experimentalApi: boolean;
     /**
+     * Opt into `attestation/generate` requests for upstream `x-oai-attestation`.
+     */
+    requestAttestation: boolean;
+    /**
+     * Legacy opt-in for the `openai/form` MCP extension.
+     *
+     * New clients should declare `openai/form` in [`Self::extensions`].
+     */
+    mcpServerOpenaiFormElicitation?: boolean;
+    /**
      * Exact notification method names that should be suppressed for this
-     * connection (for example `codex/event/session_configured`).
+     * connection (for example `thread/started`).
      */
     optOutNotificationMethods?: Array<string> | null;
+    /**
+     * MCP extension settings declared by the app-server client.
+     */
+    extensions?: {
+        [key in string]?: JsonValue;
+    } | null;
 };
 //# sourceMappingURL=InitializeCapabilities.d.ts.map

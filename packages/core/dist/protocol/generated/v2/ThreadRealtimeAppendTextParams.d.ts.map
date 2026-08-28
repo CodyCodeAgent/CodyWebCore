@@ -1,0 +1,1 @@
+{"version":3,"file":"ThreadRealtimeAppendTextParams.d.ts","sourceRoot":"","sources":["../../../../src/protocol/generated/v2/ThreadRealtimeAppendTextParams.ts"],"names":[],"mappings":"AAGA,OAAO,KAAK,EAAE,oBAAoB,EAAE,MAAM,yBAAyB,CAAC;AAEpE;;GAEG;AACH,MAAM,MAAM,8BAA8B,GAAG;IAAE,QAAQ,EAAE,MAAM,CAAC;IAAC,IAAI,EAAE,MAAM,CAAC;IAAC,IAAI,EAAE,oBAAoB,CAAC;CAAE,CAAC"}

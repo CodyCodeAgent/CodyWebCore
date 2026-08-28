@@ -1,1 +1,1 @@
-{"version":3,"file":"ThreadId.d.ts","sourceRoot":"","sources":["../../../src/protocol/generated/ThreadId.ts"],"names":[],"mappings":"AAIA,MAAM,MAAM,QAAQ,GAAG,MAAM,CAAC"}
+{"version":3,"file":"ThreadId.d.ts","sourceRoot":"","sources":["../../../src/protocol/generated/ThreadId.ts"],"names":[],"mappings":"AAIA;;;;GAIG;AACH,MAAM,MAAM,QAAQ,GAAG,MAAM,CAAC"}

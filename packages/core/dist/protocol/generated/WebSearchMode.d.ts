@@ -1,2 +1,2 @@
-export type WebSearchMode = "disabled" | "cached" | "live";
+export type WebSearchMode = "disabled" | "cached" | "indexed" | "live";
 //# sourceMappingURL=WebSearchMode.d.ts.map

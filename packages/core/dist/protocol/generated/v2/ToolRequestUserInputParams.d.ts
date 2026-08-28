@@ -7,5 +7,10 @@ export type ToolRequestUserInputParams = {
     turnId: string;
     itemId: string;
     questions: Array<ToolRequestUserInputQuestion>;
+    isBlocking: boolean;
+    /**
+     * @deprecated Use `isBlocking` to decide whether the request should block.
+     */
+    autoResolutionMs: number | null;
 };
 //# sourceMappingURL=ToolRequestUserInputParams.d.ts.map

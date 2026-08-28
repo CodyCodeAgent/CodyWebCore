@@ -25,6 +25,9 @@ export type TurnInput = {
   effort?: TurnStartParams['effort']
   collaborationMode?: TurnStartParams['collaborationMode']
   approvalPolicy?: TurnStartParams['approvalPolicy']
+  approvalsReviewer?: TurnStartParams['approvalsReviewer']
+  permissions?: TurnStartParams['permissions']
+  runtimeWorkspaceRoots?: TurnStartParams['runtimeWorkspaceRoots']
   sandboxPolicy?: TurnStartParams['sandboxPolicy']
 }
 
@@ -265,7 +268,6 @@ export class CodexSessionManager {
     const result = await this.client.call('thread/start', {
       ...context.thread,
       experimentalRawEvents: context.thread.experimentalRawEvents ?? false,
-      persistExtendedHistory: context.thread.persistExtendedHistory ?? true,
     } as ThreadStartParams)
     const binding = { id: bindingId, threadId: result.thread.id }
     this.attachLocal(binding, context)
@@ -278,7 +280,6 @@ export class CodexSessionManager {
     const params: ThreadResumeParams = {
       ...context.thread,
       threadId: binding.threadId,
-      persistExtendedHistory: context.thread.persistExtendedHistory ?? true,
     }
     await this.client.call('thread/resume', params)
     this.forgetTerminalEvents(binding.threadId)
@@ -326,6 +327,9 @@ export class CodexSessionManager {
           ...(input.effort !== undefined ? { effort: input.effort } : {}),
           ...(input.collaborationMode !== undefined ? { collaborationMode: input.collaborationMode } : {}),
           ...(input.approvalPolicy !== undefined ? { approvalPolicy: input.approvalPolicy } : {}),
+          ...(input.approvalsReviewer !== undefined ? { approvalsReviewer: input.approvalsReviewer } : {}),
+          ...(input.permissions !== undefined ? { permissions: input.permissions } : {}),
+          ...(input.runtimeWorkspaceRoots !== undefined ? { runtimeWorkspaceRoots: input.runtimeWorkspaceRoots } : {}),
           ...(input.sandboxPolicy !== undefined ? { sandboxPolicy: input.sandboxPolicy } : {}),
         })
         const handle = { threadId: session.binding.threadId, turnId: result.turn.id }
@@ -429,7 +433,6 @@ export class CodexSessionManager {
     await this.client.call('thread/resume', {
       ...session.context.thread,
       threadId: session.binding.threadId,
-      persistExtendedHistory: session.context.thread.persistExtendedHistory ?? true,
     } as ThreadResumeParams)
     this.forgetTerminalEvents(session.binding.threadId)
     session.attached = true

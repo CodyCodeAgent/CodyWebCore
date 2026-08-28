@@ -1,0 +1,1 @@
+{"version":3,"file":"EnvironmentAddParams.d.ts","sourceRoot":"","sources":["../../../../src/protocol/generated/v2/EnvironmentAddParams.ts"],"names":[],"mappings":"AAIA,MAAM,MAAM,oBAAoB,GAAG;IAAE,aAAa,EAAE,MAAM,CAAC;IAAC,aAAa,EAAE,MAAM,CAAC;IAClF;;OAEG;IACH,gBAAgB,CAAC,EAAE,MAAM,GAAG,IAAI,CAAC;CAAE,CAAC"}

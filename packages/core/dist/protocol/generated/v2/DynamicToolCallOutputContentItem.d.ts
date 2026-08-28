@@ -4,5 +4,8 @@ export type DynamicToolCallOutputContentItem = {
 } | {
     "type": "inputImage";
     imageUrl: string;
+} | {
+    "type": "inputAudio";
+    audioUrl: string;
 };
 //# sourceMappingURL=DynamicToolCallOutputContentItem.d.ts.map

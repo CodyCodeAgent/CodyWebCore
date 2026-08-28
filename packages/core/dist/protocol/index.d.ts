@@ -42,6 +42,7 @@ export type { UserInput } from './generated/v2/UserInput.js';
 export type { ReasoningEffort } from './generated/ReasoningEffort.js';
 export type { CollaborationMode } from './generated/CollaborationMode.js';
 export * from './methods.js';
+export * from './permission-profile.js';
 export declare const READ_RECOVERY_METHODS: Set<string>;
 export declare function asRecord(value: unknown): JsonRecord | null;
 export declare function readString(value: unknown): string;

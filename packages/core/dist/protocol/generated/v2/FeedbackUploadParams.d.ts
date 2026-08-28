@@ -2,6 +2,10 @@ export type FeedbackUploadParams = {
     classification: string;
     reason?: string | null;
     threadId?: string | null;
-    includeLogs: boolean;
+    includeLogs?: boolean;
+    extraLogFiles?: Array<string> | null;
+    tags?: {
+        [key in string]?: string;
+    } | null;
 };
 //# sourceMappingURL=FeedbackUploadParams.d.ts.map
