@@ -1,6 +1,6 @@
 {
   "name": "@codycodeagent/cody-web-core",
-  "version": "0.6.6",
+  "version": "0.6.7",
   "description": "Shared Codex protocol, runtime, and conversation primitives for CodyWeb products",
   "license": "MIT",
   "type": "module",
@@ -30,7 +30,7 @@
   "scripts": {
     "generate:protocol": "node scripts/generate-protocol.mjs",
     "build": "pnpm --filter @codycodeagent/cody-web-core-build build && pnpm --filter @codycodeagent/cody-web-ui build",
-    "test": "pnpm --filter @codycodeagent/cody-web-core-build test && pnpm --filter @codycodeagent/cody-web-ui test",
+    "test": "pnpm --filter @codycodeagent/cody-web-core-build test && pnpm --filter @codycodeagent/cody-web-core-build build && pnpm --filter @codycodeagent/cody-web-ui test",
     "typecheck": "pnpm --filter @codycodeagent/cody-web-core-build typecheck && pnpm --filter @codycodeagent/cody-web-ui typecheck"
   }
 }

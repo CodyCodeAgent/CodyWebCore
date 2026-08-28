@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.7
+
+- Preserved native interrupted turns as `turn.interrupted` instead of misclassifying a user stop as a Runtime failure.
+- Added a neutral shared conversation receipt for interrupted turns and cancelled any still-running tool rows.
+- Built Core before shared Vue tests so component tests always exercise the current source contract rather than stale generated output.
+
 ## 0.6.6
 
 - Added the canonical live-turn activity presentation to the shared Vue conversation surface.

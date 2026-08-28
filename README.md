@@ -20,6 +20,7 @@ Framework-neutral Codex App Server primitives shared by CodyWebUI and CodyWork.
 
 | Core | Codex App Server boundary | Product migration |
 | --- | --- | --- |
+| 0.6.7 | Same wire schema; adds normalized `turn.interrupted` terminal semantics | Products should treat a user stop as neutral/idle and must not surface it as a provider failure |
 | 0.6.6 | Same 0.6.5 runtime/protocol contract; adds shared Vue live-turn and retry presentation | Products should delete local live-status placeholders and render the activity entry from shared conversation state |
 | 0.6.1 | Same 0.6.0 runtime/protocol contract; fixes terminal-event conversation authority | Products should upgrade together so failed historical diagnostics cannot leave the composer in a false running state |
 | 0.6.0 | Same Codex 0.148.x wire schema as 0.5.1; adds Core-only runtime failure diagnostics (no generated protocol change) | Products may adopt `failureReport()` incrementally; existing host calls remain unchanged |

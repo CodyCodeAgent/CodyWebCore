@@ -195,6 +195,7 @@ export type CodexEventType =
   | 'turn.retrying'
   | 'turn.completed'
   | 'turn.failed'
+  | 'turn.interrupted'
   | 'user.completed'
   | 'assistant.delta'
   | 'assistant.completed'
@@ -273,7 +274,7 @@ export type ConversationHistoryState = {
 
 export type ConversationPresentationRef = {
   id: string
-  kind: 'message' | 'timeline' | 'plan' | 'request' | 'failure' | 'worked'
+  kind: 'message' | 'timeline' | 'plan' | 'request' | 'failure' | 'interrupted' | 'worked'
   turnId?: string
 }
 
@@ -364,7 +365,7 @@ function toolTimelineId(event: CodexEvent, tool = eventTool(event.data)): string
 function terminalizeTurnTools(
   timeline: ConversationTimelineEntry[],
   turnId: string,
-  status: 'completed' | 'failed',
+  status: 'completed' | 'failed' | 'cancelled',
 ): ConversationTimelineEntry[] {
   let changed = false
   const next = timeline.map((entry) => {
@@ -467,6 +468,13 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
     const turnId = event.turnId || state.activeTurnId
     return turnId
       ? { ...updated, timeline: terminalizeTurnTools(updated.timeline, turnId, 'failed'), presentation: appendPresentation(updated.presentation, { id: `failure:${turnId}`, kind: 'failure', turnId }) }
+      : updated
+  }
+  if (event.type === 'turn.interrupted') {
+    const updated = updateTurn(state, event, 'interrupted')
+    const turnId = event.turnId || state.activeTurnId
+    return turnId
+      ? { ...updated, timeline: terminalizeTurnTools(updated.timeline, turnId, 'cancelled'), presentation: appendPresentation(updated.presentation, { id: `interrupted:${turnId}`, kind: 'interrupted', turnId }) }
       : updated
   }
 

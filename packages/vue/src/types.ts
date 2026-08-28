@@ -69,6 +69,7 @@ export type CodyConversationEntry =
   | { id: string; kind: 'plan'; text: string }
   | { id: string; kind: 'request'; request: ConversationRequest }
   | { id: string; kind: 'failure'; text: string }
+  | { id: string; kind: 'interrupted'; text: string }
   | { id: string; kind: 'worked'; label: string }
   | { id: string; kind: 'activity'; title: string; detail: string; tone: 'running' | 'retrying' | 'waiting' }
 
@@ -139,6 +140,8 @@ export function conversationEntriesFromState(state: ConversationState): CodyConv
     } else if (ref.kind === 'failure') {
       const turn = ref.turnId ? state.turns[ref.turnId] : undefined
       if (turn?.error) { entries.push({ id: ref.id, kind: 'failure', text: turn.error }); seen.add(ref.id) }
+    } else if (ref.kind === 'interrupted') {
+      entries.push({ id: ref.id, kind: 'interrupted', text: '本次回复已停止' }); seen.add(ref.id)
     } else if (ref.kind === 'worked') {
       const turn = ref.turnId ? state.turns[ref.turnId] : undefined
       if (turn?.completedAtIso) {
@@ -156,6 +159,7 @@ export function conversationEntriesFromState(state: ConversationState): CodyConv
   for (const request of state.pendingRequests) if (!seen.has(`request:${request.id}`)) entries.push({ id: `request:${request.id}`, kind: 'request', request })
   for (const turn of Object.values(state.turns)) {
     if (turn.lifecycle === 'failed' && turn.error && !seen.has(`failure:${turn.id}`)) entries.push({ id: `failure:${turn.id}`, kind: 'failure', text: turn.error })
+    if (turn.lifecycle === 'interrupted' && !seen.has(`interrupted:${turn.id}`)) entries.push({ id: `interrupted:${turn.id}`, kind: 'interrupted', text: '本次回复已停止' })
   }
   const activeTurn = state.activeTurnId ? state.turns[state.activeTurnId] : undefined
   if (activeTurn) {

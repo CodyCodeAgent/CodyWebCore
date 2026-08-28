@@ -27,6 +27,7 @@
         </slot>
       </template>
       <details v-else-if="entry.kind === 'failure'" class="cody-failure-card"><summary>本次回复失败</summary><p>{{ entry.text }}</p></details>
+      <article v-else-if="entry.kind === 'interrupted'" class="cody-interrupted-card" role="status">{{ entry.text }}</article>
       <article v-else-if="entry.kind === 'activity'" class="cody-conversation-activity" :data-tone="entry.tone" role="status" aria-live="polite">
         <span class="cody-activity-pulse" aria-hidden="true" />
         <strong>{{ entry.title }}</strong>
@@ -52,7 +53,8 @@ const emit = defineEmits<{
 }>()
 
 function toolTone(status: string): 'neutral' | 'running' | 'success' | 'danger' {
-  if (/fail|error|cancel|reject/iu.test(status)) return 'danger'
+  if (/cancel|interrupt/iu.test(status)) return 'neutral'
+  if (/fail|error|reject/iu.test(status)) return 'danger'
   if (/complete|success|done|approved/iu.test(status)) return 'success'
   if (/run|start|pending|wait/iu.test(status)) return 'running'
   return 'neutral'

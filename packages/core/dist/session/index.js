@@ -177,11 +177,11 @@ export function normalizeThreadHistory(payload, fallbackThreadId = '') {
         }
         const status = readString(turn?.status);
         if (status === 'failed' || status === 'interrupted' || status === 'completed') {
-            const type = status === 'completed' ? 'turn.completed' : 'turn.failed';
+            const type = status === 'completed' ? 'turn.completed' : status === 'interrupted' ? 'turn.interrupted' : 'turn.failed';
             events.push({
                 id: `history:${threadId}:${turnId}:terminal`, type, threadId, turnId, atIso: completedAtIso ?? atIso,
                 data: type === 'turn.failed'
-                    ? { error: textFromError(turn?.error) || (status === 'interrupted' ? 'Codex turn was interrupted.' : 'Codex failed to complete this turn.'), status, history: true, durationKnown }
+                    ? { error: textFromError(turn?.error) || 'Codex failed to complete this turn.', status, history: true, durationKnown }
                     : { status, history: true, durationKnown },
             });
         }
@@ -404,7 +404,7 @@ export class CodexSessionManager {
         return `live:${String(this.eventSequence)}:${method}:${threadId}:${turnId}:${itemId}`;
     }
     emit(input) {
-        if ((input.type === 'turn.completed' || input.type === 'turn.failed') && input.turnId) {
+        if ((input.type === 'turn.completed' || input.type === 'turn.failed' || input.type === 'turn.interrupted') && input.turnId) {
             const existing = this.terminalEvents.get(this.turnKey(input.threadId, input.turnId));
             if (existing)
                 return existing;
@@ -414,9 +414,9 @@ export class CodexSessionManager {
             id: input.id ?? this.eventId(input.type, input.threadId, input.turnId, input.itemId),
             atIso: input.atIso ?? this.nowIso(),
         };
-        if (event.turnId && event.type !== 'turn.completed' && event.type !== 'turn.failed')
+        if (event.turnId && event.type !== 'turn.completed' && event.type !== 'turn.failed' && event.type !== 'turn.interrupted')
             this.refreshTurnInactivity(event.threadId, event.turnId);
-        if (event.type === 'turn.completed' || event.type === 'turn.failed')
+        if (event.type === 'turn.completed' || event.type === 'turn.failed' || event.type === 'turn.interrupted')
             this.finishTurn(event);
         for (const listener of this.listeners)
             listener(event);
@@ -529,7 +529,7 @@ export class CodexSessionManager {
             const turn = asRecord(params.turn);
             const status = readString(turn?.status);
             const completedTurnId = readString(turn?.id) || turnId;
-            const eventType = status === 'failed' || status === 'interrupted' ? 'turn.failed' : 'turn.completed';
+            const eventType = status === 'failed' ? 'turn.failed' : status === 'interrupted' ? 'turn.interrupted' : 'turn.completed';
             this.emit({ type: eventType, ...common, ...(completedTurnId ? { turnId: completedTurnId } : {}), data: status === 'failed' ? { error: textFromError(turn?.error), status, raw: params } : { status, raw: params } });
             return;
         }

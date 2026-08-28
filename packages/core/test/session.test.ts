@@ -209,6 +209,21 @@ describe('CodexSessionManager', () => {
     expect(events.filter((event) => event.type === 'turn.failed')).toHaveLength(1)
     await manager.dispose()
   })
+
+  it('normalizes an interrupted native turn without reporting a failure', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host })
+    await manager.create('conversation-1', context)
+    const events: CodexEvent[] = []
+    manager.subscribe((event) => events.push(event))
+    const handle = await manager.send('conversation-1', { input: [{ type: 'text', text: 'stop me', text_elements: [] }] })
+
+    host.emit('turn/completed', { threadId: 'thread-1', turn: { id: handle.turnId, status: 'interrupted' } })
+
+    await expect(manager.waitForTurn(handle)).resolves.toMatchObject({ type: 'turn.interrupted' })
+    expect(events.filter((event) => event.type === 'turn.failed')).toHaveLength(0)
+    await manager.dispose()
+  })
 })
 
 describe('normalizeThreadHistory', () => {
@@ -244,5 +259,14 @@ describe('normalizeThreadHistory', () => {
       ],
     }] } })
     expect(events.map((event) => event.type)).toEqual(['turn.started', 'user.completed'])
+  })
+
+  it('preserves an interrupted native history turn without inventing a failure', () => {
+    const events = normalizeThreadHistory({ thread: { id: 'thread-1', turns: [{
+      id: 'turn-stopped', status: 'interrupted', items: [], startedAt: 1_700_000_000, completedAt: 1_700_000_001,
+    }] } })
+
+    expect(events.at(-1)).toMatchObject({ type: 'turn.interrupted', data: { status: 'interrupted', history: true } })
+    expect(events.some((event) => event.type === 'turn.failed')).toBe(false)
   })
 })

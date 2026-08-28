@@ -48,7 +48,7 @@ export declare function groupConsecutiveFileChanges<T extends ConversationMessag
     firstIndex: number;
     messages: T[];
 }>;
-export type CodexEventType = 'thread.attached' | 'turn.started' | 'turn.retrying' | 'turn.completed' | 'turn.failed' | 'user.completed' | 'assistant.delta' | 'assistant.completed' | 'reasoning.delta' | 'reasoning.break' | 'plan.delta' | 'plan.replaced' | 'tool.started' | 'tool.updated' | 'tool.completed' | 'fileChange.updated' | 'approval.requested' | 'approval.resolved' | 'question.requested' | 'question.resolved' | 'runtime.connected' | 'runtime.disconnected' | 'provider.extension';
+export type CodexEventType = 'thread.attached' | 'turn.started' | 'turn.retrying' | 'turn.completed' | 'turn.failed' | 'turn.interrupted' | 'user.completed' | 'assistant.delta' | 'assistant.completed' | 'reasoning.delta' | 'reasoning.break' | 'plan.delta' | 'plan.replaced' | 'tool.started' | 'tool.updated' | 'tool.completed' | 'fileChange.updated' | 'approval.requested' | 'approval.resolved' | 'question.requested' | 'question.resolved' | 'runtime.connected' | 'runtime.disconnected' | 'provider.extension';
 /** Framework- and transport-neutral event emitted by the shared Codex session manager. */
 export type CodexEvent = {
     id: string;
@@ -110,7 +110,7 @@ export type ConversationHistoryState = {
 };
 export type ConversationPresentationRef = {
     id: string;
-    kind: 'message' | 'timeline' | 'plan' | 'request' | 'failure' | 'worked';
+    kind: 'message' | 'timeline' | 'plan' | 'request' | 'failure' | 'interrupted' | 'worked';
     turnId?: string;
 };
 export type ConversationState = {

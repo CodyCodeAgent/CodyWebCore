@@ -337,6 +337,13 @@ export function reduceConversationEvent(previous, event) {
             ? { ...updated, timeline: terminalizeTurnTools(updated.timeline, turnId, 'failed'), presentation: appendPresentation(updated.presentation, { id: `failure:${turnId}`, kind: 'failure', turnId }) }
             : updated;
     }
+    if (event.type === 'turn.interrupted') {
+        const updated = updateTurn(state, event, 'interrupted');
+        const turnId = event.turnId || state.activeTurnId;
+        return turnId
+            ? { ...updated, timeline: terminalizeTurnTools(updated.timeline, turnId, 'cancelled'), presentation: appendPresentation(updated.presentation, { id: `interrupted:${turnId}`, kind: 'interrupted', turnId }) }
+            : updated;
+    }
     if (event.type === 'user.completed') {
         const text = eventText(event.data);
         const images = Array.isArray(event.data.images) ? event.data.images.filter((value) => typeof value === 'string') : [];

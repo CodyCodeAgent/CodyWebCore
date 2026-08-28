@@ -61,6 +61,18 @@ describe('conversation core', () => {
     expect(state.activeTurnId).toBe('')
   })
 
+  it('keeps a user interruption distinct from a failed turn', () => {
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { id: 'start', type: 'turn.started', threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:00.000Z', data: {} },
+      { id: 'interrupt', type: 'turn.interrupted', threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:01.000Z', data: { status: 'interrupted' } },
+    ])
+
+    expect(state.turns['turn-1']).toMatchObject({ lifecycle: 'interrupted' })
+    expect(state.activeTurnId).toBe('')
+    expect(state.presentation).toContainEqual(expect.objectContaining({ kind: 'interrupted', turnId: 'turn-1' }))
+    expect(state.presentation).not.toContainEqual(expect.objectContaining({ kind: 'failure' }))
+  })
+
   it('does not clear a newer active turn when an older turn finishes late', () => {
     const state = reduceConversationEvents(createConversationState('thread-1'), [
       { id: 'old-start', type: 'turn.started', threadId: 'thread-1', turnId: 'old-turn', atIso: '2026-01-01T00:00:00.000Z', data: {} },

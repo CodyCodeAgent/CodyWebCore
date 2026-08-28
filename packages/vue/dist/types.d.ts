@@ -48,6 +48,10 @@ export type CodyConversationEntry = {
     text: string;
 } | {
     id: string;
+    kind: 'interrupted';
+    text: string;
+} | {
+    id: string;
     kind: 'worked';
     label: string;
 } | {
