@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.6
+
+- Added the canonical live-turn activity presentation to the shared Vue conversation surface.
+- Rendered provider reconnect progress, pending approvals/questions and connection recovery from shared reducer state instead of product-specific placeholders.
+
 ## 0.6.5
 
 - Normalized App Server warning notifications as visible retrying turns instead of silently dropping reconnect progress.

@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import CodyComposer from './CodyComposer.vue'
 import CodyConversation from './CodyConversation.vue'
+import { conversationEntriesFromState } from './types.js'
+import { createConversationState, reduceConversationEvents } from '@codycodeagent/cody-web-core/conversation'
 
 describe('shared conversation components', () => {
   it('emits every run-mode selection from the shared composer', async () => {
@@ -48,6 +50,18 @@ describe('shared conversation components', () => {
     const cards = wrapper.findAll('details.cody-tool-card')
     expect(cards[0]!.attributes('open')).toBeUndefined()
     expect(cards[1]!.attributes('open')).toBe('')
+  })
+
+  it('renders the native retry message from shared conversation state', () => {
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { id: 'start', type: 'turn.started', threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-08-29T00:00:00.000Z', data: {} },
+      { id: 'retry', type: 'turn.retrying', threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-08-29T00:00:01.000Z', data: { message: 'Reconnecting… 2/5' } },
+    ])
+    const wrapper = mount(CodyConversation, { props: { entries: conversationEntriesFromState(state) } })
+
+    expect(wrapper.find('.cody-conversation-activity').attributes('data-tone')).toBe('retrying')
+    expect(wrapper.text()).toContain('Reconnecting… 2/5')
+    expect(wrapper.text()).toContain('正在恢复本次回复')
   })
 
   it('emits approval decisions from the shared request card', async () => {

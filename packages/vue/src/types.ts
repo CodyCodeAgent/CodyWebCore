@@ -70,6 +70,7 @@ export type CodyConversationEntry =
   | { id: string; kind: 'request'; request: ConversationRequest }
   | { id: string; kind: 'failure'; text: string }
   | { id: string; kind: 'worked'; label: string }
+  | { id: string; kind: 'activity'; title: string; detail: string; tone: 'running' | 'retrying' | 'waiting' }
 
 /** Converts shared reducer state into the shared Vue presentation model. */
 export function conversationEntriesFromState(state: ConversationState): CodyConversationEntry[] {
@@ -155,6 +156,35 @@ export function conversationEntriesFromState(state: ConversationState): CodyConv
   for (const request of state.pendingRequests) if (!seen.has(`request:${request.id}`)) entries.push({ id: `request:${request.id}`, kind: 'request', request })
   for (const turn of Object.values(state.turns)) {
     if (turn.lifecycle === 'failed' && turn.error && !seen.has(`failure:${turn.id}`)) entries.push({ id: `failure:${turn.id}`, kind: 'failure', text: turn.error })
+  }
+  const activeTurn = state.activeTurnId ? state.turns[state.activeTurnId] : undefined
+  if (activeTurn) {
+    const pendingRequest = state.pendingRequests.find((request) => !request.turnId || request.turnId === activeTurn.id)
+    if (pendingRequest) {
+      entries.push({
+        id: `activity:${activeTurn.id}`,
+        kind: 'activity',
+        title: pendingRequest.kind === 'approval' ? '等待你的审批' : '等待你的回答',
+        detail: '处理后 Codex 会继续本次回复',
+        tone: 'waiting',
+      })
+    } else if (activeTurn.lifecycle === 'retrying') {
+      entries.push({
+        id: `activity:${activeTurn.id}`,
+        kind: 'activity',
+        title: activeTurn.retryMessage || 'Codex 正在重新连接',
+        detail: state.connection.status === 'disconnected' ? '连接已中断，等待恢复' : '正在恢复本次回复',
+        tone: 'retrying',
+      })
+    } else if (activeTurn.lifecycle === 'running') {
+      entries.push({
+        id: `activity:${activeTurn.id}`,
+        kind: 'activity',
+        title: 'Codex 正在工作',
+        detail: state.connection.status === 'connected' ? '实时更新中' : '等待恢复连接',
+        tone: 'running',
+      })
+    }
   }
   return entries
 }

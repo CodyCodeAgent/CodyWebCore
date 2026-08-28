@@ -1,5 +1,5 @@
-import { defineComponent as N, computed as P, ref as W, watch as ie, onMounted as ye, onBeforeUnmount as ke, openBlock as u, createElementBlock as m, Fragment as I, createElementVNode as k, nextTick as be, reactive as ve, toDisplayString as q, renderList as z, createCommentVNode as L, createTextVNode as K, normalizeClass as he, withDirectives as $e, withKeys as re, vModelDynamic as we, renderSlot as V, createVNode as F, h as _, withModifiers as ee, createBlock as te, unref as U } from "vue";
-import de from "dompurify";
+import { defineComponent as N, computed as P, ref as Q, watch as re, onMounted as ye, onBeforeUnmount as ke, openBlock as d, createElementBlock as m, Fragment as R, createElementVNode as g, nextTick as ve, reactive as be, toDisplayString as A, renderList as z, createCommentVNode as M, createTextVNode as Y, normalizeClass as he, withDirectives as $e, withKeys as de, vModelDynamic as we, renderSlot as V, createVNode as F, h as K, withModifiers as te, createBlock as oe, unref as U } from "vue";
+import ce from "dompurify";
 import Se from "markdown-it";
 import Ce from "markdown-it-footnote";
 import xe from "markdown-it-task-lists";
@@ -24,55 +24,55 @@ const H = {
 }, T = new Se({ breaks: !0, html: !1, linkify: !0, typographer: !1 });
 T.use(xe, { enabled: !1, label: !0, labelAfter: !0 });
 T.use(Ce);
-function D(e, l) {
-  return `<button type="button" class="markdown-tool-button" data-markdown-action="${e}" aria-label="${l}" title="${l}">${l}</button>`;
+function D(e, a) {
+  return `<button type="button" class="markdown-tool-button" data-markdown-action="${e}" aria-label="${a}" title="${a}">${a}</button>`;
 }
-function ce(e, l = "", o = H) {
-  const d = l.toLowerCase();
-  if (d === "mermaid" || d === "plantuml" || d === "puml") {
-    const M = d === "mermaid" ? "mermaid" : "plantuml";
-    return `<div class="markdown-diagram-shell" data-diagram-engine="${M}"><header class="markdown-diagram-toolbar"><span>${M}</span><span class="markdown-diagram-actions">${D("diagram-zoom-out", o.zoomOut)}${D("diagram-fit", o.fit)}${D("diagram-zoom-in", o.zoomIn)}${D("diagram-source", o.source)}${D("diagram-fullscreen", o.fullscreen)}${D("diagram-export-svg", "SVG")}${D("diagram-export-png", "PNG")}</span></header><div class="markdown-diagram-stage" role="img" aria-label="${o.diagramAria(M)}"><p class="markdown-diagram-status">${o.rendering(M)}</p></div><pre class="markdown-diagram-source" hidden><code>${T.utils.escapeHtml(e)}</code></pre></div>
+function ue(e, a = "", n = H) {
+  const c = a.toLowerCase();
+  if (c === "mermaid" || c === "plantuml" || c === "puml") {
+    const L = c === "mermaid" ? "mermaid" : "plantuml";
+    return `<div class="markdown-diagram-shell" data-diagram-engine="${L}"><header class="markdown-diagram-toolbar"><span>${L}</span><span class="markdown-diagram-actions">${D("diagram-zoom-out", n.zoomOut)}${D("diagram-fit", n.fit)}${D("diagram-zoom-in", n.zoomIn)}${D("diagram-source", n.source)}${D("diagram-fullscreen", n.fullscreen)}${D("diagram-export-svg", "SVG")}${D("diagram-export-png", "PNG")}</span></header><div class="markdown-diagram-stage" role="img" aria-label="${n.diagramAria(L)}"><p class="markdown-diagram-status">${n.rendering(L)}</p></div><pre class="markdown-diagram-source" hidden><code>${T.utils.escapeHtml(e)}</code></pre></div>
 `;
   }
   const i = e.replace(/\n$/u, "").split(`
-`), r = i.length <= 2 && i.every((M) => M.length <= 96), S = i.length > 10, b = l || "text", y = [r ? "is-compact-code" : "", /^[A-Za-z0-9_-]+$/u.test(l) ? `language-${l}` : ""].filter(Boolean).join(" "), a = y ? ` class="${y}"` : "", t = [r ? "is-compact" : "", S ? "is-collapsible is-collapsed" : ""].filter(Boolean).join(" "), s = S ? `${b} · ${o.lineCount(i.length)}` : b, n = S ? `<button type="button" class="markdown-tool-button markdown-code-collapse" data-markdown-action="toggle-code" aria-label="${o.collapseCode}" title="${o.collapseCode}" aria-expanded="false">${o.collapseCode}</button>` : "", p = S ? `<div class="markdown-code-expand"><button type="button" data-markdown-action="toggle-code" aria-expanded="false">${o.expandCode(i.length)}</button></div>` : "";
-  return `<div class="markdown-code-host"><div class="markdown-code-shell${t ? ` ${t}` : ""}" data-language="${b}" data-code-lines="${String(i.length)}"><header class="markdown-code-toolbar"><span>${s}</span><span class="markdown-code-actions">${n}${D("wrap-code", o.wrap)}${D("copy-code", o.copy)}${D("save-code", o.save)}</span></header><pre class="markdown-code-block${r ? " is-compact" : ""}"><code${a}>${T.utils.escapeHtml(e)}</code></pre>${p}</div></div>
+`), r = i.length <= 2 && i.every((L) => L.length <= 96), S = i.length > 10, p = a || "text", y = [r ? "is-compact-code" : "", /^[A-Za-z0-9_-]+$/u.test(a) ? `language-${a}` : ""].filter(Boolean).join(" "), s = y ? ` class="${y}"` : "", w = [r ? "is-compact" : "", S ? "is-collapsible is-collapsed" : ""].filter(Boolean).join(" "), t = S ? `${p} · ${n.lineCount(i.length)}` : p, o = S ? `<button type="button" class="markdown-tool-button markdown-code-collapse" data-markdown-action="toggle-code" aria-label="${n.collapseCode}" title="${n.collapseCode}" aria-expanded="false">${n.collapseCode}</button>` : "", l = S ? `<div class="markdown-code-expand"><button type="button" data-markdown-action="toggle-code" aria-expanded="false">${n.expandCode(i.length)}</button></div>` : "";
+  return `<div class="markdown-code-host"><div class="markdown-code-shell${w ? ` ${w}` : ""}" data-language="${p}" data-code-lines="${String(i.length)}"><header class="markdown-code-toolbar"><span>${t}</span><span class="markdown-code-actions">${o}${D("wrap-code", n.wrap)}${D("copy-code", n.copy)}${D("save-code", n.save)}</span></header><pre class="markdown-code-block${r ? " is-compact" : ""}"><code${s}>${T.utils.escapeHtml(e)}</code></pre>${l}</div></div>
 `;
 }
-T.renderer.rules.fence = (e, l, o, d) => {
-  const i = e[l];
-  return ce(i.content, i.info.trim().split(/\s+/u)[0] ?? "", d.labels);
+T.renderer.rules.fence = (e, a, n, c) => {
+  const i = e[a];
+  return ue(i.content, i.info.trim().split(/\s+/u)[0] ?? "", c.labels);
 };
-T.renderer.rules.code_block = (e, l, o, d) => ce(e[l].content, "", d.labels);
-T.renderer.rules.table_open = (e, l, o, d) => {
-  const i = d.labels ?? H;
+T.renderer.rules.code_block = (e, a, n, c) => ue(e[a].content, "", c.labels);
+T.renderer.rules.table_open = (e, a, n, c) => {
+  const i = c.labels ?? H;
   return `<section class="markdown-table-shell" role="region" aria-label="${i.dataTable}" tabindex="0"><header class="markdown-table-toolbar">${D("copy-table", i.copyCsv)}</header><div class="markdown-table-scroll"><table>
 `;
 };
 T.renderer.rules.table_close = () => `</table></div></section>
 `;
-const oe = T.renderer.rules.code_inline;
-T.renderer.rules.code_inline = (e, l, o, d, i) => {
-  const r = e[l].content, S = r.match(/^(.+?\.[A-Za-z0-9_-]{1,12})(?::(\d+))?$/u);
-  if (!S || /\s/u.test(r)) return oe ? oe(e, l, o, d, i) : i.renderToken(e, l, o);
-  const b = T.utils.escapeHtml(S[1]), y = S[2] ?? "", a = d.labels ?? H;
-  return `<button type="button" class="markdown-file-link" data-markdown-action="open-file" data-file-path="${b}" data-file-line="${y}" title="${a.openFile(b)}"><code>${T.utils.escapeHtml(r)}</code></button>`;
+const ne = T.renderer.rules.code_inline;
+T.renderer.rules.code_inline = (e, a, n, c, i) => {
+  const r = e[a].content, S = r.match(/^(.+?\.[A-Za-z0-9_-]{1,12})(?::(\d+))?$/u);
+  if (!S || /\s/u.test(r)) return ne ? ne(e, a, n, c, i) : i.renderToken(e, a, n);
+  const p = T.utils.escapeHtml(S[1]), y = S[2] ?? "", s = c.labels ?? H;
+  return `<button type="button" class="markdown-file-link" data-markdown-action="open-file" data-file-path="${p}" data-file-line="${y}" title="${s.openFile(p)}"><code>${T.utils.escapeHtml(r)}</code></button>`;
 };
-const ne = T.renderer.rules.link_open;
-T.renderer.rules.link_open = (e, l, o, d, i) => {
-  const r = e[l];
-  return /^https?:\/\//u.test(r.attrGet("href") ?? "") && (r.attrSet("target", "_blank"), r.attrSet("rel", "noopener noreferrer")), ne ? ne(e, l, o, d, i) : i.renderToken(e, l, o);
+const se = T.renderer.rules.link_open;
+T.renderer.rules.link_open = (e, a, n, c, i) => {
+  const r = e[a];
+  return /^https?:\/\//u.test(r.attrGet("href") ?? "") && (r.attrSet("target", "_blank"), r.attrSet("rel", "noopener noreferrer")), se ? se(e, a, n, c, i) : i.renderToken(e, a, n);
 };
-function se(e, l = H) {
-  return de.sanitize(T.render(e, { labels: l }), {
+function ae(e, a = H) {
+  return ce.sanitize(T.render(e, { labels: a }), {
     ADD_ATTR: ["target"],
     ADD_TAGS: ["table", "thead", "tbody", "tr", "th", "td", "h1", "h2", "h3", "h4", "h5", "h6"],
     FORBID_TAGS: ["script", "style", "iframe", "object", "embed"]
   });
 }
-function ae(e) {
-  var l;
-  return (((l = e.match(/^\s*```/gmu)) == null ? void 0 : l.length) ?? 0) % 2 === 1 ? `${e}
+function ie(e) {
+  var a;
+  return (((a = e.match(/^\s*```/gmu)) == null ? void 0 : a.length) ?? 0) % 2 === 1 ? `${e}
 
 \`\`\`` : e;
 }
@@ -88,10 +88,10 @@ const Ae = ["innerHTML"], qe = ["src"], le = /* @__PURE__ */ N({
     renderDiagram: {}
   },
   emits: ["openFile"],
-  setup(e, { emit: l }) {
-    const o = e, d = l, i = P(() => o.labels ?? H), r = W(null), S = W(null), b = W(se(ae(o.text), i.value)), y = W(""), a = /* @__PURE__ */ new Set();
-    let t = 0, s = 0;
-    const n = {
+  setup(e, { emit: a }) {
+    const n = e, c = a, i = P(() => n.labels ?? H), r = Q(null), S = Q(null), p = Q(ae(ie(n.text), i.value)), y = Q(""), s = /* @__PURE__ */ new Set();
+    let w = 0, t = 0;
+    const o = {
       javascript: () => import("highlight.js/lib/languages/javascript"),
       typescript: () => import("highlight.js/lib/languages/typescript"),
       python: () => import("highlight.js/lib/languages/python"),
@@ -101,179 +101,179 @@ const Ae = ["innerHTML"], qe = ["src"], le = /* @__PURE__ */ N({
       bash: () => import("highlight.js/lib/languages/bash"),
       sql: () => import("highlight.js/lib/languages/sql")
     };
-    async function p(c) {
-      window.clearTimeout(t), t = window.setTimeout(async () => {
-        b.value = se(ae(c), i.value), await be(), M();
-      }, o.renderDelay);
+    async function l(u) {
+      window.clearTimeout(w), w = window.setTimeout(async () => {
+        p.value = ae(ie(u), i.value), await ve(), L();
+      }, n.renderDelay);
     }
-    async function M() {
-      var $, g, f, w, v, O;
-      for (const C of Array.from((($ = r.value) == null ? void 0 : $.querySelectorAll("td")) ?? []))
-        /^-?[\d,.]+%?$/u.test(((g = C.textContent) == null ? void 0 : g.trim()) ?? "") && (C.dataset.numeric = "true");
+    async function L() {
+      var h, k, f, $, v, O;
+      for (const C of Array.from(((h = r.value) == null ? void 0 : h.querySelectorAll("td")) ?? []))
+        /^-?[\d,.]+%?$/u.test(((k = C.textContent) == null ? void 0 : k.trim()) ?? "") && (C.dataset.numeric = "true");
       for (const C of Array.from(((f = r.value) == null ? void 0 : f.querySelectorAll("img")) ?? []))
         C.addEventListener("error", () => {
           C.alt = C.alt || "图片加载失败", C.classList.add("is-load-error");
         }, { once: !0 });
-      B();
-      for (const [C, x] of Array.from(((w = r.value) == null ? void 0 : w.querySelectorAll(".markdown-code-shell")) ?? []).entries()) {
-        x.dataset.codeIndex = String(C), x.classList.contains("is-collapsible") && a.has(C) && x.classList.remove("is-collapsed");
-        for (const A of Array.from(x.querySelectorAll('[data-markdown-action="toggle-code"]')))
-          A.setAttribute("aria-expanded", String(!x.classList.contains("is-collapsed")));
-        const R = x.querySelector("pre"), j = x.querySelector('[data-markdown-action="wrap-code"]');
-        R && j && (j.hidden = R.scrollWidth <= R.clientWidth + 2, j.setAttribute("aria-pressed", String(x.classList.contains("is-wrapped"))));
+      W();
+      for (const [C, x] of Array.from((($ = r.value) == null ? void 0 : $.querySelectorAll(".markdown-code-shell")) ?? []).entries()) {
+        x.dataset.codeIndex = String(C), x.classList.contains("is-collapsible") && s.has(C) && x.classList.remove("is-collapsed");
+        for (const q of Array.from(x.querySelectorAll('[data-markdown-action="toggle-code"]')))
+          q.setAttribute("aria-expanded", String(!x.classList.contains("is-collapsed")));
+        const I = x.querySelector("pre"), j = x.querySelector('[data-markdown-action="wrap-code"]');
+        I && j && (j.hidden = I.scrollWidth <= I.clientWidth + 2, j.setAttribute("aria-pressed", String(x.classList.contains("is-wrapped"))));
       }
-      await Q();
-      const c = Array.from(((v = r.value) == null ? void 0 : v.querySelectorAll('pre code[class*="language-"]')) ?? []);
-      if (c.length === 0) return;
-      const h = (await import("highlight.js/lib/core")).default;
-      for (const C of c) {
-        const x = ((O = Array.from(C.classList).find((A) => A.startsWith("language-"))) == null ? void 0 : O.slice(9)) ?? "", R = n[x];
-        if (!R || C.dataset.highlighted === "yes") continue;
-        const j = await R();
-        h.getLanguage(x) || h.registerLanguage(x, j.default), C.innerHTML = h.highlight(C.textContent ?? "", { language: x }).value, C.dataset.highlighted = "yes";
-      }
-    }
-    function B() {
-      var h;
-      if (!o.resolveAssetUrl) return;
-      const c = /\.(?:svg|png|jpe?g|gif|webp)(?:[?#].*)?$/iu;
-      for (const $ of Array.from(((h = r.value) == null ? void 0 : h.querySelectorAll("a[href]")) ?? [])) {
-        const g = $.getAttribute("href") ?? "";
-        if (!c.test(g) || /^(?:data|blob):/iu.test(g)) continue;
-        const f = o.resolveAssetUrl(g);
-        f && ($.href = f, $.target = "_blank", $.rel = "noopener noreferrer");
+      await B();
+      const u = Array.from(((v = r.value) == null ? void 0 : v.querySelectorAll('pre code[class*="language-"]')) ?? []);
+      if (u.length === 0) return;
+      const b = (await import("highlight.js/lib/core")).default;
+      for (const C of u) {
+        const x = ((O = Array.from(C.classList).find((q) => q.startsWith("language-"))) == null ? void 0 : O.slice(9)) ?? "", I = o[x];
+        if (!I || C.dataset.highlighted === "yes") continue;
+        const j = await I();
+        b.getLanguage(x) || b.registerLanguage(x, j.default), C.innerHTML = b.highlight(C.textContent ?? "", { language: x }).value, C.dataset.highlighted = "yes";
       }
     }
-    async function Q() {
-      var h, $, g, f;
-      const c = Array.from(((h = r.value) == null ? void 0 : h.querySelectorAll(".markdown-diagram-shell:not([data-rendered])")) ?? []);
-      for (const w of c) {
-        w.dataset.rendered = "loading";
-        const v = w.dataset.diagramEngine === "plantuml" ? "plantuml" : "mermaid", O = (($ = w.querySelector("code")) == null ? void 0 : $.textContent) ?? "", C = w.querySelector(".markdown-diagram-stage");
+    function W() {
+      var b;
+      if (!n.resolveAssetUrl) return;
+      const u = /\.(?:svg|png|jpe?g|gif|webp)(?:[?#].*)?$/iu;
+      for (const h of Array.from(((b = r.value) == null ? void 0 : b.querySelectorAll("a[href]")) ?? [])) {
+        const k = h.getAttribute("href") ?? "";
+        if (!u.test(k) || /^(?:data|blob):/iu.test(k)) continue;
+        const f = n.resolveAssetUrl(k);
+        f && (h.href = f, h.target = "_blank", h.rel = "noopener noreferrer");
+      }
+    }
+    async function B() {
+      var b, h, k, f;
+      const u = Array.from(((b = r.value) == null ? void 0 : b.querySelectorAll(".markdown-diagram-shell:not([data-rendered])")) ?? []);
+      for (const $ of u) {
+        $.dataset.rendered = "loading";
+        const v = $.dataset.diagramEngine === "plantuml" ? "plantuml" : "mermaid", O = ((h = $.querySelector("code")) == null ? void 0 : h.textContent) ?? "", C = $.querySelector(".markdown-diagram-stage");
         if (C)
           try {
-            let x = await ((g = o.renderDiagram) == null ? void 0 : g.call(o, { engine: v, source: O, dark: o.dark }));
+            let x = await ((k = n.renderDiagram) == null ? void 0 : k.call(n, { engine: v, source: O, dark: n.dark }));
             if (!x && v === "mermaid") {
-              const { default: R } = await import("mermaid");
-              R.initialize({ startOnLoad: !1, securityLevel: "strict", theme: o.dark ? "dark" : "default", htmlLabels: !1, flowchart: { htmlLabels: !1, useMaxWidth: !1 } }), x = (await R.render(`cody-diagram-${String(++s)}`, O)).svg;
+              const { default: I } = await import("mermaid");
+              I.initialize({ startOnLoad: !1, securityLevel: "strict", theme: n.dark ? "dark" : "default", htmlLabels: !1, flowchart: { htmlLabels: !1, useMaxWidth: !1 } }), x = (await I.render(`cody-diagram-${String(++t)}`, O)).svg;
             }
             if (!x) throw new Error(v === "plantuml" ? "当前环境未配置 PlantUML 渲染器" : "图表渲染失败");
-            C.innerHTML = me(x), pe(C), w.dataset.rendered = "yes", w.style.setProperty("--diagram-scale", "1");
+            C.innerHTML = G(x), pe(C), $.dataset.rendered = "yes", $.style.setProperty("--diagram-scale", "1");
           } catch (x) {
-            C.textContent = x instanceof Error ? x.message : "图表渲染失败", C.classList.add("markdown-diagram-error"), (f = w.querySelector(".markdown-diagram-source")) == null || f.removeAttribute("hidden"), w.dataset.rendered = "error";
+            C.textContent = x instanceof Error ? x.message : "图表渲染失败", C.classList.add("markdown-diagram-error"), (f = $.querySelector(".markdown-diagram-source")) == null || f.removeAttribute("hidden"), $.dataset.rendered = "error";
           }
       }
     }
-    function me(c) {
-      const h = de.sanitize(c, { USE_PROFILES: { svg: !0, svgFilters: !0, html: !0 }, ADD_TAGS: ["foreignObject"], ADD_ATTR: ["xmlns"] }), $ = h.trimStart().startsWith("<svg") ? h : `<svg xmlns="http://www.w3.org/2000/svg">${h}</svg>`, g = new DOMParser().parseFromString($, "image/svg+xml");
-      if (g.querySelector("parsererror")) return "";
-      for (const f of g.querySelectorAll("*")) for (const w of Array.from(f.attributes)) /^on/iu.test(w.name) && f.removeAttribute(w.name);
-      return g.querySelectorAll("script").forEach((f) => f.remove()), new XMLSerializer().serializeToString(g.documentElement);
+    function G(u) {
+      const b = ce.sanitize(u, { USE_PROFILES: { svg: !0, svgFilters: !0, html: !0 }, ADD_TAGS: ["foreignObject"], ADD_ATTR: ["xmlns"] }), h = b.trimStart().startsWith("<svg") ? b : `<svg xmlns="http://www.w3.org/2000/svg">${b}</svg>`, k = new DOMParser().parseFromString(h, "image/svg+xml");
+      if (k.querySelector("parsererror")) return "";
+      for (const f of k.querySelectorAll("*")) for (const $ of Array.from(f.attributes)) /^on/iu.test($.name) && f.removeAttribute($.name);
+      return k.querySelectorAll("script").forEach((f) => f.remove()), new XMLSerializer().serializeToString(k.documentElement);
     }
-    function pe(c) {
-      if (c.dataset.panReady === "true") return;
-      c.dataset.panReady = "true";
-      let h = 0, $ = 0, g = 0, f = 0;
-      c.addEventListener("pointerdown", (v) => {
-        v.button === 0 && (h = v.clientX, $ = v.clientY, g = c.scrollLeft, f = c.scrollTop, c.setPointerCapture(v.pointerId), c.classList.add("is-panning"));
-      }), c.addEventListener("pointermove", (v) => {
-        c.hasPointerCapture(v.pointerId) && (c.scrollLeft = g - (v.clientX - h), c.scrollTop = f - (v.clientY - $));
+    function pe(u) {
+      if (u.dataset.panReady === "true") return;
+      u.dataset.panReady = "true";
+      let b = 0, h = 0, k = 0, f = 0;
+      u.addEventListener("pointerdown", (v) => {
+        v.button === 0 && (b = v.clientX, h = v.clientY, k = u.scrollLeft, f = u.scrollTop, u.setPointerCapture(v.pointerId), u.classList.add("is-panning"));
+      }), u.addEventListener("pointermove", (v) => {
+        u.hasPointerCapture(v.pointerId) && (u.scrollLeft = k - (v.clientX - b), u.scrollTop = f - (v.clientY - h));
       });
-      const w = (v) => {
-        c.hasPointerCapture(v.pointerId) && c.releasePointerCapture(v.pointerId), c.classList.remove("is-panning");
+      const $ = (v) => {
+        u.hasPointerCapture(v.pointerId) && u.releasePointerCapture(v.pointerId), u.classList.remove("is-panning");
       };
-      c.addEventListener("pointerup", w), c.addEventListener("pointercancel", w);
+      u.addEventListener("pointerup", $), u.addEventListener("pointercancel", $);
     }
-    function G(c, h = 0) {
-      const $ = Number(c.style.getPropertyValue("--diagram-scale") || "1");
-      c.style.setProperty("--diagram-scale", String(h === 0 ? 1 : Math.min(2.5, Math.max(0.4, $ + h))));
+    function X(u, b = 0) {
+      const h = Number(u.style.getPropertyValue("--diagram-scale") || "1");
+      u.style.setProperty("--diagram-scale", String(b === 0 ? 1 : Math.min(2.5, Math.max(0.4, h + b))));
     }
-    function Y(c, h) {
-      const $ = document.createElement("a");
-      $.href = URL.createObjectURL(c), $.download = h, $.click(), URL.revokeObjectURL($.href);
+    function Z(u, b) {
+      const h = document.createElement("a");
+      h.href = URL.createObjectURL(u), h.download = b, h.click(), URL.revokeObjectURL(h.href);
     }
-    async function Z(c, h) {
-      const $ = h.textContent;
+    async function J(u, b) {
+      const h = b.textContent;
       try {
-        await navigator.clipboard.writeText(c), h.textContent = "已复制";
+        await navigator.clipboard.writeText(u), b.textContent = "已复制";
       } catch {
-        const g = document.createElement("textarea");
-        g.value = c, g.style.position = "fixed", g.style.opacity = "0", document.body.appendChild(g), g.select();
+        const k = document.createElement("textarea");
+        k.value = u, k.style.position = "fixed", k.style.opacity = "0", document.body.appendChild(k), k.select();
         const f = document.execCommand("copy");
-        g.remove(), h.textContent = f ? "已复制" : "复制失败";
+        k.remove(), b.textContent = f ? "已复制" : "复制失败";
       }
       window.setTimeout(() => {
-        h.textContent = $;
+        b.textContent = h;
       }, 1200);
     }
-    function fe(c) {
-      return Array.from((c == null ? void 0 : c.rows) ?? []).map((h) => Array.from(h.cells).map(($) => {
-        var g;
-        return `"${((g = $.textContent) == null ? void 0 : g.trim().replace(/"/gu, '""')) ?? ""}"`;
+    function fe(u) {
+      return Array.from((u == null ? void 0 : u.rows) ?? []).map((b) => Array.from(b.cells).map((h) => {
+        var k;
+        return `"${((k = h.textContent) == null ? void 0 : k.trim().replace(/"/gu, '""')) ?? ""}"`;
       }).join(",")).join(`
 `);
     }
-    function ge(c) {
-      var O, C, x, R, j;
-      const h = c.target, $ = h.closest("img");
-      if ($) {
-        y.value = $.currentSrc || $.src, (O = S.value) == null || O.showModal();
+    function ge(u) {
+      var O, C, x, I, j;
+      const b = u.target, h = b.closest("img");
+      if (h) {
+        y.value = h.currentSrc || h.src, (O = S.value) == null || O.showModal();
         return;
       }
-      const g = h.closest("[data-markdown-action]");
-      if (!g) return;
-      const f = g.closest(".markdown-code-shell, .markdown-table-shell"), w = g.dataset.markdownAction;
-      if (w === "copy-code" && Z(((C = f == null ? void 0 : f.querySelector("code")) == null ? void 0 : C.textContent) ?? "", g), w === "wrap-code") {
-        const A = (f == null ? void 0 : f.classList.toggle("is-wrapped")) ?? !1;
-        g.textContent = A && i.value.scroll || i.value.wrap, g.setAttribute("aria-pressed", String(A));
+      const k = b.closest("[data-markdown-action]");
+      if (!k) return;
+      const f = k.closest(".markdown-code-shell, .markdown-table-shell"), $ = k.dataset.markdownAction;
+      if ($ === "copy-code" && J(((C = f == null ? void 0 : f.querySelector("code")) == null ? void 0 : C.textContent) ?? "", k), $ === "wrap-code") {
+        const q = (f == null ? void 0 : f.classList.toggle("is-wrapped")) ?? !1;
+        k.textContent = q && i.value.scroll || i.value.wrap, k.setAttribute("aria-pressed", String(q));
       }
-      if (w === "save-code" && Y(new Blob([((x = f == null ? void 0 : f.querySelector("code")) == null ? void 0 : x.textContent) ?? ""], { type: "text/plain" }), `snippet.${(f == null ? void 0 : f.dataset.language) || "txt"}`), w === "toggle-code" && (f != null && f.classList.contains("is-collapsible"))) {
-        const A = Number(f.dataset.codeIndex ?? -1), E = !f.classList.toggle("is-collapsed");
-        A >= 0 && (E ? a.add(A) : a.delete(A));
-        for (const X of Array.from(f.querySelectorAll('[data-markdown-action="toggle-code"]'))) X.setAttribute("aria-expanded", String(E));
+      if ($ === "save-code" && Z(new Blob([((x = f == null ? void 0 : f.querySelector("code")) == null ? void 0 : x.textContent) ?? ""], { type: "text/plain" }), `snippet.${(f == null ? void 0 : f.dataset.language) || "txt"}`), $ === "toggle-code" && (f != null && f.classList.contains("is-collapsible"))) {
+        const q = Number(f.dataset.codeIndex ?? -1), E = !f.classList.toggle("is-collapsed");
+        q >= 0 && (E ? s.add(q) : s.delete(q));
+        for (const _ of Array.from(f.querySelectorAll('[data-markdown-action="toggle-code"]'))) _.setAttribute("aria-expanded", String(E));
       }
-      if (w === "copy-table" && Z(fe((f == null ? void 0 : f.querySelector("table")) ?? null), g), w === "open-file") {
-        const A = g.dataset.filePath ?? "", E = ((R = o.cwd) == null ? void 0 : R.replace(/\/$/u, "")) ?? "", X = A.startsWith("/") && E && A.startsWith(`${E}/`) ? A.slice(E.length + 1) : A.replace(/^\.\//u, "");
-        d("openFile", { path: X, line: Number(g.dataset.fileLine || 0) || 1 });
+      if ($ === "copy-table" && J(fe((f == null ? void 0 : f.querySelector("table")) ?? null), k), $ === "open-file") {
+        const q = k.dataset.filePath ?? "", E = ((I = n.cwd) == null ? void 0 : I.replace(/\/$/u, "")) ?? "", _ = q.startsWith("/") && E && q.startsWith(`${E}/`) ? q.slice(E.length + 1) : q.replace(/^\.\//u, "");
+        c("openFile", { path: _, line: Number(k.dataset.fileLine || 0) || 1 });
       }
-      const v = g.closest(".markdown-diagram-shell");
-      if (v && w === "diagram-zoom-in" && G(v, 0.2), v && w === "diagram-zoom-out" && G(v, -0.2), v && w === "diagram-fit" && G(v), v && w === "diagram-source") {
-        const A = v.querySelector(".markdown-diagram-source");
-        A && (A.hidden = !A.hidden);
+      const v = k.closest(".markdown-diagram-shell");
+      if (v && $ === "diagram-zoom-in" && X(v, 0.2), v && $ === "diagram-zoom-out" && X(v, -0.2), v && $ === "diagram-fit" && X(v), v && $ === "diagram-source") {
+        const q = v.querySelector(".markdown-diagram-source");
+        q && (q.hidden = !q.hidden);
       }
-      if (v && w === "diagram-fullscreen" && ((j = v.requestFullscreen) == null || j.call(v)), v && w === "diagram-export-svg") {
-        const A = v.querySelector("svg");
-        A && Y(new Blob([new XMLSerializer().serializeToString(A)], { type: "image/svg+xml" }), "diagram.svg");
+      if (v && $ === "diagram-fullscreen" && ((j = v.requestFullscreen) == null || j.call(v)), v && $ === "diagram-export-svg") {
+        const q = v.querySelector("svg");
+        q && Z(new Blob([new XMLSerializer().serializeToString(q)], { type: "image/svg+xml" }), "diagram.svg");
       }
     }
-    function J() {
-      var c;
-      (c = S.value) == null || c.close();
+    function ee() {
+      var u;
+      (u = S.value) == null || u.close();
     }
-    return ie(() => [o.text, o.labels], ([c]) => {
-      p(c);
+    return re(() => [n.text, n.labels], ([u]) => {
+      l(u);
     }, { deep: !0 }), ye(() => {
-      M();
-    }), ke(() => window.clearTimeout(t)), (c, h) => (u(), m(I, null, [
-      k("div", {
+      L();
+    }), ke(() => window.clearTimeout(w)), (u, b) => (d(), m(R, null, [
+      g("div", {
         ref_key: "rootRef",
         ref: r,
         class: "cody-markdown cody-markdown-renderer",
-        innerHTML: b.value,
+        innerHTML: p.value,
         onClick: ge
       }, null, 8, Ae),
-      k("dialog", {
+      g("dialog", {
         ref_key: "imageDialogRef",
         ref: S,
         class: "cody-markdown-image-dialog",
-        onClick: J
+        onClick: ee
       }, [
-        k("button", {
+        g("button", {
           type: "button",
           "aria-label": "关闭图片预览",
-          onClick: J
+          onClick: ee
         }, "×"),
-        k("img", {
+        g("img", {
           src: y.value,
           alt: "Markdown 图片预览"
         }, null, 8, qe)
@@ -284,53 +284,53 @@ const Ae = ["innerHTML"], qe = ["src"], le = /* @__PURE__ */ N({
 function Le(e) {
   if (!Number.isFinite(e) || e <= 0)
     return "<1s";
-  const l = Math.max(1, Math.round(e / 1e3)), o = Math.floor(l / 3600), d = Math.floor(l % 3600 / 60), i = l % 60, r = [];
-  return o > 0 && r.push(`${String(o)}h`), (d > 0 || o > 0) && r.push(`${String(d)}m`), r.push(`${String(i > 0 || r.length === 0 ? i : 0)}s`), r.join(" ");
+  const a = Math.max(1, Math.round(e / 1e3)), n = Math.floor(a / 3600), c = Math.floor(a % 3600 / 60), i = a % 60, r = [];
+  return n > 0 && r.push(`${String(n)}h`), (c > 0 || n > 0) && r.push(`${String(c)}m`), r.push(`${String(i > 0 || r.length === 0 ? i : 0)}s`), r.join(" ");
 }
-function ue(e) {
+function me(e) {
   if (!e || typeof e != "object") return [];
-  const l = e;
-  return (Array.isArray(l.questions) ? l.questions : []).flatMap((d, i) => {
-    if (!d || typeof d != "object") return [];
-    const r = d, S = typeof r.question == "string" ? r.question.trim() : "";
+  const a = e;
+  return (Array.isArray(a.questions) ? a.questions : []).flatMap((c, i) => {
+    if (!c || typeof c != "object") return [];
+    const r = c, S = typeof r.question == "string" ? r.question.trim() : "";
     if (!S) return [];
-    const b = Array.isArray(r.options) ? r.options : [];
+    const p = Array.isArray(r.options) ? r.options : [];
     return [{
       id: typeof r.id == "string" && r.id.trim() ? r.id.trim() : `question-${String(i + 1)}`,
       header: typeof r.header == "string" ? r.header.trim() : "",
       question: S,
       isOther: r.isOther === !0,
       isSecret: r.isSecret === !0,
-      options: b.flatMap((y) => {
+      options: p.flatMap((y) => {
         if (!y || typeof y != "object") return [];
-        const a = y, t = typeof a.label == "string" ? a.label.trim() : "";
-        return t ? [{ label: t, description: typeof a.description == "string" ? a.description.trim() : "" }] : [];
+        const s = y, w = typeof s.label == "string" ? s.label.trim() : "";
+        return w ? [{ label: w, description: typeof s.description == "string" ? s.description.trim() : "" }] : [];
       })
     }];
   });
 }
 function Me(e) {
-  var d;
+  var c;
   if (!e || typeof e != "object") return "Codex 请求执行一项受保护操作。";
-  const l = e, o = l.reason ?? l.question ?? l.command;
-  return typeof o == "string" && o.trim() ? o : ((d = ue(e)[0]) == null ? void 0 : d.question) ?? "Codex 请求执行一项受保护操作。";
+  const a = e, n = a.reason ?? a.question ?? a.command;
+  return typeof n == "string" && n.trim() ? n : ((c = me(e)[0]) == null ? void 0 : c.question) ?? "Codex 请求执行一项受保护操作。";
 }
-function Ct(e) {
-  var b, y, a;
-  const l = [], o = /* @__PURE__ */ new Set(), d = new Map(e.messages.map((t) => [t.id, t])), i = new Map(e.timeline.map((t) => [t.id, t])), r = (t) => {
+function xt(e) {
+  var y, s, w;
+  const a = [], n = /* @__PURE__ */ new Set(), c = new Map(e.messages.map((t) => [t.id, t])), i = new Map(e.timeline.map((t) => [t.id, t])), r = (t) => {
     if (t.kind === "reasoning") {
-      l.push({ id: t.id, kind: "reasoning", text: t.text }), o.add(t.id);
+      a.push({ id: t.id, kind: "reasoning", text: t.text }), n.add(t.id);
       return;
     }
     if (!t.tool.summary && t.tool.details.length === 0 && !t.tool.output && t.tool.kind !== "fileChange") return;
     if (t.tool.kind !== "fileChange") {
-      l.push({ id: t.id, kind: "tool", tool: t.tool }), o.add(t.id);
+      a.push({ id: t.id, kind: "tool", tool: t.tool }), n.add(t.id);
       return;
     }
-    const s = `file-group:${t.turnId ?? t.id}`, n = l.at(-1);
-    if (!n || n.kind !== "tool" || n.id !== s) {
-      const B = [...new Set(t.tool.details)], Q = {
-        id: s,
+    const o = `file-group:${t.turnId ?? t.id}`, l = a.at(-1);
+    if (!l || l.kind !== "tool" || l.id !== o) {
+      const B = [...new Set(t.tool.details)], G = {
+        id: o,
         kind: "tool",
         tool: {
           ...t.tool,
@@ -339,53 +339,76 @@ function Ct(e) {
           details: B
         }
       };
-      l.push(Q), o.add(t.id);
+      a.push(G), n.add(t.id);
       return;
     }
-    const p = [.../* @__PURE__ */ new Set([...n.tool.details, ...t.tool.details])], M = [n.tool.output, t.tool.output].filter(Boolean).join(`
+    const L = [.../* @__PURE__ */ new Set([...l.tool.details, ...t.tool.details])], W = [l.tool.output, t.tool.output].filter(Boolean).join(`
 
 `);
-    n.tool = {
-      ...n.tool,
-      status: /fail|error|cancel|reject/iu.test(`${n.tool.status} ${t.tool.status}`) ? "failed" : t.tool.status,
-      title: p.length > 1 ? `文件变更 · ${String(p.length)} 个文件` : "文件变更",
-      summary: p.length ? `${String(p.length)} 个文件已更新` : t.tool.summary,
-      details: p,
-      ...M ? { output: M } : {}
-    }, o.add(t.id);
+    l.tool = {
+      ...l.tool,
+      status: /fail|error|cancel|reject/iu.test(`${l.tool.status} ${t.tool.status}`) ? "failed" : t.tool.status,
+      title: L.length > 1 ? `文件变更 · ${String(L.length)} 个文件` : "文件变更",
+      summary: L.length ? `${String(L.length)} 个文件已更新` : t.tool.summary,
+      details: L,
+      ...W ? { output: W } : {}
+    }, n.add(t.id);
   };
   for (const t of e.presentation ?? [])
     if (t.kind === "message") {
-      const s = d.get(t.id);
-      s && (l.push({ id: s.id, kind: "message", message: s }), o.add(s.id));
+      const o = c.get(t.id);
+      o && (a.push({ id: o.id, kind: "message", message: o }), n.add(o.id));
     } else if (t.kind === "timeline") {
-      const s = i.get(t.id);
-      s && r(s);
+      const o = i.get(t.id);
+      o && r(o);
     } else if (t.kind === "plan")
-      (b = e.plan) != null && b.text && (!t.turnId || t.turnId === e.plan.turnId) && (l.push({ id: t.id, kind: "plan", text: e.plan.text }), o.add(t.id));
+      (y = e.plan) != null && y.text && (!t.turnId || t.turnId === e.plan.turnId) && (a.push({ id: t.id, kind: "plan", text: e.plan.text }), n.add(t.id));
     else if (t.kind === "request") {
-      const s = e.pendingRequests.find((n) => `request:${n.id}` === t.id);
-      s && (l.push({ id: t.id, kind: "request", request: s }), o.add(t.id));
+      const o = e.pendingRequests.find((l) => `request:${l.id}` === t.id);
+      o && (a.push({ id: t.id, kind: "request", request: o }), n.add(t.id));
     } else if (t.kind === "failure") {
-      const s = t.turnId ? e.turns[t.turnId] : void 0;
-      s != null && s.error && (l.push({ id: t.id, kind: "failure", text: s.error }), o.add(t.id));
+      const o = t.turnId ? e.turns[t.turnId] : void 0;
+      o != null && o.error && (a.push({ id: t.id, kind: "failure", text: o.error }), n.add(t.id));
     } else if (t.kind === "worked") {
-      const s = t.turnId ? e.turns[t.turnId] : void 0;
-      if (s != null && s.completedAtIso) {
-        const n = s.startedAtIso ? Date.parse(s.completedAtIso) - Date.parse(s.startedAtIso) : 0;
-        l.push({ id: t.id, kind: "worked", label: `Worked for ${Le(n)}` }), o.add(t.id);
+      const o = t.turnId ? e.turns[t.turnId] : void 0;
+      if (o != null && o.completedAtIso) {
+        const l = o.startedAtIso ? Date.parse(o.completedAtIso) - Date.parse(o.startedAtIso) : 0;
+        a.push({ id: t.id, kind: "worked", label: `Worked for ${Le(l)}` }), n.add(t.id);
       }
     }
-  for (const t of e.messages) o.has(t.id) || l.push({ id: t.id, kind: "message", message: t });
-  for (const t of e.timeline) o.has(t.id) || r(t);
-  const S = `plan:${((y = e.plan) == null ? void 0 : y.turnId) || "current"}`;
-  (a = e.plan) != null && a.text && !o.has(S) && l.push({ id: S, kind: "plan", text: e.plan.text });
-  for (const t of e.pendingRequests) o.has(`request:${t.id}`) || l.push({ id: `request:${t.id}`, kind: "request", request: t });
+  for (const t of e.messages) n.has(t.id) || a.push({ id: t.id, kind: "message", message: t });
+  for (const t of e.timeline) n.has(t.id) || r(t);
+  const S = `plan:${((s = e.plan) == null ? void 0 : s.turnId) || "current"}`;
+  (w = e.plan) != null && w.text && !n.has(S) && a.push({ id: S, kind: "plan", text: e.plan.text });
+  for (const t of e.pendingRequests) n.has(`request:${t.id}`) || a.push({ id: `request:${t.id}`, kind: "request", request: t });
   for (const t of Object.values(e.turns))
-    t.lifecycle === "failed" && t.error && !o.has(`failure:${t.id}`) && l.push({ id: `failure:${t.id}`, kind: "failure", text: t.error });
-  return l;
+    t.lifecycle === "failed" && t.error && !n.has(`failure:${t.id}`) && a.push({ id: `failure:${t.id}`, kind: "failure", text: t.error });
+  const p = e.activeTurnId ? e.turns[e.activeTurnId] : void 0;
+  if (p) {
+    const t = e.pendingRequests.find((o) => !o.turnId || o.turnId === p.id);
+    t ? a.push({
+      id: `activity:${p.id}`,
+      kind: "activity",
+      title: t.kind === "approval" ? "等待你的审批" : "等待你的回答",
+      detail: "处理后 Codex 会继续本次回复",
+      tone: "waiting"
+    }) : p.lifecycle === "retrying" ? a.push({
+      id: `activity:${p.id}`,
+      kind: "activity",
+      title: p.retryMessage || "Codex 正在重新连接",
+      detail: e.connection.status === "disconnected" ? "连接已中断，等待恢复" : "正在恢复本次回复",
+      tone: "retrying"
+    }) : p.lifecycle === "running" && a.push({
+      id: `activity:${p.id}`,
+      kind: "activity",
+      title: "Codex 正在工作",
+      detail: e.connection.status === "connected" ? "实时更新中" : "等待恢复连接",
+      tone: "running"
+    });
+  }
+  return a;
 }
-const Te = ["data-kind"], Re = { class: "cody-request-heading" }, Ie = { key: 0 }, De = {
+const Te = ["data-kind"], Ie = { class: "cody-request-heading" }, Re = { key: 0 }, De = {
   key: 0,
   class: "cody-question-options"
 }, Oe = ["onClick"], je = { key: 0 }, ze = ["onUpdate:modelValue", "type", "placeholder"], Be = { class: "cody-request-actions" }, Pe = ["disabled"], Ee = {
@@ -397,75 +420,75 @@ const Te = ["data-kind"], Re = { class: "cody-request-heading" }, Ie = { key: 0 
     request: {}
   },
   emits: ["resolveApproval", "resolveQuestion"],
-  setup(e, { emit: l }) {
-    const o = e, d = l, i = ve({}), r = P(() => ue(o.request.params)), S = P(() => Me(o.request.params)), b = P(() => r.value.length > 0 && r.value.every((a) => {
-      var t;
-      return !!((t = i[a.id]) != null && t.trim());
+  setup(e, { emit: a }) {
+    const n = e, c = a, i = be({}), r = P(() => me(n.request.params)), S = P(() => Me(n.request.params)), p = P(() => r.value.length > 0 && r.value.every((s) => {
+      var w;
+      return !!((w = i[s.id]) != null && w.trim());
     }));
-    ie(() => o.request.id, () => {
-      for (const a of Object.keys(i)) delete i[a];
+    re(() => n.request.id, () => {
+      for (const s of Object.keys(i)) delete i[s];
     });
     function y() {
-      b.value && d("resolveQuestion", o.request.id, Object.fromEntries(r.value.map((a) => [a.id, { answers: [i[a.id].trim()] }])));
+      p.value && c("resolveQuestion", n.request.id, Object.fromEntries(r.value.map((s) => [s.id, { answers: [i[s.id].trim()] }])));
     }
-    return (a, t) => (u(), m("article", {
+    return (s, w) => (d(), m("article", {
       class: "cody-request-card",
       "data-kind": e.request.kind
     }, [
-      k("div", Re, [
-        k("strong", null, q(e.request.kind === "approval" ? "需要你的确认" : "Codex 需要补充信息"), 1),
-        t[2] || (t[2] = k("small", null, "Agent 已暂停等待", -1))
+      g("div", Ie, [
+        g("strong", null, A(e.request.kind === "approval" ? "需要你的确认" : "Codex 需要补充信息"), 1),
+        w[2] || (w[2] = g("small", null, "Agent 已暂停等待", -1))
       ]),
-      e.request.kind === "question" && r.value.length ? (u(), m(I, { key: 0 }, [
-        (u(!0), m(I, null, z(r.value, (s) => (u(), m("fieldset", {
-          key: s.id,
+      e.request.kind === "question" && r.value.length ? (d(), m(R, { key: 0 }, [
+        (d(!0), m(R, null, z(r.value, (t) => (d(), m("fieldset", {
+          key: t.id,
           class: "cody-question-field"
         }, [
-          k("legend", null, [
-            s.header ? (u(), m("span", Ie, q(s.header), 1)) : L("", !0),
-            K(q(s.question), 1)
+          g("legend", null, [
+            t.header ? (d(), m("span", Re, A(t.header), 1)) : M("", !0),
+            Y(A(t.question), 1)
           ]),
-          s.options.length ? (u(), m("div", De, [
-            (u(!0), m(I, null, z(s.options, (n) => (u(), m("button", {
-              key: n.label,
+          t.options.length ? (d(), m("div", De, [
+            (d(!0), m(R, null, z(t.options, (o) => (d(), m("button", {
+              key: o.label,
               type: "button",
-              class: he({ selected: i[s.id] === n.label }),
-              onClick: (p) => i[s.id] = n.label
+              class: he({ selected: i[t.id] === o.label }),
+              onClick: (l) => i[t.id] = o.label
             }, [
-              k("strong", null, q(n.label), 1),
-              n.description ? (u(), m("small", je, q(n.description), 1)) : L("", !0)
+              g("strong", null, A(o.label), 1),
+              o.description ? (d(), m("small", je, A(o.description), 1)) : M("", !0)
             ], 10, Oe))), 128))
-          ])) : L("", !0),
-          s.options.length === 0 || s.isOther ? $e((u(), m("input", {
+          ])) : M("", !0),
+          t.options.length === 0 || t.isOther ? $e((d(), m("input", {
             key: 1,
-            "onUpdate:modelValue": (n) => i[s.id] = n,
-            type: s.isSecret ? "password" : "text",
-            placeholder: s.options.length ? "其他回答…" : "输入回答…",
-            onKeyup: re(y, ["enter"])
+            "onUpdate:modelValue": (o) => i[t.id] = o,
+            type: t.isSecret ? "password" : "text",
+            placeholder: t.options.length ? "其他回答…" : "输入回答…",
+            onKeyup: de(y, ["enter"])
           }, null, 40, ze)), [
-            [we, i[s.id]]
-          ]) : L("", !0)
+            [we, i[t.id]]
+          ]) : M("", !0)
         ]))), 128)),
-        k("div", Be, [
-          k("button", {
+        g("div", Be, [
+          g("button", {
             type: "button",
-            disabled: !b.value,
+            disabled: !p.value,
             onClick: y
           }, "提交回答", 8, Pe)
         ])
-      ], 64)) : (u(), m(I, { key: 1 }, [
-        k("p", null, q(S.value), 1),
-        e.request.kind === "approval" ? (u(), m("div", Ee, [
-          k("button", {
+      ], 64)) : (d(), m(R, { key: 1 }, [
+        g("p", null, A(S.value), 1),
+        e.request.kind === "approval" ? (d(), m("div", Ee, [
+          g("button", {
             type: "button",
-            onClick: t[0] || (t[0] = (s) => d("resolveApproval", e.request.id, "accept"))
+            onClick: w[0] || (w[0] = (t) => c("resolveApproval", e.request.id, "accept"))
           }, "允许一次"),
-          k("button", {
+          g("button", {
             type: "button",
             "data-tone": "danger",
-            onClick: t[1] || (t[1] = (s) => d("resolveApproval", e.request.id, "decline"))
+            onClick: w[1] || (w[1] = (t) => c("resolveApproval", e.request.id, "decline"))
           }, "拒绝")
-        ])) : L("", !0)
+        ])) : M("", !0)
       ], 64))
     ], 8, Te));
   }
@@ -498,7 +521,7 @@ const Te = ["data-kind"], Re = { class: "cody-request-heading" }, Ie = { key: 0 
 }, at = {
   key: 6,
   class: "cody-failure-card"
-}, xt = /* @__PURE__ */ N({
+}, it = ["data-tone"], At = /* @__PURE__ */ N({
   __name: "CodyConversation",
   props: {
     entries: {},
@@ -506,131 +529,144 @@ const Te = ["data-kind"], Re = { class: "cody-request-heading" }, Ie = { key: 0 
     variant: { default: "standalone" }
   },
   emits: ["copy", "openFile", "resolveApproval", "resolveQuestion"],
-  setup(e, { emit: l }) {
-    const o = l;
-    function d(b) {
-      return /fail|error|cancel|reject/iu.test(b) ? "danger" : /complete|success|done|approved/iu.test(b) ? "success" : /run|start|pending|wait/iu.test(b) ? "running" : "neutral";
+  setup(e, { emit: a }) {
+    const n = a;
+    function c(p) {
+      return /fail|error|cancel|reject/iu.test(p) ? "danger" : /complete|success|done|approved/iu.test(p) ? "success" : /run|start|pending|wait/iu.test(p) ? "running" : "neutral";
     }
-    function i(b) {
-      return b.length > 12e3 ? `${b.slice(0, 12e3)}
-…输出已截断` : b;
+    function i(p) {
+      return p.length > 12e3 ? `${p.slice(0, 12e3)}
+…输出已截断` : p;
     }
-    function r(b, y) {
-      o("resolveApproval", b, y);
+    function r(p, y) {
+      n("resolveApproval", p, y);
     }
-    function S(b, y) {
-      o("resolveQuestion", b, y);
+    function S(p, y) {
+      n("resolveQuestion", p, y);
     }
-    return (b, y) => (u(), m("section", {
+    return (p, y) => (d(), m("section", {
       class: "cody-conversation",
       "data-variant": e.variant,
       "data-cody-component": "conversation-surface"
     }, [
-      e.loading ? (u(), m("div", Ve, "正在同步对话…")) : e.entries.length === 0 ? (u(), m("div", Ne, [
-        V(b.$slots, "empty", {}, () => [
-          y[2] || (y[2] = K("开始这个需求的开发", -1))
+      e.loading ? (d(), m("div", Ve, "正在同步对话…")) : e.entries.length === 0 ? (d(), m("div", Ne, [
+        V(p.$slots, "empty", {}, () => [
+          y[2] || (y[2] = Y("开始这个需求的开发", -1))
         ])
-      ])) : (u(!0), m(I, { key: 2 }, z(e.entries, (a) => {
-        var t, s;
-        return u(), m(I, {
-          key: a.id
+      ])) : (d(!0), m(R, { key: 2 }, z(e.entries, (s) => {
+        var w, t;
+        return d(), m(R, {
+          key: s.id
         }, [
-          a.kind === "worked" ? (u(), m("div", He, [
-            k("span", null, q(a.label), 1)
-          ])) : a.kind === "message" ? (u(), m("article", {
+          s.kind === "worked" ? (d(), m("div", He, [
+            g("span", null, A(s.label), 1)
+          ])) : s.kind === "message" ? (d(), m("article", {
             key: 1,
             class: "cody-message",
-            "data-role": a.message.role
+            "data-role": s.message.role
           }, [
-            k("div", {
+            g("div", {
               class: "cody-message-identity",
-              "data-role": a.message.role
-            }, q(a.message.role === "user" ? "你" : "CW"), 9, Qe),
-            k("div", Ge, [
-              k("div", Xe, q(a.message.role === "user" ? "你" : a.message.role === "assistant" ? "Codex Agent" : "系统"), 1),
-              (t = a.message.skills) != null && t.length ? (u(), m("ul", _e, [
-                (u(!0), m(I, null, z(a.message.skills, (n) => (u(), m("li", {
-                  key: `${n.name}:${n.path}`
-                }, "$" + q(n.displayName || n.name), 1))), 128))
-              ])) : L("", !0),
-              a.message.text ? (u(), m("div", Ke, [
-                V(b.$slots, "markdown", {
-                  message: a.message
+              "data-role": s.message.role
+            }, A(s.message.role === "user" ? "你" : "CW"), 9, Qe),
+            g("div", Ge, [
+              g("div", Xe, A(s.message.role === "user" ? "你" : s.message.role === "assistant" ? "Codex Agent" : "系统"), 1),
+              (w = s.message.skills) != null && w.length ? (d(), m("ul", _e, [
+                (d(!0), m(R, null, z(s.message.skills, (o) => (d(), m("li", {
+                  key: `${o.name}:${o.path}`
+                }, "$" + A(o.displayName || o.name), 1))), 128))
+              ])) : M("", !0),
+              s.message.text ? (d(), m("div", Ke, [
+                V(p.$slots, "markdown", {
+                  message: s.message
                 }, () => [
                   F(le, {
-                    text: a.message.text,
-                    onOpenFile: y[0] || (y[0] = (n) => o("openFile", n))
+                    text: s.message.text,
+                    onOpenFile: y[0] || (y[0] = (o) => n("openFile", o))
                   }, null, 8, ["text"])
                 ])
-              ])) : L("", !0),
-              (s = a.message.images) != null && s.length ? (u(), m("div", Ye, [
-                (u(!0), m(I, null, z(a.message.images, (n) => (u(), m("img", {
-                  key: n,
-                  src: n,
+              ])) : M("", !0),
+              (t = s.message.images) != null && t.length ? (d(), m("div", Ye, [
+                (d(!0), m(R, null, z(s.message.images, (o) => (d(), m("img", {
+                  key: o,
+                  src: o,
                   alt: "对话图片",
                   loading: "lazy"
                 }, null, 8, Ze))), 128))
-              ])) : L("", !0),
-              a.message.text ? (u(), m("button", {
+              ])) : M("", !0),
+              s.message.text ? (d(), m("button", {
                 key: 3,
                 class: "cody-copy-button",
                 type: "button",
-                onClick: (n) => o("copy", a.message.text)
-              }, "复制", 8, Je)) : L("", !0)
+                onClick: (o) => n("copy", s.message.text)
+              }, "复制", 8, Je)) : M("", !0)
             ])
-          ], 8, We)) : a.kind === "tool" ? (u(), m("details", {
+          ], 8, We)) : s.kind === "tool" ? (d(), m("details", {
             key: 2,
             class: "cody-tool-card",
-            "data-tone": d(a.tool.status),
-            open: d(a.tool.status) === "running"
+            "data-tone": c(s.tool.status),
+            open: c(s.tool.status) === "running"
           }, [
-            k("summary", null, [
-              y[3] || (y[3] = k("span", null, "⌁", -1)),
-              k("strong", null, q(a.tool.title), 1),
-              k("small", null, q(a.tool.status), 1)
+            g("summary", null, [
+              y[3] || (y[3] = g("span", null, "⌁", -1)),
+              g("strong", null, A(s.tool.title), 1),
+              g("small", null, A(s.tool.status), 1)
             ]),
-            k("p", null, q(a.tool.summary), 1),
-            a.tool.details.length ? (u(), m("ul", tt, [
-              (u(!0), m(I, null, z(a.tool.details, (n) => (u(), m("li", { key: n }, q(n), 1))), 128))
-            ])) : L("", !0),
-            a.tool.output ? (u(), m("pre", ot, q(i(a.tool.output)), 1)) : L("", !0)
-          ], 8, et)) : a.kind === "reasoning" ? (u(), m("details", nt, [
-            k("summary", null, "✦ " + q(a.title || "推理过程"), 1),
-            k("pre", null, q(a.text), 1)
-          ])) : a.kind === "plan" ? (u(), m("details", st, [
-            y[4] || (y[4] = k("summary", null, "计划", -1)),
+            g("p", null, A(s.tool.summary), 1),
+            s.tool.details.length ? (d(), m("ul", tt, [
+              (d(!0), m(R, null, z(s.tool.details, (o) => (d(), m("li", { key: o }, A(o), 1))), 128))
+            ])) : M("", !0),
+            s.tool.output ? (d(), m("pre", ot, A(i(s.tool.output)), 1)) : M("", !0)
+          ], 8, et)) : s.kind === "reasoning" ? (d(), m("details", nt, [
+            g("summary", null, "✦ " + A(s.title || "推理过程"), 1),
+            g("pre", null, A(s.text), 1)
+          ])) : s.kind === "plan" ? (d(), m("details", st, [
+            y[4] || (y[4] = g("summary", null, "计划", -1)),
             F(le, {
-              text: a.text,
-              onOpenFile: y[1] || (y[1] = (n) => o("openFile", n))
+              text: s.text,
+              onOpenFile: y[1] || (y[1] = (o) => n("openFile", o))
             }, null, 8, ["text"])
-          ])) : a.kind === "request" ? V(b.$slots, "request", {
-            request: a.request
+          ])) : s.kind === "request" ? V(p.$slots, "request", {
+            request: s.request
           }, () => [
             F(Fe, {
-              request: a.request,
+              request: s.request,
               onResolveApproval: r,
               onResolveQuestion: S
             }, null, 8, ["request"])
-          ], void 0, 5) : a.kind === "failure" ? (u(), m("details", at, [
-            y[5] || (y[5] = k("summary", null, "本次回复失败", -1)),
-            k("p", null, q(a.text), 1)
-          ])) : L("", !0)
+          ], void 0, 5) : s.kind === "failure" ? (d(), m("details", at, [
+            y[5] || (y[5] = g("summary", null, "本次回复失败", -1)),
+            g("p", null, A(s.text), 1)
+          ])) : s.kind === "activity" ? (d(), m("article", {
+            key: 7,
+            class: "cody-conversation-activity",
+            "data-tone": s.tone,
+            role: "status",
+            "aria-live": "polite"
+          }, [
+            y[6] || (y[6] = g("span", {
+              class: "cody-activity-pulse",
+              "aria-hidden": "true"
+            }, null, -1)),
+            g("strong", null, A(s.title), 1),
+            g("small", null, A(s.detail), 1)
+          ], 8, it)) : M("", !0)
         ], 64);
       }), 128))
     ], 8, Ue));
   }
-}), lt = ["data-variant"], it = { class: "cody-composer-shell" }, rt = {
+}), lt = ["data-variant"], rt = { class: "cody-composer-shell" }, dt = {
   key: 0,
   class: "cody-composer-selected",
   "aria-label": "Selected skills"
-}, dt = ["disabled", "aria-label", "onClick"], ct = ["value", "disabled", "placeholder"], ut = { class: "cody-composer-controls" }, mt = {
+}, ct = ["disabled", "aria-label", "onClick"], ut = ["value", "disabled", "placeholder"], mt = { class: "cody-composer-controls" }, pt = {
   key: 0,
   class: "cody-composer-compact-control cody-composer-skill-control",
   title: "为本轮显式选择 Skill"
-}, pt = ["disabled"], ft = ["value"], gt = { class: "cody-composer-actions" }, yt = ["disabled"], kt = ["disabled", "aria-label"], bt = {
+}, ft = ["disabled"], gt = ["value"], yt = { class: "cody-composer-actions" }, kt = ["disabled"], vt = ["disabled", "aria-label"], bt = {
   key: 1,
   class: "cody-composer-policy"
-}, At = /* @__PURE__ */ N({
+}, qt = /* @__PURE__ */ N({
   __name: "CodyComposer",
   props: {
     draft: {},
@@ -652,147 +688,147 @@ const Te = ["data-kind"], Re = { class: "cody-request-heading" }, Ie = { key: 0 
     variant: { default: "standalone" }
   },
   emits: ["update:draft", "update:collaboration-mode", "update:submit-mode", "update:model", "update:reasoning", "update:permission", "update:selected-skills", "send", "stop"],
-  setup(e, { emit: l }) {
-    const o = N({
+  setup(e, { emit: a }) {
+    const n = N({
       name: "CodyComposerSelect",
       props: { label: { type: String, required: !0 }, modelValue: { type: String, required: !0 }, options: { type: Array, required: !0 }, disabled: Boolean },
       emits: ["update:modelValue"],
-      setup(s, { emit: n }) {
-        return () => _("label", { class: "cody-composer-compact-control", title: s.label }, [
-          _("select", { value: s.modelValue, disabled: s.disabled, "aria-label": s.label, onChange: (p) => n("update:modelValue", p.target.value) }, s.options.map((p) => _("option", { value: p.value }, p.label)))
+      setup(t, { emit: o }) {
+        return () => K("label", { class: "cody-composer-compact-control", title: t.label }, [
+          K("select", { value: t.modelValue, disabled: t.disabled, "aria-label": t.label, onChange: (l) => o("update:modelValue", l.target.value) }, t.options.map((l) => K("option", { value: l.value }, l.label)))
         ]);
       }
-    }), d = e, i = l, r = P(() => d.skills.filter((s) => !d.selectedSkills.includes(s.value))), S = P(() => {
-      var s;
-      return ((s = d.permissionOptions.find((n) => n.value === d.selectedPermission)) == null ? void 0 : s.description) ?? "";
-    }), b = P(() => d.isRunning && d.selectedSubmitMode === "guide" ? "发送引导" : d.isRunning ? "加入队列" : "发送");
-    function y(s, n) {
-      var p;
-      return ((p = s.find((M) => M.value === n)) == null ? void 0 : p.label) ?? n;
+    }), c = e, i = a, r = P(() => c.skills.filter((t) => !c.selectedSkills.includes(t.value))), S = P(() => {
+      var t;
+      return ((t = c.permissionOptions.find((o) => o.value === c.selectedPermission)) == null ? void 0 : t.description) ?? "";
+    }), p = P(() => c.isRunning && c.selectedSubmitMode === "guide" ? "发送引导" : c.isRunning ? "加入队列" : "发送");
+    function y(t, o) {
+      var l;
+      return ((l = t.find((L) => L.value === o)) == null ? void 0 : l.label) ?? o;
     }
-    function a(s) {
-      s && !d.selectedSkills.includes(s) && i("update:selected-skills", [...d.selectedSkills, s]);
+    function s(t) {
+      t && !c.selectedSkills.includes(t) && i("update:selected-skills", [...c.selectedSkills, t]);
     }
-    function t(s) {
-      i("update:selected-skills", d.selectedSkills.filter((n) => n !== s));
+    function w(t) {
+      i("update:selected-skills", c.selectedSkills.filter((o) => o !== t));
     }
-    return (s, n) => (u(), m("form", {
+    return (t, o) => (d(), m("form", {
       class: "cody-composer",
       "data-variant": e.variant,
       "data-cody-component": "composer-surface",
-      onSubmit: n[9] || (n[9] = ee((p) => i("send"), ["prevent"]))
+      onSubmit: o[9] || (o[9] = te((l) => i("send"), ["prevent"]))
     }, [
-      k("div", it, [
-        e.selectedSkills.length ? (u(), m("div", rt, [
-          (u(!0), m(I, null, z(e.selectedSkills, (p) => (u(), m("span", {
-            key: p,
+      g("div", rt, [
+        e.selectedSkills.length ? (d(), m("div", dt, [
+          (d(!0), m(R, null, z(e.selectedSkills, (l) => (d(), m("span", {
+            key: l,
             class: "cody-composer-chip"
           }, [
-            K(" $" + q(y(e.skills, p)) + " ", 1),
-            k("button", {
+            Y(" $" + A(y(e.skills, l)) + " ", 1),
+            g("button", {
               type: "button",
               disabled: e.disabled,
-              "aria-label": `移除 Skill ${y(e.skills, p)}`,
-              onClick: (M) => t(p)
-            }, "×", 8, dt)
+              "aria-label": `移除 Skill ${y(e.skills, l)}`,
+              onClick: (L) => w(l)
+            }, "×", 8, ct)
           ]))), 128))
-        ])) : L("", !0),
-        k("textarea", {
+        ])) : M("", !0),
+        g("textarea", {
           value: e.draft,
           rows: "1",
           disabled: e.disabled,
           placeholder: e.placeholder,
-          onInput: n[0] || (n[0] = (p) => i("update:draft", p.target.value)),
-          onKeydown: n[1] || (n[1] = re(ee((p) => i("send"), ["exact", "prevent"]), ["enter"]))
-        }, null, 40, ct),
-        k("div", ut, [
-          V(s.$slots, "leading"),
-          e.skills.length ? (u(), m("label", mt, [
-            n[11] || (n[11] = k("span", {
+          onInput: o[0] || (o[0] = (l) => i("update:draft", l.target.value)),
+          onKeydown: o[1] || (o[1] = de(te((l) => i("send"), ["exact", "prevent"]), ["enter"]))
+        }, null, 40, ut),
+        g("div", mt, [
+          V(t.$slots, "leading"),
+          e.skills.length ? (d(), m("label", pt, [
+            o[11] || (o[11] = g("span", {
               class: "cody-composer-icon",
               "aria-hidden": "true"
             }, "✦", -1)),
-            k("select", {
+            g("select", {
               value: "",
               disabled: e.disabled,
               "aria-label": "添加 Skill",
-              onChange: n[2] || (n[2] = (p) => a(p.target.value))
+              onChange: o[2] || (o[2] = (l) => s(l.target.value))
             }, [
-              n[10] || (n[10] = k("option", { value: "" }, "Skills", -1)),
-              (u(!0), m(I, null, z(r.value, (p) => (u(), m("option", {
-                key: p.value,
-                value: p.value
-              }, "$" + q(p.label), 9, ft))), 128))
-            ], 40, pt)
-          ])) : L("", !0),
-          e.collaborationModes.length ? (u(), te(U(o), {
+              o[10] || (o[10] = g("option", { value: "" }, "Skills", -1)),
+              (d(!0), m(R, null, z(r.value, (l) => (d(), m("option", {
+                key: l.value,
+                value: l.value
+              }, "$" + A(l.label), 9, gt))), 128))
+            ], 40, ft)
+          ])) : M("", !0),
+          e.collaborationModes.length ? (d(), oe(U(n), {
             key: 1,
             label: "协作模式",
             "model-value": e.selectedCollaborationMode,
             options: e.collaborationModes,
             disabled: e.disabled || e.isRunning,
-            "onUpdate:modelValue": n[3] || (n[3] = (p) => i("update:collaboration-mode", p))
-          }, null, 8, ["model-value", "options", "disabled"])) : L("", !0),
-          F(U(o), {
+            "onUpdate:modelValue": o[3] || (o[3] = (l) => i("update:collaboration-mode", l))
+          }, null, 8, ["model-value", "options", "disabled"])) : M("", !0),
+          F(U(n), {
             label: "提交策略",
             "model-value": e.selectedSubmitMode,
             options: e.submitModes,
             disabled: e.disabled,
-            "onUpdate:modelValue": n[4] || (n[4] = (p) => i("update:submit-mode", p))
+            "onUpdate:modelValue": o[4] || (o[4] = (l) => i("update:submit-mode", l))
           }, null, 8, ["model-value", "options", "disabled"]),
-          e.models.length ? (u(), te(U(o), {
+          e.models.length ? (d(), oe(U(n), {
             key: 2,
             label: "模型",
             "model-value": e.selectedModel,
             options: e.models,
             disabled: e.disabled || e.isRunning,
-            "onUpdate:modelValue": n[5] || (n[5] = (p) => i("update:model", p))
-          }, null, 8, ["model-value", "options", "disabled"])) : L("", !0),
-          F(U(o), {
+            "onUpdate:modelValue": o[5] || (o[5] = (l) => i("update:model", l))
+          }, null, 8, ["model-value", "options", "disabled"])) : M("", !0),
+          F(U(n), {
             label: "推理强度",
             "model-value": e.selectedReasoning,
             options: e.reasoningOptions,
             disabled: e.disabled || e.isRunning,
-            "onUpdate:modelValue": n[6] || (n[6] = (p) => i("update:reasoning", p))
+            "onUpdate:modelValue": o[6] || (o[6] = (l) => i("update:reasoning", l))
           }, null, 8, ["model-value", "options", "disabled"]),
-          F(U(o), {
+          F(U(n), {
             label: "权限",
             "model-value": e.selectedPermission,
             options: e.permissionOptions,
             disabled: e.disabled || e.isRunning,
-            "onUpdate:modelValue": n[7] || (n[7] = (p) => i("update:permission", p))
+            "onUpdate:modelValue": o[7] || (o[7] = (l) => i("update:permission", l))
           }, null, 8, ["model-value", "options", "disabled"]),
-          V(s.$slots, "controls"),
-          k("div", gt, [
-            e.isRunning ? (u(), m("button", {
+          V(t.$slots, "controls"),
+          g("div", yt, [
+            e.isRunning ? (d(), m("button", {
               key: 0,
               class: "cody-composer-stop",
               type: "button",
               disabled: e.disabled,
-              onClick: n[8] || (n[8] = (p) => i("stop"))
-            }, "停止", 8, yt)) : L("", !0),
-            k("button", {
+              onClick: o[8] || (o[8] = (l) => i("stop"))
+            }, "停止", 8, kt)) : M("", !0),
+            g("button", {
               class: "cody-composer-send",
               type: "submit",
               disabled: e.disabled || !e.draft.trim(),
-              "aria-label": b.value
-            }, "↑", 8, kt)
+              "aria-label": p.value
+            }, "↑", 8, vt)
           ])
         ]),
-        S.value ? (u(), m("p", bt, q(S.value), 1)) : L("", !0)
+        S.value ? (d(), m("p", bt, A(S.value), 1)) : M("", !0)
       ])
     ], 40, lt));
   }
 });
 export {
-  At as CodyComposer,
-  xt as CodyConversation,
+  qt as CodyComposer,
+  At as CodyConversation,
   le as CodyMarkdown,
   Fe as CodyRequestCard,
   H as DEFAULT_CODY_MARKDOWN_LABELS,
-  Ct as conversationEntriesFromState,
-  ue as questionFieldsFromParams,
-  se as renderCodyMarkdown,
+  xt as conversationEntriesFromState,
+  me as questionFieldsFromParams,
+  ae as renderCodyMarkdown,
   Me as requestSummary,
-  ae as stabilizeStreamingMarkdown
+  ie as stabilizeStreamingMarkdown
 };

@@ -27,6 +27,11 @@
         </slot>
       </template>
       <details v-else-if="entry.kind === 'failure'" class="cody-failure-card"><summary>本次回复失败</summary><p>{{ entry.text }}</p></details>
+      <article v-else-if="entry.kind === 'activity'" class="cody-conversation-activity" :data-tone="entry.tone" role="status" aria-live="polite">
+        <span class="cody-activity-pulse" aria-hidden="true" />
+        <strong>{{ entry.title }}</strong>
+        <small>{{ entry.detail }}</small>
+      </article>
     </template>
   </section>
 </template>
