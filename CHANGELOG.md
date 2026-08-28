@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.4
+
+- Added the canonical native turn-input builder shared by CodyWeb and CodyWork.
+- Enforced protocol-compatible Skill → text → image ordering so explicitly selected Skills cannot stall a turn.
+
 ## 0.6.3
 
 - Normalized the title and summary of an already-coalesced multi-file change card.

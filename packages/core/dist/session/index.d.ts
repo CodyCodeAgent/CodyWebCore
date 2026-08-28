@@ -24,6 +24,22 @@ export type TurnInput = {
     runtimeWorkspaceRoots?: TurnStartParams['runtimeWorkspaceRoots'];
     sandboxPolicy?: TurnStartParams['sandboxPolicy'];
 };
+export type TurnInputSkill = {
+    name: string;
+    path: string;
+};
+export type TurnInputLocalImage = {
+    path: string;
+    detail?: Extract<UserInput, {
+        type: 'localImage';
+    }>['detail'];
+};
+/** Builds the canonical Codex turn input sequence for every CodyWeb product. */
+export declare function buildTurnUserInput(input: {
+    text?: string;
+    skills?: TurnInputSkill[];
+    localImages?: TurnInputLocalImage[];
+}): UserInput[];
 export type TurnHandle = {
     threadId: string;
     turnId: string;

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AppServerDiagnostics, AppServerHost, RuntimeNotification, RuntimeNotificationListener, ServerRequestReply } from '../src/runtime/index.js'
-import { CodexSessionManager, normalizeThreadHistory } from '../src/session/index.js'
+import { buildTurnUserInput, CodexSessionManager, normalizeThreadHistory } from '../src/session/index.js'
 import { createConversationState, reduceConversationEvents, type CodexEvent } from '../src/conversation/index.js'
 
 class FakeHost implements AppServerHost {
@@ -32,6 +32,20 @@ class FakeHost implements AppServerHost {
     for (const listener of this.listeners) listener(value)
   }
 }
+
+describe('buildTurnUserInput', () => {
+  it('puts Skills before text and local images', () => {
+    expect(buildTurnUserInput({
+      text: '  inspect this  ',
+      skills: [{ name: ' docs ', path: ' /skills/docs/SKILL.md ' }, { name: '', path: '/ignored' }],
+      localImages: [{ path: ' /tmp/screenshot.png ' }],
+    })).toEqual([
+      { type: 'skill', name: 'docs', path: '/skills/docs/SKILL.md' },
+      { type: 'text', text: 'inspect this', text_elements: [] },
+      { type: 'localImage', path: '/tmp/screenshot.png' },
+    ])
+  })
+})
 
 const context = { thread: { cwd: '/repo', experimentalRawEvents: false } }
 
