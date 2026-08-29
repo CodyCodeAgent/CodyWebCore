@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.33.1
+
+- Clear unresolved approval/question snapshots when their turn completes, fails, or is interrupted so stale request cards cannot survive a terminal turn.
+
 ## 0.33.0
 
 - Added stable pending approval/question event snapshots so product views can restore unresolved server-request cards after reconnecting.

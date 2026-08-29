@@ -336,6 +336,21 @@ describe('CodexSessionManager', () => {
     await manager.dispose()
   })
 
+  it('forgets unresolved requests when their turn terminates', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host })
+    await manager.create('conversation-1', context)
+    host.emit('server/request', { id: 44, method: 'item/commandExecution/requestApproval', params: { threadId: 'thread-1', turnId: 'turn-1', itemId: 'item-1', command: 'sleep 30' }, receivedAtIso: '2026-01-01T00:00:00.000Z' })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(manager.listPendingEvents('conversation-1')).toHaveLength(1)
+
+    host.emit('turn/completed', { threadId: 'thread-1', turn: { id: 'turn-1', status: 'interrupted' } })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(manager.listPendingEvents('conversation-1')).toEqual([])
+    await manager.dispose()
+  })
+
   it('resumes the native thread before the next operation after a host disconnect', async () => {
     const host = new FakeHost()
     const manager = new CodexSessionManager({ host })

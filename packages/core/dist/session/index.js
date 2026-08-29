@@ -247,6 +247,11 @@ export class CodexSessionManager {
         const session = bindingId ? this.sessions.get(bindingId) : undefined;
         if (session?.activeTurnId === event.turnId)
             session.activeTurnId = '';
+        for (const [requestId, pending] of this.pendingRequests) {
+            if (pending.event?.threadId === event.threadId && pending.event.turnId === event.turnId) {
+                this.pendingRequests.delete(requestId);
+            }
+        }
         const rows = this.waiters.get(key) ?? [];
         this.waiters.delete(key);
         this.clearTurnWatchdog(key);
