@@ -101,6 +101,7 @@ export type ConversationRequest = {
     requestedAtIso: string;
 };
 export type ConversationPlanState = {
+    threadId: string;
     turnId?: string;
     text: string;
     explanation?: string;

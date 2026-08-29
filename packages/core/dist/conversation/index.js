@@ -684,11 +684,13 @@ export function reduceConversationEvent(previous, event) {
     if (event.type === 'plan.delta' || event.type === 'plan.replaced') {
         const text = eventText(event.data);
         const planId = `plan:${event.turnId || 'current'}`;
-        const revision = state.plan && state.plan.turnId === event.turnId ? state.plan.revision + 1 : 1;
+        const previousRevision = state.plan && state.plan.turnId === event.turnId ? state.plan.revision : 0;
+        const revision = event.type === 'plan.replaced' ? previousRevision + 1 : previousRevision;
         return {
             ...state,
             reasoningText: '',
             plan: {
+                threadId: event.threadId,
                 turnId: event.turnId,
                 text: event.type === 'plan.delta' ? `${state.plan?.text ?? ''}${text}` : text,
                 ...(typeof event.data.explanation === 'string' ? { explanation: event.data.explanation } : {}),

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.20.1
+
+- Scoped plan snapshots to their thread and counted revisions from authoritative replacements rather than transport deltas.
+
 ## 0.20.0
 
 - Moved structured-plan revision, lifecycle and stale-state semantics into the shared reducer.
