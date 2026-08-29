@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.21.2
+
+- Finalized assistant overlay rows when their turn ends and removed ended plan overlays while durable history catches up.
+
 ## 0.21.1
 
 - Replaced an assistant delta row by native item identity when the completed item arrives, even if final text differs from the streamed prefix.

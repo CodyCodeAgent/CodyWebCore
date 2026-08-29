@@ -222,6 +222,7 @@ describe('conversation core', () => {
   it('selects assistant and plan overlays with stable native item identities', () => {
     const base = { threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:00.000Z' }
     const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { ...base, id: 'start', type: 'turn.started', data: {} },
       { ...base, id: 'answer-delta', itemId: 'agent-1', type: 'assistant.delta', data: { text: 'Draft' } },
       { ...base, id: 'answer-completed', itemId: 'agent-1', type: 'assistant.completed', data: { text: 'Done' } },
       { ...base, id: 'plan-delta', itemId: 'plan-1', type: 'plan.delta', data: { text: 'Inspect' } },
@@ -231,6 +232,13 @@ describe('conversation core', () => {
     expect(conversationOverlayMessagesFromState(state)).toEqual([
       expect.objectContaining({ id: 'agent-1', text: 'Done', messageType: 'agentMessage.live' }),
       expect.objectContaining({ id: 'plan-1', text: 'Inspect\nTest', messageType: 'plan.live' }),
+    ])
+
+    const completed = reduceConversationEvents(state, [{
+      ...base, id: 'done', type: 'turn.completed', atIso: '2026-01-01T00:00:02.000Z', data: {},
+    }])
+    expect(conversationOverlayMessagesFromState(completed)).toEqual([
+      expect.objectContaining({ id: 'agent-1', text: 'Done', messageType: 'agentMessage' }),
     ])
   })
 

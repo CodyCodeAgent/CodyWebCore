@@ -559,9 +559,11 @@ export function conversationOverlayMessagesFromState(state: ConversationState): 
     .map((message) => ({
       ...message,
       id: message.id.replace(/^(?:live|agent):/u, ''),
-      messageType: 'agentMessage.live',
+      messageType: message.turnId && state.turns[message.turnId]?.lifecycle !== 'running'
+        ? 'agentMessage'
+        : 'agentMessage.live',
     }))
-  if (!state.plan?.text) return messages
+  if (!state.plan?.text || state.plan.lifecycle === 'ended') return messages
   return [...messages, {
     id: state.plan.itemId || `plan:${state.plan.turnId || 'current'}:live`,
     turnId: state.plan.turnId,
