@@ -48,6 +48,29 @@ describe('shared conversation components', () => {
     expect(withSkill.emitted('send')).toEqual([[]])
   })
 
+  it('keeps Enter for newlines and submits with Control or Command Enter', async () => {
+    const wrapper = mount(CodyComposer, { props: { draft: '继续' } })
+    const textarea = wrapper.find('textarea')
+
+    const enter = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true })
+    textarea.element.dispatchEvent(enter)
+    await wrapper.vm.$nextTick()
+    expect(enter.defaultPrevented).toBe(false)
+    expect(wrapper.emitted('send')).toBeUndefined()
+
+    const controlEnter = new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, cancelable: true })
+    textarea.element.dispatchEvent(controlEnter)
+    await wrapper.vm.$nextTick()
+    expect(controlEnter.defaultPrevented).toBe(true)
+    expect(wrapper.emitted('send')).toEqual([[]])
+
+    const commandEnter = new KeyboardEvent('keydown', { key: 'Enter', metaKey: true, cancelable: true })
+    textarea.element.dispatchEvent(commandEnter)
+    await wrapper.vm.$nextTick()
+    expect(commandEnter.defaultPrevented).toBe(true)
+    expect(wrapper.emitted('send')).toEqual([[], []])
+  })
+
   it('emits stop while a turn is running', async () => {
     const wrapper = mount(CodyComposer, {
       props: { draft: '', isRunning: true, disabled: false },
