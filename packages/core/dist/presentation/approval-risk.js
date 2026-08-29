@@ -115,7 +115,9 @@ function commandContains(command, patterns) {
 }
 function commandAbsolutePaths(command) {
     const paths = command.match(/(?:^|[\s"'])\/[^\s"'`]+/gu) ?? [];
-    return paths.map((path) => path.trim().replace(/^["']/u, '').replace(/["']$/u, ''));
+    const normalized = paths.map((path) => path.trim().replace(/^["']/u, '').replace(/["']$/u, ''));
+    const launcher = command.trim().match(/^(["']?)(\/[^\s"']+)\1(?:\s|$)/u)?.[2];
+    return launcher ? normalized.filter((path, index) => index !== 0 || path !== launcher) : normalized;
 }
 function commandTouchesPath(command, patterns) {
     return patterns.some((pattern) => pattern.test(command));

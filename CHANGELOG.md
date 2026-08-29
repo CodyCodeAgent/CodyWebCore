@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.32.1
+
+- Stopped treating an absolute shell launcher such as `/bin/zsh` as an outside-workspace command operand while preserving detection for actual outside paths in the wrapped command.
+
 ## 0.32.0
 
 - Added runtime contract validation for stable Thread summaries and Thread/Turn command result identifiers.

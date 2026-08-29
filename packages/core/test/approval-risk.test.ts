@@ -144,6 +144,29 @@ describe('buildApprovalRiskSummary', () => {
     expect(summary.impacts.join('\n')).toContain('/etc/passwd')
   })
 
+  it('does not treat an absolute shell launcher as an outside-workspace operand', () => {
+    const summary = buildApprovalRiskSummary(
+      buildRequest('item/commandExecution/requestApproval', {
+        command: `/bin/zsh -lc "printf '%s\\n' ok > /workspace/app/docs/result.txt"`,
+        cwd: '/workspace/app',
+      }),
+    )
+
+    expect(summary.riskLabels).not.toContain('Outside workspace')
+  })
+
+  it('still flags outside paths inside an absolute shell launcher command', () => {
+    const summary = buildApprovalRiskSummary(
+      buildRequest('item/commandExecution/requestApproval', {
+        command: `/bin/zsh -lc "cat /etc/passwd > /workspace/app/docs/result.txt"`,
+        cwd: '/workspace/app',
+      }),
+    )
+
+    expect(summary.riskLabels).toContain('Outside workspace')
+    expect(summary.impacts.join('\n')).toContain('/etc/passwd')
+  })
+
   it('treats generic tool approvals as external tool risk', () => {
     const summary = buildApprovalRiskSummary(
       buildRequest('item/tool/call', {
@@ -176,4 +199,3 @@ describe('buildApprovalRiskSummary', () => {
     expect(summary.impacts[0]).toBe('工作目录：/workspace/app')
   })
 })
-
