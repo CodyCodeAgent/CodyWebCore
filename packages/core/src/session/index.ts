@@ -110,7 +110,7 @@ export class CodexSessionManager {
   private readonly waiters = new Map<string, TurnWaiter[]>()
   private readonly turnWatchdogs = new Map<string, TurnWatchdog>()
   private readonly terminalEvents = new Map<string, CodexEvent>()
-  private readonly pendingRequests = new Map<string, { request: ServerRequest; bindingId: string; kind: 'approval' | 'question' }>()
+  private readonly pendingRequests = new Map<string, { request: ServerRequest; bindingId: string; kind: 'approval' | 'question'; event?: CodexEvent }>()
   private readonly commands: CodexThreadCommands
   private readonly catalog: CodexSessionCatalog
   private readonly nowIso: () => string
@@ -127,6 +127,13 @@ export class CodexSessionManager {
   subscribe(listener: (event: CodexEvent) => void): () => void {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
+  }
+
+  /** Returns stable live events for unresolved approvals/questions after a product view reconnects. */
+  listPendingEvents(bindingId: string): CodexEvent[] {
+    return [...this.pendingRequests.values()]
+      .filter((pending) => pending.bindingId === bindingId && pending.event)
+      .map((pending) => pending.event!)
   }
 
   async create(bindingId: string, context: ExecutionContext): Promise<ThreadBinding> {
@@ -467,12 +474,14 @@ export class CodexSessionManager {
       this.options.onDiagnostic?.({ level: 'warning', message: 'Unsupported server request is pending for explicit product handling.', method: request.method, params })
     }
     const requestId = String(request.id)
-    this.pendingRequests.set(requestId, { request, bindingId, kind })
-    this.emit({
+    const pending = { request, bindingId, kind } as { request: ServerRequest; bindingId: string; kind: 'approval' | 'question'; event?: CodexEvent }
+    this.pendingRequests.set(requestId, pending)
+    const event = this.emit({
       type: kind === 'approval' ? 'approval.requested' : 'question.requested',
       threadId, turnId: operation.turnId, itemId: operation.itemId,
       data: { requestId, approvalId: requestId, method: request.method, params },
     })
+    if (this.pendingRequests.get(requestId) === pending) pending.event = event
   }
 }
 

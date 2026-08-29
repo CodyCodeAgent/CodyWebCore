@@ -72,6 +72,8 @@ export declare class CodexSessionManager {
     private unlisten;
     constructor(options: CodexSessionManagerOptions);
     subscribe(listener: (event: CodexEvent) => void): () => void;
+    /** Returns stable live events for unresolved approvals/questions after a product view reconnects. */
+    listPendingEvents(bindingId: string): CodexEvent[];
     create(bindingId: string, context: ExecutionContext): Promise<ThreadBinding>;
     resume(binding: ThreadBinding, context: ExecutionContext): Promise<void>;
     detach(bindingId: string): void;

@@ -33,6 +33,12 @@ export class CodexSessionManager {
         this.listeners.add(listener);
         return () => this.listeners.delete(listener);
     }
+    /** Returns stable live events for unresolved approvals/questions after a product view reconnects. */
+    listPendingEvents(bindingId) {
+        return [...this.pendingRequests.values()]
+            .filter((pending) => pending.bindingId === bindingId && pending.event)
+            .map((pending) => pending.event);
+    }
     async create(bindingId, context) {
         await this.options.host.ensureInitialized();
         const threadId = await this.commands.startThread({
@@ -377,12 +383,15 @@ export class CodexSessionManager {
             this.options.onDiagnostic?.({ level: 'warning', message: 'Unsupported server request is pending for explicit product handling.', method: request.method, params });
         }
         const requestId = String(request.id);
-        this.pendingRequests.set(requestId, { request, bindingId, kind });
-        this.emit({
+        const pending = { request, bindingId, kind };
+        this.pendingRequests.set(requestId, pending);
+        const event = this.emit({
             type: kind === 'approval' ? 'approval.requested' : 'question.requested',
             threadId, turnId: operation.turnId, itemId: operation.itemId,
             data: { requestId, approvalId: requestId, method: request.method, params },
         });
+        if (this.pendingRequests.get(requestId) === pending)
+            pending.event = event;
     }
 }
 function contentFromInputs(input) {

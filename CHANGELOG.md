@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.33.0
+
+- Added stable pending approval/question event snapshots so product views can restore unresolved server-request cards after reconnecting.
+
 ## 0.32.1
 
 - Stopped treating an absolute shell launcher such as `/bin/zsh` as an outside-workspace command operand while preserving detection for actual outside paths in the wrapped command.

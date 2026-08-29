@@ -316,6 +316,26 @@ describe('CodexSessionManager', () => {
     await manager.dispose()
   })
 
+  it('replays unresolved approval events after a product view reconnects', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host })
+    await manager.create('conversation-1', context)
+    host.emit('server/request', { id: 43, method: 'item/commandExecution/requestApproval', params: { threadId: 'thread-1', turnId: 'turn-1', itemId: 'item-1', command: 'pnpm test' }, receivedAtIso: '2026-01-01T00:00:00.000Z' })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(manager.listPendingEvents('conversation-1')).toEqual([
+      expect.objectContaining({
+        type: 'approval.requested',
+        threadId: 'thread-1',
+        data: expect.objectContaining({ requestId: '43', approvalId: '43' }),
+      }),
+    ])
+
+    await manager.respondApproval('conversation-1', '43', 'decline')
+    expect(manager.listPendingEvents('conversation-1')).toEqual([])
+    await manager.dispose()
+  })
+
   it('resumes the native thread before the next operation after a host disconnect', async () => {
     const host = new FakeHost()
     const manager = new CodexSessionManager({ host })
