@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.22.4
+
+- Published the reconnect-authority fix with synchronized distributable artifacts for Git package consumers.
+
 ## 0.22.3
 
 - Treat turn-scoped App Server `error` notifications as retry diagnostics until an authoritative terminal Turn notification arrives, including older payloads without `willRetry`.
