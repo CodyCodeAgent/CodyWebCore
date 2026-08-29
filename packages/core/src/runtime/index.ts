@@ -401,7 +401,7 @@ export function createAppServerHost(options: AppServerHostOptions = {}): AppServ
       if (Date.now() < restartAt) await new Promise<void>((resolve) => setTimeout(resolve, restartAt - Date.now()))
       try {
         await call('initialize', options.initializeParams ?? {
-          clientInfo: { name: 'cody-web-core', title: 'Cody Web Core', version: '0.11.1' },
+          clientInfo: { name: 'cody-web-core', title: 'Cody Web Core', version: '0.12.0' },
           capabilities: { experimentalApi: true, requestAttestation: false },
         })
       } catch (error) {

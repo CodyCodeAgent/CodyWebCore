@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AppServerDiagnostics, AppServerHost, RuntimeNotification, RuntimeNotificationListener, ServerRequestReply } from '../src/runtime/index.js'
-import { buildTurnUserInput, CodexSessionManager, normalizeCodexNotification, normalizeThreadHistory } from '../src/session/index.js'
+import { buildTurnUserInput, CodexSessionManager, conversationToolFromItem, normalizeCodexNotification, normalizeThreadHistory } from '../src/session/index.js'
 import { createConversationState, reduceConversationEvents, type CodexEvent } from '../src/conversation/index.js'
 
 class FakeHost implements AppServerHost {
@@ -108,6 +108,31 @@ describe('normalizeCodexNotification', () => {
     }, { ...options, includeProviderExtensions: true })).toEqual([
       expect.objectContaining({ type: 'provider.extension', data: { method: 'vendor/custom', params: { threadId: 'thread-1' } } }),
     ])
+  })
+})
+
+describe('conversationToolFromItem', () => {
+  it('builds one rich tool view model for history and realtime items', () => {
+    expect(conversationToolFromItem({
+      type: 'commandExecution', command: 'pnpm test', cwd: '/repo', status: 'completed',
+      exitCode: 0, durationMs: 1_500, aggregatedOutput: 'all green',
+    })).toEqual({
+      kind: 'command', title: 'Command execution', status: 'completed', summary: 'pnpm test',
+      details: ['cwd: /repo', 'status: completed', 'exit: 0', 'duration: 1.5s'],
+      output: 'all green', outputLabel: 'Output',
+    })
+    expect(conversationToolFromItem({
+      type: 'fileChange', status: { type: 'completed' }, changes: [{
+        path: 'src/old.ts', kind: { type: 'update', move_path: 'src/new.ts' }, diff: '-old\n+new',
+      }],
+    })).toMatchObject({
+      kind: 'fileChange', status: 'completed', summary: '1 file changed',
+      details: ['status: completed', 'update: src/old.ts -> src/new.ts'], outputLabel: 'Diff',
+    })
+    expect(conversationToolFromItem({
+      type: 'dynamicToolCall', namespace: 'browser', tool: 'open', status: 'completed', success: true,
+      contentItems: [{ type: 'text', text: 'opened' }],
+    })).toMatchObject({ kind: 'dynamicTool', status: 'completed', summary: 'browser.open', outputLabel: 'Result' })
   })
 })
 

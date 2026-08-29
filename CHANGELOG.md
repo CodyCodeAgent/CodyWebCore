@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.0
+
+- Added one rich native-item tool normalizer shared by history and realtime paths.
+- Unified command output, file moves/diffs, MCP errors/results, dynamic tools, sub-agents, web search, image, review and context-compaction presentation data.
+- Preserved status, duration, exit code and output-label semantics without product-specific protocol parsing.
+
 ## 0.11.1
 
 - Included the generated runtime and declaration artifacts required by direct Git package consumers.

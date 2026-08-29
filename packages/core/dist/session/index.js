@@ -83,52 +83,128 @@ function outputText(value) {
         return String(value);
     }
 }
-function toolFromItem(item, phase) {
+export function readCodexStatus(value) {
+    if (typeof value === 'string')
+        return value;
+    return readString(asRecord(value)?.type);
+}
+function detailDuration(durationMs) {
+    if (typeof durationMs !== 'number' || !Number.isFinite(durationMs) || durationMs < 0)
+        return '';
+    if (durationMs < 1_000)
+        return `${String(Math.round(durationMs))}ms`;
+    const seconds = durationMs / 1_000;
+    if (seconds < 60)
+        return `${seconds.toFixed(seconds < 10 ? 1 : 0)}s`;
+    return `${String(Math.floor(seconds / 60))}m ${String(Math.round(seconds % 60))}s`;
+}
+/** Canonical history/realtime tool view model for native Codex items. */
+export function conversationToolFromItem(item, phase = 'completed') {
     const row = asRecord(item);
     const type = readString(row?.type);
     if (!row || !type)
         return null;
-    const rawStatus = readString(row.status);
+    const rawStatus = readCodexStatus(row.status);
     const failed = /fail|error|cancel|reject|declin/iu.test(rawStatus) || Boolean(row.error);
     const status = failed ? 'failed' : rawStatus || (phase === 'completed' ? 'completed' : 'running');
     if (type === 'commandExecution') {
         const command = readString(row.command);
         const output = readString(row.aggregatedOutput);
+        const details = [readString(row.cwd) ? `cwd: ${readString(row.cwd)}` : '', `status: ${status}`];
+        if (typeof row.exitCode === 'number')
+            details.push(`exit: ${String(row.exitCode)}`);
+        const duration = detailDuration(row.durationMs);
+        if (duration)
+            details.push(`duration: ${duration}`);
         return {
             kind: 'command', title: 'Command execution', status, summary: command,
-            details: [readString(row.cwd) ? `cwd: ${readString(row.cwd)}` : '', `status: ${status}`].filter(Boolean),
-            ...(output ? { output } : {}),
+            details: details.filter(Boolean), ...(output ? { output, outputLabel: 'Output' } : {}),
         };
     }
     if (type === 'fileChange') {
         const changes = Array.isArray(row.changes) ? row.changes : [];
-        const details = changes.map((change) => readString(asRecord(change)?.path)).filter(Boolean);
+        const details = changes.flatMap((change) => {
+            const changeRow = asRecord(change);
+            const path = readString(changeRow?.path);
+            if (!path)
+                return [];
+            const kindRow = asRecord(changeRow?.kind);
+            const kind = readCodexStatus(changeRow?.kind) || 'update';
+            const movePath = readString(kindRow?.move_path) || readString(kindRow?.movePath);
+            return [`${kind}: ${path}${movePath ? ` -> ${movePath}` : ''}`];
+        });
         const output = changes.map((change) => readString(asRecord(change)?.diff)).filter(Boolean).join('\n\n');
         return {
-            kind: 'fileChange', title: details.length > 1 ? `File changes · ${String(details.length)} files` : 'File change',
-            status, summary: details.length ? `${String(details.length)} files changed` : 'Files changed', details,
-            ...(output ? { output } : {}),
+            kind: 'fileChange', title: details.length > 1 ? `File changes · ${String(details.length)} files` : 'File changes',
+            status, summary: `${String(changes.length)} file${changes.length === 1 ? '' : 's'} changed`, details: [`status: ${status}`, ...details],
+            ...(output ? { output, outputLabel: 'Diff' } : {}),
         };
     }
     if (type === 'mcpToolCall') {
         const server = readString(row.server);
         const tool = readString(row.tool);
-        const output = outputText(row.error ?? row.result);
+        const error = readString(asRecord(row.error)?.message);
+        const output = error || outputText(row.result ?? row.arguments);
+        const details = [`server: ${server || 'unknown'}`, `tool: ${tool || 'unknown'}`, `status: ${status}`];
+        const duration = detailDuration(row.durationMs);
+        if (duration)
+            details.push(`duration: ${duration}`);
+        if (error)
+            details.push(`error: ${error}`);
         return {
-            kind: 'mcp', title: 'MCP tool', status, summary: [server, tool].filter(Boolean).join('.'),
-            details: [`server: ${server || 'unknown'}`, `tool: ${tool || 'unknown'}`], ...(output ? { output } : {}),
+            kind: 'mcp', title: 'MCP tool call', status: error ? 'failed' : status, summary: [server, tool].filter(Boolean).join('.'),
+            details, ...(output ? { output, outputLabel: error ? 'Error' : 'Result' } : {}),
+        };
+    }
+    if (type === 'dynamicToolCall') {
+        const namespace = readString(row.namespace);
+        const tool = readString(row.tool);
+        const output = outputText(row.contentItems ?? row.arguments);
+        const duration = detailDuration(row.durationMs);
+        return {
+            kind: 'dynamicTool', title: 'Dynamic tool call', status: row.success === false ? 'failed' : status,
+            summary: [namespace, tool].filter(Boolean).join('.') || tool,
+            details: [`tool: ${tool || 'unknown'}`, `status: ${status}`, ...(duration ? [`duration: ${duration}`] : [])],
+            ...(output ? { output, outputLabel: 'Result' } : {}),
         };
     }
     if (type === 'collabAgentToolCall') {
+        const tool = readCodexStatus(row.tool) || outputText(row.tool);
+        const receivers = Array.isArray(row.receiverThreadIds) ? row.receiverThreadIds.map(String) : [];
         return {
-            kind: 'collabAgent', title: 'Collaboration agent', status, summary: readString(row.tool),
-            details: Array.isArray(row.receiverThreadIds) ? row.receiverThreadIds.map(String) : [],
+            kind: 'collabAgent', title: 'Agent orchestration', status, summary: readString(row.prompt) || tool || 'Collaboration tool call',
+            details: [`tool: ${tool || 'unknown'}`, `status: ${status}`, `sender: ${readString(row.senderThreadId) || 'unknown'}`, `receivers: ${receivers.join(', ') || 'none'}`],
+            ...(row.agentsStates ? { output: outputText(row.agentsStates), outputLabel: 'Agent states' } : {}),
         };
     }
-    if (type === 'webSearch')
-        return { kind: 'webSearch', title: 'Web search', status, summary: readString(row.query), details: [] };
+    if (type === 'subAgentActivity')
+        return {
+            kind: 'subAgent', title: 'Sub-agent activity', status: 'recorded', summary: readCodexStatus(row.kind),
+            details: [`thread: ${readString(row.agentThreadId) || 'unknown'}`, `path: ${readString(row.agentPath) || 'unknown'}`],
+        };
+    if (type === 'webSearch') {
+        const action = readCodexStatus(row.action) || outputText(row.action);
+        return {
+            kind: 'webSearch', title: 'Web search', status: action || 'recorded', summary: readString(row.query),
+            details: action ? [`action: ${action}`] : [], ...(row.action ? { output: outputText(row.action), outputLabel: 'Search metadata' } : {}),
+        };
+    }
     if (type === 'imageView')
-        return { kind: 'imageView', title: 'Image view', status, summary: readString(row.path), details: [] };
+        return { kind: 'imageView', title: 'Image viewed', status: 'recorded', summary: readString(row.path), details: [`path: ${readString(row.path)}`] };
+    if (type === 'imageGeneration')
+        return {
+            kind: 'imageGeneration', title: 'Image generation', status, summary: readString(row.prompt) || 'Generated image',
+            details: [], ...(row.result ?? row.failure ? { output: outputText(row.result ?? row.failure), outputLabel: row.failure ? 'Error' : 'Result' } : {}),
+        };
+    if (type === 'sleep')
+        return { kind: 'sleep', title: 'Wait', status, summary: readString(row.reason) || 'Waiting', details: [] };
+    if (type === 'enteredReviewMode' || type === 'exitedReviewMode')
+        return {
+            kind: 'review', title: type === 'enteredReviewMode' ? 'Entered review mode' : 'Exited review mode',
+            status: 'recorded', summary: readString(row.review), details: [`review: ${readString(row.review)}`],
+        };
+    if (type === 'contextCompaction')
+        return { kind: 'context', title: 'Context compaction', status: 'recorded', summary: 'Context was compacted', details: [] };
     return null;
 }
 function itemEvents(input) {
@@ -149,7 +225,7 @@ function itemEvents(input) {
         const parts = [...(Array.isArray(row?.summary) ? row.summary : []), ...(Array.isArray(row?.content) ? row.content : [])].filter((value) => typeof value === 'string');
         return parts.length ? [{ id: input.id('reasoning'), type: 'reasoning.delta', ...common, data: { text: parts.join('\n\n') } }] : [];
     }
-    const tool = toolFromItem(input.item, input.phase);
+    const tool = conversationToolFromItem(input.item, input.phase);
     if (!tool)
         return [];
     return [{ id: input.id(`tool:${input.phase}`), type: input.phase === 'started' ? 'tool.started' : 'tool.completed', ...common, data: { tool, item: input.item } }];

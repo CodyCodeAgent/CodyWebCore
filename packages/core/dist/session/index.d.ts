@@ -2,7 +2,7 @@ import type { AppServerHost, ServerRequestReply } from '../runtime/index.js';
 import type { ThreadStartParams } from '../protocol/generated/v2/ThreadStartParams.js';
 import type { TurnStartParams } from '../protocol/generated/v2/TurnStartParams.js';
 import type { UserInput } from '../protocol/generated/v2/UserInput.js';
-import type { CodexEvent } from '../conversation/index.js';
+import type { CodexEvent, ConversationTool } from '../conversation/index.js';
 export type ThreadBinding = {
     /** Product-owned stable identifier (conversation id, task id, etc.). */
     id: string;
@@ -84,6 +84,9 @@ export type CodexSessionManagerOptions = {
     turnInactivityTimeoutMs?: number;
     onDiagnostic?: (diagnostic: CodexSessionDiagnostic) => void;
 };
+export declare function readCodexStatus(value: unknown): string;
+/** Canonical history/realtime tool view model for native Codex items. */
+export declare function conversationToolFromItem(item: unknown, phase?: 'started' | 'updated' | 'completed'): ConversationTool | null;
 export type CodexNotificationInput = {
     method: string;
     params?: unknown;
