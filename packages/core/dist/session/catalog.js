@@ -17,12 +17,18 @@ function sourceLabel(value) {
 function threadSummary(thread) {
     return {
         threadId: thread.id.trim(),
+        sessionId: thread.sessionId.trim(),
+        parentThreadId: thread.parentThreadId?.trim() ?? '',
+        forkedFromThreadId: thread.forkedFromId?.trim() ?? '',
         preview: thread.preview.trim(),
         name: thread.name?.trim() ?? '',
         cwd: thread.cwd.trim(),
         createdAtIso: timestampIso(thread.createdAt),
         updatedAtIso: timestampIso(thread.updatedAt),
         source: sourceLabel(thread.source),
+        status: thread.status.type,
+        activeFlags: thread.status.type === 'active' ? thread.status.activeFlags.map(sourceLabel).filter(Boolean) : [],
+        ephemeral: thread.ephemeral,
         canAcceptDirectInput: thread.canAcceptDirectInput,
     };
 }
@@ -123,6 +129,18 @@ export class CodexSessionCatalog {
                 description: skill.interface?.shortDescription?.trim() || skill.shortDescription?.trim() || skill.description.trim(),
                 scope: skill.scope,
                 enabled: skill.enabled,
+                brandColor: skill.interface?.brandColor?.trim() ?? '',
+                iconSmall: skill.interface?.iconSmall?.trim() || skill.interface?.iconSmallUrl?.trim() || '',
+                iconLarge: skill.interface?.iconLarge?.trim() || skill.interface?.iconLargeUrl?.trim() || '',
+                defaultPrompt: skill.interface?.defaultPrompt?.trim() ?? '',
+                dependencies: (skill.dependencies?.tools ?? []).map(dependency => ({
+                    type: dependency.type.trim(),
+                    value: dependency.value.trim(),
+                    description: dependency.description?.trim() ?? '',
+                    transport: dependency.transport?.trim() ?? '',
+                    command: dependency.command?.trim() ?? '',
+                    url: dependency.url?.trim() ?? '',
+                })),
             })),
             errors: group.errors.map(error => ({ path: error.path.trim(), message: error.message.trim() })),
         }));

@@ -5,12 +5,18 @@ import type { SkillScope } from '../protocol/generated/v2/SkillScope.js';
 import { type CodexEvent } from '../conversation/index.js';
 export interface CodexThreadSummary {
     threadId: string;
+    sessionId: string;
+    parentThreadId: string;
+    forkedFromThreadId: string;
     preview: string;
     name: string;
     cwd: string;
     createdAtIso: string;
     updatedAtIso: string;
     source: string;
+    status: 'notLoaded' | 'idle' | 'systemError' | 'active';
+    activeFlags: string[];
+    ephemeral: boolean;
     canAcceptDirectInput: boolean | null;
 }
 export interface CodexModelOption {
@@ -51,6 +57,19 @@ export interface CodexSkillOption {
     description: string;
     scope: SkillScope;
     enabled: boolean;
+    brandColor: string;
+    iconSmall: string;
+    iconLarge: string;
+    defaultPrompt: string;
+    dependencies: CodexSkillToolDependency[];
+}
+export interface CodexSkillToolDependency {
+    type: string;
+    value: string;
+    description: string;
+    transport: string;
+    command: string;
+    url: string;
 }
 export interface CodexSkillCatalogGroup {
     cwd: string;

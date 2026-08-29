@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.28.0
+
+- Completed stable Thread summaries with session-tree, active-state and ephemeral metadata needed by products.
+- Completed the Skill view model with normalized branding, icons, default prompts and tool dependencies so UI code never needs generated Skill records.
+
 ## 0.27.0
 
 - Added a stable Thread snapshot that owns durable Turn status, errors, assistant output, timestamps and normalized events without exposing generated records to products.

@@ -11,12 +11,18 @@ import { latestAssistantTextFromEvents, type CodexEvent } from '../conversation/
 
 export interface CodexThreadSummary {
   threadId: string
+  sessionId: string
+  parentThreadId: string
+  forkedFromThreadId: string
   preview: string
   name: string
   cwd: string
   createdAtIso: string
   updatedAtIso: string
   source: string
+  status: 'notLoaded' | 'idle' | 'systemError' | 'active'
+  activeFlags: string[]
+  ephemeral: boolean
   canAcceptDirectInput: boolean | null
 }
 
@@ -62,6 +68,20 @@ export interface CodexSkillOption {
   description: string
   scope: SkillScope
   enabled: boolean
+  brandColor: string
+  iconSmall: string
+  iconLarge: string
+  defaultPrompt: string
+  dependencies: CodexSkillToolDependency[]
+}
+
+export interface CodexSkillToolDependency {
+  type: string
+  value: string
+  description: string
+  transport: string
+  command: string
+  url: string
 }
 
 export interface CodexSkillCatalogGroup {
@@ -93,12 +113,18 @@ function sourceLabel(value: unknown): string {
 function threadSummary(thread: Thread): CodexThreadSummary {
   return {
     threadId: thread.id.trim(),
+    sessionId: thread.sessionId.trim(),
+    parentThreadId: thread.parentThreadId?.trim() ?? '',
+    forkedFromThreadId: thread.forkedFromId?.trim() ?? '',
     preview: thread.preview.trim(),
     name: thread.name?.trim() ?? '',
     cwd: thread.cwd.trim(),
     createdAtIso: timestampIso(thread.createdAt),
     updatedAtIso: timestampIso(thread.updatedAt),
     source: sourceLabel(thread.source),
+    status: thread.status.type,
+    activeFlags: thread.status.type === 'active' ? thread.status.activeFlags.map(sourceLabel).filter(Boolean) : [],
+    ephemeral: thread.ephemeral,
     canAcceptDirectInput: thread.canAcceptDirectInput,
   }
 }
@@ -205,6 +231,18 @@ export class CodexSessionCatalog {
         description: skill.interface?.shortDescription?.trim() || skill.shortDescription?.trim() || skill.description.trim(),
         scope: skill.scope,
         enabled: skill.enabled,
+        brandColor: skill.interface?.brandColor?.trim() ?? '',
+        iconSmall: skill.interface?.iconSmall?.trim() || skill.interface?.iconSmallUrl?.trim() || '',
+        iconLarge: skill.interface?.iconLarge?.trim() || skill.interface?.iconLargeUrl?.trim() || '',
+        defaultPrompt: skill.interface?.defaultPrompt?.trim() ?? '',
+        dependencies: (skill.dependencies?.tools ?? []).map(dependency => ({
+          type: dependency.type.trim(),
+          value: dependency.value.trim(),
+          description: dependency.description?.trim() ?? '',
+          transport: dependency.transport?.trim() ?? '',
+          command: dependency.command?.trim() ?? '',
+          url: dependency.url?.trim() ?? '',
+        })),
       })),
       errors: group.errors.map(error => ({ path: error.path.trim(), message: error.message.trim() })),
     }))

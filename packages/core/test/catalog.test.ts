@@ -12,7 +12,8 @@ describe('CodexSessionCatalog', () => {
     const rpc = rpcWith((_method, params) => ({
       data: [{
         id: 'thread-1', preview: ' Inspect code ', name: 'Review', cwd: '/repo', createdAt: 1_700_000_000,
-        updatedAt: 1_700_000_100, source: { vscode: {} }, canAcceptDirectInput: true,
+        updatedAt: 1_700_000_100, source: { vscode: {} }, canAcceptDirectInput: true, sessionId: 'session-1',
+        parentThreadId: null, forkedFromId: null, status: { type: 'idle' }, ephemeral: false,
       }],
       nextCursor: (params as { cursor?: string }).cursor ? null : 'next',
     }))
@@ -85,7 +86,7 @@ describe('CodexSessionCatalog', () => {
 
   it('owns skill discovery, normalization, dedupe and enablement', async () => {
     const rpc = rpcWith((method) => method === 'skills/list' ? { data: [{ cwd: '/repo', skills: [
-      { name: ' docs ', path: ' /skills/docs ', description: 'long', shortDescription: 'short', interface: { displayName: 'Docs', shortDescription: 'Use docs', iconSmallUrl: null, iconLargeUrl: null }, scope: 'repo', enabled: true },
+      { name: ' docs ', path: ' /skills/docs ', description: 'long', shortDescription: 'short', interface: { displayName: 'Docs', shortDescription: 'Use docs', iconSmallUrl: null, iconLargeUrl: null, brandColor: ' #123 ' }, dependencies: { tools: [{ type: ' browser ', value: ' Chrome ' }] }, scope: 'repo', enabled: true },
       { name: ' docs ', path: ' /skills/docs ', description: 'duplicate', scope: 'repo', enabled: true },
     ], errors: [{ path: ' /bad ', message: ' invalid ' }] }] } : {})
     const catalog = new CodexSessionCatalog(rpc)
@@ -93,13 +94,13 @@ describe('CodexSessionCatalog', () => {
     await expect(catalog.listSkillCatalog([' /repo ', '/repo'])).resolves.toEqual([{
       cwd: '/repo',
       skills: [
-        { name: 'docs', path: '/skills/docs', displayName: 'Docs', description: 'Use docs', scope: 'repo', enabled: true },
-        { name: 'docs', path: '/skills/docs', displayName: 'docs', description: 'duplicate', scope: 'repo', enabled: true },
+        { name: 'docs', path: '/skills/docs', displayName: 'Docs', description: 'Use docs', scope: 'repo', enabled: true, brandColor: '#123', iconSmall: '', iconLarge: '', defaultPrompt: '', dependencies: [{ type: 'browser', value: 'Chrome', description: '', transport: '', command: '', url: '' }] },
+        { name: 'docs', path: '/skills/docs', displayName: 'docs', description: 'duplicate', scope: 'repo', enabled: true, brandColor: '', iconSmall: '', iconLarge: '', defaultPrompt: '', dependencies: [] },
       ],
       errors: [{ path: '/bad', message: 'invalid' }],
     }])
     await expect(catalog.listSkills(['/repo'])).resolves.toEqual([
-      { name: 'docs', path: '/skills/docs', displayName: 'docs', description: 'duplicate', scope: 'repo', enabled: true },
+      { name: 'docs', path: '/skills/docs', displayName: 'docs', description: 'duplicate', scope: 'repo', enabled: true, brandColor: '', iconSmall: '', iconLarge: '', defaultPrompt: '', dependencies: [] },
     ])
     await catalog.setSkillEnabled(' /skills/docs ', false)
     expect(rpc.call).toHaveBeenLastCalledWith('skills/config/write', { path: '/skills/docs', enabled: false }, undefined)
