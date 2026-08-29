@@ -403,6 +403,15 @@ export function latestAssistantTextFromEvents(events) {
     }
     return '';
 }
+/** Selects the authoritative terminal transition from one normalized event batch. */
+export function latestTerminalTurnEvent(events) {
+    for (let index = events.length - 1; index >= 0; index -= 1) {
+        const event = events[index];
+        if (event?.type === 'turn.completed' || event?.type === 'turn.failed' || event?.type === 'turn.interrupted')
+            return event;
+    }
+    return null;
+}
 const MAX_APPLIED_EVENT_IDS = 10_000;
 function eventText(data, fallback = '') {
     const value = data.text ?? data.error ?? data.message;

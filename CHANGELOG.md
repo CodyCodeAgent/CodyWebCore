@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.22.2
+
+- Added a shared terminal-Turn selector so product adapters do not reimplement completion/failure/interruption classification.
+
 ## 0.22.1
 
 - Centralized token-usage compatibility parsing and normalized usage embedded in terminal Turn payloads.

@@ -210,6 +210,8 @@ export type ConversationLiveOverlay = {
 export declare function conversationOverlayMessagesFromState(state: ConversationState): ConversationMessage[];
 /** Returns the last completed assistant response without exposing native payload shapes. */
 export declare function latestAssistantTextFromEvents(events: readonly CodexEvent[]): string;
+/** Selects the authoritative terminal transition from one normalized event batch. */
+export declare function latestTerminalTurnEvent(events: readonly CodexEvent[]): CodexEvent | null;
 export type ConversationFeedEntry = {
     id: string;
     kind: 'message';

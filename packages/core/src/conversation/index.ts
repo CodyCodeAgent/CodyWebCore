@@ -588,6 +588,15 @@ export function latestAssistantTextFromEvents(events: readonly CodexEvent[]): st
   return ''
 }
 
+/** Selects the authoritative terminal transition from one normalized event batch. */
+export function latestTerminalTurnEvent(events: readonly CodexEvent[]): CodexEvent | null {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index]
+    if (event?.type === 'turn.completed' || event?.type === 'turn.failed' || event?.type === 'turn.interrupted') return event
+  }
+  return null
+}
+
 export type ConversationFeedEntry =
   | { id: string; kind: 'message'; turnId?: string; message: ConversationMessage }
   | { id: string; kind: 'timeline'; turnId?: string; entry: ConversationTimelineEntry }

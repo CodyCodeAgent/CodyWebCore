@@ -4,6 +4,7 @@ import {
   conversationFeedFromState,
   conversationLiveOverlayFromState,
   conversationOverlayMessagesFromState,
+  latestTerminalTurnEvent,
   conversationStateFromRegistry,
   conversationTranscriptFromState,
   createConversationState,
@@ -21,6 +22,14 @@ import {
 } from '../src/conversation/index.js'
 
 describe('conversation core', () => {
+  it('selects the last terminal transition from a normalized event batch', () => {
+    const events = [
+      { id: 'answer', type: 'assistant.completed', threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:00.000Z', data: { text: 'done' } },
+      { id: 'done', type: 'turn.completed', threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:01.000Z', data: {} },
+    ] as const
+    expect(latestTerminalTurnEvent(events)).toMatchObject({ id: 'done', type: 'turn.completed' })
+  })
+
   it('replaces an optimistic user message without duplicating it', () => {
     const output = mergeMessages(
       [{ id: 'optimistic', turnId: 't1', role: 'user' as const, text: 'hello', messageType: 'userMessage.optimistic' }],
