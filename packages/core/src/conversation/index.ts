@@ -569,20 +569,20 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
     const presentation = event.data.durationKnown === false
       ? updated.presentation
       : appendPresentation(updated.presentation, { id: `worked:${turnId}`, kind: 'worked', turnId })
-    return { ...updated, timeline, presentation }
+    return { ...updated, timeline, presentation, reasoningText: '' }
   }
   if (event.type === 'turn.failed') {
     const updated = updateTurn(state, event, 'failed')
     const turnId = event.turnId || state.activeTurnId
     return turnId
-      ? { ...updated, timeline: terminalizeTurnTools(updated.timeline, turnId, 'failed'), presentation: appendPresentation(updated.presentation, { id: `failure:${turnId}`, kind: 'failure', turnId }) }
+      ? { ...updated, timeline: terminalizeTurnTools(updated.timeline, turnId, 'failed'), presentation: appendPresentation(updated.presentation, { id: `failure:${turnId}`, kind: 'failure', turnId }), reasoningText: '' }
       : updated
   }
   if (event.type === 'turn.interrupted') {
     const updated = updateTurn(state, event, 'interrupted')
     const turnId = event.turnId || state.activeTurnId
     return turnId
-      ? { ...updated, timeline: terminalizeTurnTools(updated.timeline, turnId, 'cancelled'), presentation: appendPresentation(updated.presentation, { id: `interrupted:${turnId}`, kind: 'interrupted', turnId }) }
+      ? { ...updated, timeline: terminalizeTurnTools(updated.timeline, turnId, 'cancelled'), presentation: appendPresentation(updated.presentation, { id: `interrupted:${turnId}`, kind: 'interrupted', turnId }), reasoningText: '' }
       : updated
   }
 
@@ -617,6 +617,7 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
     const messageId = `live:${event.itemId || event.turnId || event.id}`
     return {
       ...state,
+      reasoningText: '',
       messages: upsertLiveDelta(state.messages, {
         messageId,
         textDelta: eventText(event.data),
@@ -632,6 +633,7 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
     const messageId = `agent:${event.itemId || event.id}`
     return {
       ...state,
+      reasoningText: '',
       messages: mergeMessages(state.messages, [{
         id: messageId,
         turnId: event.turnId,
@@ -669,6 +671,7 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
     const planId = `plan:${event.turnId || 'current'}`
     return {
       ...state,
+      reasoningText: '',
       plan: {
         turnId: event.turnId,
         text: event.type === 'plan.delta' ? `${state.plan?.text ?? ''}${text}` : text,

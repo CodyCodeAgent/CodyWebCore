@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AppServerDiagnostics, AppServerHost, RuntimeNotification, RuntimeNotificationListener, ServerRequestReply } from '../src/runtime/index.js'
-import { buildTurnUserInput, CodexSessionManager, normalizeThreadHistory } from '../src/session/index.js'
+import { buildTurnUserInput, CodexSessionManager, normalizeCodexNotification, normalizeThreadHistory } from '../src/session/index.js'
 import { createConversationState, reduceConversationEvents, type CodexEvent } from '../src/conversation/index.js'
 
 class FakeHost implements AppServerHost {
@@ -43,6 +43,70 @@ describe('buildTurnUserInput', () => {
       { type: 'skill', name: 'docs', path: '/skills/docs/SKILL.md' },
       { type: 'text', text: 'inspect this', text_elements: [] },
       { type: 'localImage', path: '/tmp/screenshot.png' },
+    ])
+  })
+})
+
+describe('normalizeCodexNotification', () => {
+  const options = {
+    eventId: ({ suffix }: { suffix: string }) => `event:${suffix}`,
+  }
+
+  it('normalizes live deltas, completed items and terminal turns through one event vocabulary', () => {
+    expect(normalizeCodexNotification({
+      method: 'item/agentMessage/delta',
+      params: { thread_id: 'thread-1', turn_id: 'turn-1', item_id: 'agent-1', delta: 'Hello' },
+      atIso: '2026-01-01T00:00:00.000Z',
+    }, options)).toEqual([expect.objectContaining({
+      id: 'event:assistant-delta',
+      type: 'assistant.delta',
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      itemId: 'agent-1',
+      data: { text: 'Hello' },
+    })])
+
+    expect(normalizeCodexNotification({
+      method: 'item/completed',
+      params: { threadId: 'thread-1', turnId: 'turn-1', item: { id: 'agent-1', type: 'agentMessage', text: 'Hello world' } },
+      atIso: '2026-01-01T00:00:01.000Z',
+    }, options)).toEqual([expect.objectContaining({
+      type: 'assistant.completed',
+      itemId: 'agent-1',
+      data: { text: 'Hello world' },
+    })])
+
+    expect(normalizeCodexNotification({
+      method: 'turn/completed',
+      params: { threadId: 'thread-1', turn: { id: 'turn-1', status: 'completed' } },
+      atIso: '2026-01-01T00:00:02.000Z',
+    }, options)).toEqual([expect.objectContaining({ type: 'turn.completed', turnId: 'turn-1' })])
+  })
+
+  it('keeps structured plan steps when replacing the live plan snapshot', () => {
+    const [event] = normalizeCodexNotification({
+      method: 'turn/plan/updated',
+      params: {
+        threadId: 'thread-1', turnId: 'turn-1', explanation: 'Implementation plan',
+        plan: [{ step: 'Inspect', status: 'completed' }, { step: 'Refactor', status: 'inProgress' }],
+      },
+      atIso: '2026-01-01T00:00:00.000Z',
+    }, options)
+    expect(event).toMatchObject({
+      type: 'plan.replaced',
+      data: { text: 'Implementation plan\n\n1. [done] Inspect\n2. [doing] Refactor' },
+    })
+  })
+
+  it('does not invent events for global notifications or unknown methods unless requested', () => {
+    expect(normalizeCodexNotification({ method: 'account/rateLimits/updated', params: {} }, options)).toEqual([])
+    expect(normalizeCodexNotification({
+      method: 'vendor/custom', params: { threadId: 'thread-1' }, atIso: '2026-01-01T00:00:00.000Z',
+    }, options)).toEqual([])
+    expect(normalizeCodexNotification({
+      method: 'vendor/custom', params: { threadId: 'thread-1' }, atIso: '2026-01-01T00:00:00.000Z',
+    }, { ...options, includeProviderExtensions: true })).toEqual([
+      expect.objectContaining({ type: 'provider.extension', data: { method: 'vendor/custom', params: { threadId: 'thread-1' } } }),
     ])
   })
 })

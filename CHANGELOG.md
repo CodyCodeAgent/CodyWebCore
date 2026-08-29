@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.0
+
+- Added the canonical raw App Server notification normalizer used by both the shared session manager and product adapters.
+- Preserved complete structured-plan snapshots instead of dropping their steps during realtime replacement.
+- Unified delta field compatibility, explicit interrupted/failed notifications, unknown provider extensions and native item normalization.
+- Cleared transient reasoning overlays when answer/plan output begins or a turn terminates while preserving reasoning in the durable timeline.
+
 ## 0.10.0
 
 - Fixed native-history/realtime races by replaying events that arrive while a history read is in flight.

@@ -121,6 +121,18 @@ describe('conversation core', () => {
     expect(state.presentation).not.toContainEqual(expect.objectContaining({ kind: 'worked' }))
   })
 
+  it('keeps completed reasoning in the timeline but clears the transient reasoning overlay', () => {
+    const base = { threadId: 'thread-1', turnId: 'turn-1', itemId: 'reasoning-1', atIso: '2026-01-01T00:00:00.000Z' }
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { ...base, id: 'start', type: 'turn.started', data: {} },
+      { ...base, id: 'reasoning', type: 'reasoning.delta', data: { text: 'Inspecting' } },
+      { ...base, id: 'answer', itemId: 'agent-1', type: 'assistant.delta', data: { text: 'Done' } },
+      { ...base, id: 'complete', type: 'turn.completed', data: {} },
+    ])
+    expect(state.reasoningText).toBe('')
+    expect(state.timeline).toContainEqual(expect.objectContaining({ kind: 'reasoning', text: 'Inspecting' }))
+  })
+
   it('keeps history windows and scroll restoration deterministic', () => {
     expect(hiddenMessageCount(200, 80)).toBe(120)
     expect(nextVisibleMessageCount(200, 80)).toBe(160)
