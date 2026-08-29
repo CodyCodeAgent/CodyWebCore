@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.18.0
+
+- Added a shared transcript selector so caches and non-Vue surfaces consume the same feed ordering and turn semantics as the shared renderer.
+- Kept approvals and live activity in typed state channels instead of flattening transient controls into durable messages.
+
 ## 0.17.0
 
 - Added one framework-neutral, protocol-ordered conversation feed selector for messages, tools, plans, requests, turn receipts and live activity.

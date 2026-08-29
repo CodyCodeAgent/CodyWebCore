@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildConversationScrollMetrics,
   conversationFeedFromState,
+  conversationTranscriptFromState,
   createConversationState,
   dataAuthorityFor,
   hiddenMessageCount,
@@ -210,6 +211,12 @@ describe('conversation core', () => {
     expect(conversationFeedFromState(state).at(-1)).toMatchObject({
       kind: 'turn', status: 'completed', durationMs: 3_000,
     })
+    expect(conversationTranscriptFromState(state).map((message) => [message.messageType, message.text])).toEqual([
+      [undefined, 'Inspect'],
+      ['tool.command', ''],
+      [undefined, 'Done'],
+      ['worked', 'Worked for 3s'],
+    ])
   })
 
   it('keeps history windows and scroll restoration deterministic', () => {

@@ -239,4 +239,9 @@ export declare function reduceConversationEvents(initial: ConversationState, eve
  * terminal/activity semantics independently.
  */
 export declare function conversationFeedFromState(state: ConversationState): ConversationFeedEntry[];
+/**
+ * Flattens the shared feed into a transport-friendly transcript. Interactive
+ * requests and transient activity stay in their typed state channels.
+ */
+export declare function conversationTranscriptFromState(state: ConversationState): ConversationMessage[];
 //# sourceMappingURL=index.d.ts.map
