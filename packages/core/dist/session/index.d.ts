@@ -1,45 +1,15 @@
 import type { AppServerHost, ServerRequestReply } from '../runtime/index.js';
-import type { ThreadStartParams } from '../protocol/generated/v2/ThreadStartParams.js';
-import type { TurnStartParams } from '../protocol/generated/v2/TurnStartParams.js';
-import type { UserInput } from '../protocol/generated/v2/UserInput.js';
-import type { CodexEvent, ConversationTool } from '../conversation/index.js';
+import type { CodexEvent } from '../conversation/index.js';
+import type { ExecutionContext, TurnInput } from './turn-input.js';
+export * from './token-usage.js';
+export * from './turn-input.js';
+export { conversationToolFromItem, normalizeCodexNotification, normalizeThreadHistory, readCodexStatus, } from './normalization.js';
+export type { CodexNotificationEventIdentity, CodexNotificationInput, NormalizeCodexNotificationOptions, } from './normalization.js';
 export type ThreadBinding = {
     /** Product-owned stable identifier (conversation id, task id, etc.). */
     id: string;
     threadId: string;
 };
-export type ExecutionContext = {
-    /** Exact schema-bound overrides. Product policy code owns these values. */
-    thread: Partial<ThreadStartParams>;
-    turn?: Omit<Partial<TurnStartParams>, 'threadId' | 'input'>;
-};
-export type TurnInput = {
-    input: UserInput[];
-    model?: TurnStartParams['model'];
-    effort?: TurnStartParams['effort'];
-    collaborationMode?: TurnStartParams['collaborationMode'];
-    approvalPolicy?: TurnStartParams['approvalPolicy'];
-    approvalsReviewer?: TurnStartParams['approvalsReviewer'];
-    permissions?: TurnStartParams['permissions'];
-    runtimeWorkspaceRoots?: TurnStartParams['runtimeWorkspaceRoots'];
-    sandboxPolicy?: TurnStartParams['sandboxPolicy'];
-};
-export type TurnInputSkill = {
-    name: string;
-    path: string;
-};
-export type TurnInputLocalImage = {
-    path: string;
-    detail?: Extract<UserInput, {
-        type: 'localImage';
-    }>['detail'];
-};
-/** Builds the canonical Codex turn input sequence for every CodyWeb product. */
-export declare function buildTurnUserInput(input: {
-    text?: string;
-    skills?: TurnInputSkill[];
-    localImages?: TurnInputLocalImage[];
-}): UserInput[];
 export type TurnHandle = {
     threadId: string;
     turnId: string;
@@ -84,46 +54,6 @@ export type CodexSessionManagerOptions = {
     turnInactivityTimeoutMs?: number;
     onDiagnostic?: (diagnostic: CodexSessionDiagnostic) => void;
 };
-export type CodexTokenUsage = {
-    inputTokens: number;
-    outputTokens: number;
-    totalTokens: number;
-    contextWindow: number | null;
-    autoCompactTokenLimit: number | null;
-};
-/** Reads token usage compatibility fields at the protocol boundary. */
-export declare function codexTokenUsageFromPayload(payload: unknown): CodexTokenUsage | null;
-export declare function readCodexStatus(value: unknown): string;
-/** Canonical history/realtime tool view model for native Codex items. */
-export declare function conversationToolFromItem(item: unknown, phase?: 'started' | 'updated' | 'completed'): ConversationTool | null;
-export type CodexNotificationInput = {
-    method: string;
-    params?: unknown;
-    atIso?: string;
-    receivedAtIso?: string;
-};
-export type CodexNotificationEventIdentity = {
-    method: string;
-    suffix: string;
-    threadId: string;
-    turnId: string;
-    itemId: string;
-    atIso: string;
-};
-export type NormalizeCodexNotificationOptions = {
-    fallbackThreadId?: string;
-    fallbackTurnId?: string;
-    includeProviderExtensions?: boolean;
-    nowIso?: () => string;
-    eventId?: (identity: CodexNotificationEventIdentity) => string;
-};
-/**
- * Converts one raw App Server notification into framework- and product-neutral
- * conversation events. This is the sole native notification interpretation
- * path used by the shared session manager and product adapters.
- */
-export declare function normalizeCodexNotification(notification: CodexNotificationInput, options?: NormalizeCodexNotificationOptions): CodexEvent[];
-export declare function normalizeThreadHistory(payload: unknown, fallbackThreadId?: string): CodexEvent[];
 export declare class CodexSessionManager {
     private readonly options;
     private readonly sessions;

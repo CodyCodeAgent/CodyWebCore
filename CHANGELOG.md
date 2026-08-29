@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.24.0
+
+- Split message reconciliation, history-window rules, Turn input building, token usage and App Server normalization into focused internal modules while preserving public entrypoints.
+- Removed the session manager's duplicate approval-method catalog and made the protocol classifier authoritative for current and legacy approval requests.
+- Kept the state reducer and session coordinator focused on state transitions and ownership instead of payload parsing.
+
 ## 0.23.2
 
 - Exported one Core runtime version constant and used it in App Server initialization metadata so product manifests cannot silently drift.

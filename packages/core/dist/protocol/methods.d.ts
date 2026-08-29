@@ -89,6 +89,9 @@ export declare const COMMAND_APPROVAL_REQUEST_METHOD = "item/commandExecution/re
 export declare const FILE_CHANGE_APPROVAL_REQUEST_METHOD = "item/fileChange/requestApproval";
 export declare const TOOL_USER_INPUT_REQUEST_METHOD = "item/tool/requestUserInput";
 export declare const TOOL_CALL_REQUEST_METHOD = "item/tool/call";
+export declare const PERMISSIONS_APPROVAL_REQUEST_METHOD = "item/permissions/requestApproval";
+export declare const LEGACY_APPLY_PATCH_APPROVAL_REQUEST_METHOD = "applyPatchApproval";
+export declare const LEGACY_EXEC_COMMAND_APPROVAL_REQUEST_METHOD = "execCommandApproval";
 export declare function isCommandApprovalRequestMethod(method: string): boolean;
 export declare function isFileChangeApprovalRequestMethod(method: string): boolean;
 export declare function isApprovalRequestMethod(method: string): boolean;
