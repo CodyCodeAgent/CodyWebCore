@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.1
+
+- Included the generated runtime and declaration artifacts required by direct Git package consumers.
+
 ## 0.11.0
 
 - Added the canonical raw App Server notification normalizer used by both the shared session manager and product adapters.

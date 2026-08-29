@@ -39,7 +39,8 @@ function textFromError(value) {
     return readString(record.message) || textFromError(record.error) || readString(record.additionalDetails);
 }
 function readDelta(params) {
-    return readString(params.delta) || readString(params.textDelta) || readString(params.text_delta);
+    return readString(params.delta) || readString(params.textDelta) || readString(params.text_delta)
+        || readString(params.content) || readString(params.text);
 }
 function itemId(item) {
     return readString(asRecord(item)?.id);
@@ -152,6 +153,135 @@ function itemEvents(input) {
     if (!tool)
         return [];
     return [{ id: input.id(`tool:${input.phase}`), type: input.phase === 'started' ? 'tool.started' : 'tool.completed', ...common, data: { tool, item: input.item } }];
+}
+function structuredPlanText(params) {
+    const parts = [];
+    const explanation = readString(params.explanation);
+    if (explanation)
+        parts.push(explanation);
+    const plan = Array.isArray(params.plan) ? params.plan : [];
+    const steps = plan.flatMap((value, index) => {
+        const row = asRecord(value);
+        const step = readString(row?.step);
+        if (!step)
+            return [];
+        const status = readString(row?.status);
+        const marker = status === 'completed' ? '[done]' : status === 'inProgress' ? '[doing]' : '[todo]';
+        return [`${String(index + 1)}. ${marker} ${step}`];
+    });
+    if (steps.length)
+        parts.push(steps.join('\n'));
+    return parts.join('\n\n');
+}
+/**
+ * Converts one raw App Server notification into framework- and product-neutral
+ * conversation events. This is the sole native notification interpretation
+ * path used by the shared session manager and product adapters.
+ */
+export function normalizeCodexNotification(notification, options = {}) {
+    const params = asRecord(notification.params) ?? {};
+    const threadId = readThreadId(params) || options.fallbackThreadId || '';
+    if (!threadId)
+        return [];
+    const turnId = readTurnId(params) || options.fallbackTurnId || '';
+    const nativeItemId = readItemId(params);
+    const atIso = notification.receivedAtIso || notification.atIso || options.nowIso?.() || new Date(0).toISOString();
+    const id = (suffix, itemIdOverride = nativeItemId) => options.eventId?.({
+        method: notification.method,
+        suffix,
+        threadId,
+        turnId,
+        itemId: itemIdOverride,
+        atIso,
+    }) ?? `notification:${notification.method}:${threadId}:${turnId}:${itemIdOverride}:${atIso}:${suffix}`;
+    const common = {
+        threadId,
+        ...(turnId ? { turnId } : {}),
+        ...(nativeItemId ? { itemId: nativeItemId } : {}),
+        atIso,
+    };
+    if (notification.method === 'runtime/disconnected') {
+        return [{ id: id('disconnected'), type: 'runtime.disconnected', ...common, data: {
+                    error: textFromError(params.error ?? notification.params) || 'Codex App Server disconnected.',
+                } }];
+    }
+    if (notification.method === 'turn/started') {
+        return [{ id: id('started'), type: 'turn.started', ...common, data: params }];
+    }
+    if (notification.method === 'turn/completed') {
+        const turn = asRecord(params.turn);
+        const status = readString(turn?.status);
+        const completedTurnId = readString(turn?.id) || turnId;
+        const type = status === 'failed' ? 'turn.failed' : status === 'interrupted' || status === 'cancelled' ? 'turn.interrupted' : 'turn.completed';
+        return [{
+                id: id('terminal'), type, ...common, ...(completedTurnId ? { turnId: completedTurnId } : {}),
+                data: type === 'turn.failed'
+                    ? { error: textFromError(turn?.error), status, raw: params }
+                    : { status, raw: params },
+            }];
+    }
+    if (notification.method === 'turn/failed' || notification.method === 'turn/interrupted') {
+        return [{
+                id: id('terminal'),
+                type: notification.method === 'turn/failed' ? 'turn.failed' : 'turn.interrupted',
+                ...common,
+                data: { error: textFromError(params.error ?? params), raw: params },
+            }];
+    }
+    if (notification.method === 'error') {
+        const willRetry = params.willRetry === true || params.will_retry === true;
+        return [{ id: id(willRetry ? 'retrying' : 'failed'), type: willRetry ? 'turn.retrying' : 'turn.failed', ...common, data: {
+                    error: textFromError(params.error ?? params), willRetry, raw: params,
+                } }];
+    }
+    if (notification.method === 'warning' && turnId) {
+        return [{ id: id('retrying'), type: 'turn.retrying', ...common, data: {
+                    error: textFromError(params.message ?? params.error ?? params) || 'Codex is retrying the response stream.',
+                    willRetry: true,
+                    raw: params,
+                } }];
+    }
+    if (notification.method === 'item/agentMessage/delta') {
+        return [{ id: id('assistant-delta'), type: 'assistant.delta', ...common, data: { text: readDelta(params) } }];
+    }
+    if (notification.method === 'item/reasoning/summaryTextDelta' || notification.method === 'item/reasoning/textDelta') {
+        return [{ id: id('reasoning-delta'), type: 'reasoning.delta', ...common, data: { text: readDelta(params) } }];
+    }
+    if (notification.method === 'item/reasoning/summaryPartAdded') {
+        return [{ id: id('reasoning-break'), type: 'reasoning.break', ...common, data: {} }];
+    }
+    if (notification.method === 'item/plan/delta') {
+        return [{ id: id('plan-delta'), type: 'plan.delta', ...common, data: { text: readDelta(params) } }];
+    }
+    if (notification.method === 'turn/plan/updated') {
+        return [{ id: id('plan-replaced'), type: 'plan.replaced', ...common, data: { text: structuredPlanText(params), raw: params } }];
+    }
+    if (notification.method === 'turn/diff/updated' || notification.method === 'item/fileChange/patchUpdated') {
+        return [{ id: id('file-change'), type: 'fileChange.updated', ...common, data: {
+                    tool: { kind: 'fileChange', title: 'File changes', status: 'running', summary: 'Diff updated', details: [], output: outputText(params.diff ?? params.patch) },
+                    raw: params,
+                } }];
+    }
+    if (notification.method === 'item/commandExecution/outputDelta' || notification.method === 'command/exec/outputDelta' || notification.method === 'process/outputDelta') {
+        return [{ id: id('tool-output'), type: 'tool.updated', ...common, data: {
+                    tool: { kind: 'command', title: 'Command execution', status: 'running', summary: '', details: [], output: readDelta(params) },
+                    raw: params,
+                } }];
+    }
+    if (notification.method === 'item/fileChange/outputDelta') {
+        return [{ id: id('file-output'), type: 'fileChange.updated', ...common, data: {
+                    tool: { kind: 'fileChange', title: 'File changes', status: 'running', summary: '', details: [], output: readDelta(params) },
+                    raw: params,
+                } }];
+    }
+    if (notification.method === 'item/started' || notification.method === 'item/completed') {
+        const phase = notification.method === 'item/started' ? 'started' : 'completed';
+        const item = params.item;
+        return itemEvents({ id: (suffix) => id(suffix, itemId(item)), phase, threadId, turnId, item, atIso });
+    }
+    return options.includeProviderExtensions
+        ? [{ id: id('extension'), type: 'provider.extension', ...common, data: { method: notification.method, params } }]
+        : [];
 }
 export function normalizeThreadHistory(payload, fallbackThreadId = '') {
     const thread = asRecord(asRecord(payload)?.thread) ?? asRecord(payload);
@@ -496,7 +626,13 @@ export class CodexSessionManager {
         if (notification.method === 'runtime/disconnected') {
             const error = textFromError(asRecord(notification.params)?.error ?? notification.params) || 'Codex App Server disconnected.';
             for (const session of this.sessions.values()) {
-                this.emit({ type: 'runtime.disconnected', threadId: session.binding.threadId, ...(session.activeTurnId ? { turnId: session.activeTurnId } : {}), atIso: notification.receivedAtIso, data: { error } });
+                const [event] = normalizeCodexNotification(notification, {
+                    fallbackThreadId: session.binding.threadId,
+                    fallbackTurnId: session.activeTurnId,
+                    eventId: ({ method, suffix, threadId, turnId, itemId }) => this.eventId(`${method}:${suffix}`, threadId, turnId, itemId),
+                });
+                if (event)
+                    this.emit(event);
                 if (session.activeTurnId) {
                     const key = this.turnKey(session.binding.threadId, session.activeTurnId);
                     this.clearTurnWatchdog(key);
@@ -517,74 +653,16 @@ export class CodexSessionManager {
             return;
         }
         const session = this.sessions.get(bindingId);
-        const turnId = readTurnId(params) || session.activeTurnId;
-        const nativeItemId = readItemId(params);
-        const common = { threadId, ...(turnId ? { turnId } : {}), ...(nativeItemId ? { itemId: nativeItemId } : {}), atIso: notification.receivedAtIso };
-        if (notification.method === 'turn/started') {
-            session.activeTurnId = turnId;
-            this.emit({ type: 'turn.started', ...common, data: params });
-            return;
+        const events = normalizeCodexNotification(notification, {
+            fallbackTurnId: session.activeTurnId,
+            includeProviderExtensions: true,
+            eventId: ({ method, suffix, threadId: eventThreadId, turnId, itemId: eventItemId }) => this.eventId(`${method}:${suffix}`, eventThreadId, turnId, eventItemId),
+        });
+        for (const event of events) {
+            if (event.type === 'turn.started' && event.turnId)
+                session.activeTurnId = event.turnId;
+            this.emit(event);
         }
-        if (notification.method === 'turn/completed') {
-            const turn = asRecord(params.turn);
-            const status = readString(turn?.status);
-            const completedTurnId = readString(turn?.id) || turnId;
-            const eventType = status === 'failed' ? 'turn.failed' : status === 'interrupted' ? 'turn.interrupted' : 'turn.completed';
-            this.emit({ type: eventType, ...common, ...(completedTurnId ? { turnId: completedTurnId } : {}), data: status === 'failed' ? { error: textFromError(turn?.error), status, raw: params } : { status, raw: params } });
-            return;
-        }
-        if (notification.method === 'error') {
-            const willRetry = params.willRetry === true || params.will_retry === true;
-            this.emit({ type: willRetry ? 'turn.retrying' : 'turn.failed', ...common, data: { error: textFromError(params.error ?? params), willRetry, raw: params } });
-            return;
-        }
-        if (notification.method === 'warning' && turnId) {
-            this.emit({
-                type: 'turn.retrying',
-                ...common,
-                data: { error: textFromError(params.message ?? params.error ?? params) || 'Codex is retrying the response stream.', willRetry: true, raw: params },
-            });
-            return;
-        }
-        if (notification.method === 'item/agentMessage/delta') {
-            this.emit({ type: 'assistant.delta', ...common, data: { text: readDelta(params) } });
-            return;
-        }
-        if (notification.method === 'item/reasoning/summaryTextDelta' || notification.method === 'item/reasoning/textDelta') {
-            this.emit({ type: 'reasoning.delta', ...common, data: { text: readDelta(params) } });
-            return;
-        }
-        if (notification.method === 'item/reasoning/summaryPartAdded') {
-            this.emit({ type: 'reasoning.break', ...common, data: {} });
-            return;
-        }
-        if (notification.method === 'item/plan/delta') {
-            this.emit({ type: 'plan.delta', ...common, data: { text: readDelta(params) } });
-            return;
-        }
-        if (notification.method === 'turn/plan/updated') {
-            this.emit({ type: 'plan.replaced', ...common, data: { text: readString(params.explanation), raw: params } });
-            return;
-        }
-        if (notification.method === 'turn/diff/updated' || notification.method === 'item/fileChange/patchUpdated') {
-            this.emit({ type: 'fileChange.updated', ...common, data: { tool: { kind: 'fileChange', title: 'File changes', status: 'running', summary: 'Diff updated', details: [], output: outputText(params.diff ?? params.patch) }, raw: params } });
-            return;
-        }
-        if (notification.method === 'item/commandExecution/outputDelta' || notification.method === 'command/exec/outputDelta' || notification.method === 'process/outputDelta') {
-            this.emit({ type: 'tool.updated', ...common, data: { tool: { kind: 'command', title: 'Command execution', status: 'running', summary: '', details: [], output: readDelta(params) }, raw: params } });
-            return;
-        }
-        if (notification.method === 'item/fileChange/outputDelta') {
-            this.emit({ type: 'fileChange.updated', ...common, data: { tool: { kind: 'fileChange', title: 'File changes', status: 'running', summary: '', details: [], output: readDelta(params) }, raw: params } });
-            return;
-        }
-        if (notification.method === 'item/started' || notification.method === 'item/completed') {
-            const phase = notification.method === 'item/started' ? 'started' : 'completed';
-            for (const event of itemEvents({ id: (suffix) => this.eventId(`${notification.method}:${suffix}`, threadId, turnId, itemId(params.item)), phase, threadId, turnId, item: params.item, atIso: notification.receivedAtIso }))
-                this.emit(event);
-            return;
-        }
-        this.emit({ type: 'provider.extension', ...common, data: { method: notification.method, params } });
     }
     async handleServerRequest(request) {
         const outer = asRecord(request.params);

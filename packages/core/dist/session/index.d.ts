@@ -84,6 +84,33 @@ export type CodexSessionManagerOptions = {
     turnInactivityTimeoutMs?: number;
     onDiagnostic?: (diagnostic: CodexSessionDiagnostic) => void;
 };
+export type CodexNotificationInput = {
+    method: string;
+    params?: unknown;
+    atIso?: string;
+    receivedAtIso?: string;
+};
+export type CodexNotificationEventIdentity = {
+    method: string;
+    suffix: string;
+    threadId: string;
+    turnId: string;
+    itemId: string;
+    atIso: string;
+};
+export type NormalizeCodexNotificationOptions = {
+    fallbackThreadId?: string;
+    fallbackTurnId?: string;
+    includeProviderExtensions?: boolean;
+    nowIso?: () => string;
+    eventId?: (identity: CodexNotificationEventIdentity) => string;
+};
+/**
+ * Converts one raw App Server notification into framework- and product-neutral
+ * conversation events. This is the sole native notification interpretation
+ * path used by the shared session manager and product adapters.
+ */
+export declare function normalizeCodexNotification(notification: CodexNotificationInput, options?: NormalizeCodexNotificationOptions): CodexEvent[];
 export declare function normalizeThreadHistory(payload: unknown, fallbackThreadId?: string): CodexEvent[];
 export declare class CodexSessionManager {
     private readonly options;
