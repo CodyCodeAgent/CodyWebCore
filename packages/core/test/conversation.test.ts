@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildConversationScrollMetrics,
   conversationFeedFromState,
+  conversationLiveOverlayFromState,
   conversationStateFromRegistry,
   conversationTranscriptFromState,
   createConversationState,
@@ -193,6 +194,28 @@ describe('conversation core', () => {
     ])
     expect(state.reasoningText).toBe('')
     expect(state.timeline).toContainEqual(expect.objectContaining({ kind: 'reasoning', text: 'Inspecting' }))
+  })
+
+  it('owns plan lifecycle and live overlay presentation state', () => {
+    const base = { threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:00.000Z' }
+    const active = reduceConversationEvents(createConversationState('thread-1'), [
+      { ...base, id: 'start', type: 'turn.started', data: {} },
+      { ...base, id: 'reasoning', itemId: 'reasoning-1', type: 'reasoning.delta', data: { text: 'Inspecting' } },
+      { ...base, id: 'plan', type: 'plan.replaced', data: { text: 'Plan', steps: [{ step: 'Inspect', status: 'inProgress' }] } },
+      { ...base, id: 'activity', type: 'turn.activity', data: { label: 'Writing plan', details: [] } },
+    ])
+    expect(active.plan).toMatchObject({ revision: 1, lifecycle: 'active', possiblyStale: false })
+    expect(conversationLiveOverlayFromState(active)).toMatchObject({
+      activityLabel: 'Writing plan',
+      reasoningText: '',
+      errorText: '',
+    })
+
+    const failed = reduceConversationEvents(active, [{
+      ...base, id: 'failed', type: 'turn.failed', atIso: '2026-01-01T00:00:02.000Z', data: { error: 'network failed' },
+    }])
+    expect(failed.plan).toMatchObject({ lifecycle: 'ended', possiblyStale: true })
+    expect(conversationLiveOverlayFromState(failed)).toMatchObject({ errorText: 'network failed' })
   })
 
   it('selects one protocol-ordered feed for every renderer', () => {

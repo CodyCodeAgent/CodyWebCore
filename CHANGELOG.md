@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.20.0
+
+- Moved structured-plan revision, lifecycle and stale-state semantics into the shared reducer.
+- Added a shared live-overlay selector for activity, reasoning and current-turn failures.
+
 ## 0.19.0
 
 - Added a shared multi-thread conversation-state registry for products with one App Server notification subscription.

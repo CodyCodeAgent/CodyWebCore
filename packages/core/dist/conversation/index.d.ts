@@ -110,6 +110,9 @@ export type ConversationPlanState = {
     }>;
     raw: unknown;
     updatedAtIso: string;
+    revision: number;
+    lifecycle: 'active' | 'ended';
+    possiblyStale: boolean;
 };
 export type ConversationActivityState = {
     label: string;
@@ -194,6 +197,12 @@ export type ConversationState = {
     presentation: ConversationPresentationRef[];
     appliedEventIds: string[];
 };
+export type ConversationLiveOverlay = {
+    activityLabel: string;
+    activityDetails: string[];
+    reasoningText: string;
+    errorText: string;
+};
 export type ConversationFeedEntry = {
     id: string;
     kind: 'message';
@@ -241,6 +250,7 @@ export type ConversationStateRegistry = Readonly<Record<string, ConversationStat
  */
 export declare function reduceConversationRegistryEvents(previous: ConversationStateRegistry, events: readonly CodexEvent[]): ConversationStateRegistry;
 export declare function conversationStateFromRegistry(registry: ConversationStateRegistry, threadId: string): ConversationState;
+export declare function conversationLiveOverlayFromState(state: ConversationState): ConversationLiveOverlay | null;
 export declare function pruneConversationStateRegistry(registry: ConversationStateRegistry, activeThreadIds: ReadonlySet<string>): ConversationStateRegistry;
 /**
  * Selects one protocol-ordered, framework-neutral feed from reducer state.

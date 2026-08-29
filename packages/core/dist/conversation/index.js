@@ -470,6 +470,15 @@ function updateTurn(state, event, lifecycle) {
         },
     };
 }
+function endConversationPlan(plan, turnId) {
+    if (!plan || plan.turnId !== turnId || plan.lifecycle === 'ended')
+        return plan;
+    return {
+        ...plan,
+        lifecycle: 'ended',
+        possiblyStale: plan.steps?.some((step) => step.status !== 'completed') === true,
+    };
+}
 export function createConversationState(threadId = '') {
     return {
         threadId,
@@ -575,20 +584,20 @@ export function reduceConversationEvent(previous, event) {
         const presentation = event.data.durationKnown === false
             ? updated.presentation
             : appendPresentation(updated.presentation, { id: `worked:${turnId}`, kind: 'worked', turnId });
-        return { ...updated, timeline, presentation, reasoningText: '', activity: null };
+        return { ...updated, timeline, presentation, reasoningText: '', activity: null, plan: endConversationPlan(updated.plan, turnId) };
     }
     if (event.type === 'turn.failed') {
         const updated = updateTurn(state, event, 'failed');
         const turnId = event.turnId || state.activeTurnId;
         return turnId
-            ? { ...updated, timeline: terminalizeTurnTools(updated.timeline, turnId, 'failed'), presentation: appendPresentation(updated.presentation, { id: `failure:${turnId}`, kind: 'failure', turnId }), reasoningText: '', activity: null }
+            ? { ...updated, timeline: terminalizeTurnTools(updated.timeline, turnId, 'failed'), presentation: appendPresentation(updated.presentation, { id: `failure:${turnId}`, kind: 'failure', turnId }), reasoningText: '', activity: null, plan: endConversationPlan(updated.plan, turnId) }
             : { ...updated, activity: null };
     }
     if (event.type === 'turn.interrupted') {
         const updated = updateTurn(state, event, 'interrupted');
         const turnId = event.turnId || state.activeTurnId;
         return turnId
-            ? { ...updated, timeline: terminalizeTurnTools(updated.timeline, turnId, 'cancelled'), presentation: appendPresentation(updated.presentation, { id: `interrupted:${turnId}`, kind: 'interrupted', turnId }), reasoningText: '', activity: null }
+            ? { ...updated, timeline: terminalizeTurnTools(updated.timeline, turnId, 'cancelled'), presentation: appendPresentation(updated.presentation, { id: `interrupted:${turnId}`, kind: 'interrupted', turnId }), reasoningText: '', activity: null, plan: endConversationPlan(updated.plan, turnId) }
             : { ...updated, activity: null };
     }
     if (event.type === 'user.completed') {
@@ -675,6 +684,7 @@ export function reduceConversationEvent(previous, event) {
     if (event.type === 'plan.delta' || event.type === 'plan.replaced') {
         const text = eventText(event.data);
         const planId = `plan:${event.turnId || 'current'}`;
+        const revision = state.plan && state.plan.turnId === event.turnId ? state.plan.revision + 1 : 1;
         return {
             ...state,
             reasoningText: '',
@@ -685,6 +695,9 @@ export function reduceConversationEvent(previous, event) {
                 ...(Array.isArray(event.data.steps) ? { steps: event.data.steps } : {}),
                 raw: event.data.raw ?? event.data,
                 updatedAtIso: event.atIso,
+                revision,
+                lifecycle: 'active',
+                possiblyStale: false,
             },
             presentation: appendPresentation(state.presentation, { id: planId, kind: 'plan', turnId: event.turnId }, (row) => row.kind === 'plan' && row.turnId === event.turnId),
         };
@@ -751,6 +764,19 @@ export function reduceConversationRegistryEvents(previous, events) {
 }
 export function conversationStateFromRegistry(registry, threadId) {
     return registry[threadId] ?? createConversationState(threadId);
+}
+export function conversationLiveOverlayFromState(state) {
+    const latestTurn = Object.values(state.turns).at(-1);
+    const errorText = latestTurn?.lifecycle === 'failed' ? latestTurn.error ?? '' : '';
+    const reasoningText = state.reasoningText.trim();
+    if (!state.activity && !reasoningText && !errorText)
+        return null;
+    return {
+        activityLabel: state.activity?.label || 'Thinking',
+        activityDetails: state.activity?.details ?? [],
+        reasoningText,
+        errorText,
+    };
 }
 export function pruneConversationStateRegistry(registry, activeThreadIds) {
     const entries = Object.entries(registry).filter(([threadId]) => activeThreadIds.has(threadId));
