@@ -3,12 +3,25 @@ export type ApprovalDecisionScope = 'single' | 'session' | 'workspace' | 'perman
 export type CommandPolicyEvaluation = {
     status: 'allowed' | 'denied' | 'not_configured' | 'not_git_workspace';
     reason: string;
+    cwd?: string;
+    repoRoot?: string;
+    command?: string;
+    checkedValues?: string[];
+    allowPatterns?: string[];
+    denyPatterns?: string[];
+    matchedPattern?: string;
     [key: string]: unknown;
 };
 export type FileChangePolicyEvaluation = {
     status: 'allowed' | 'denied' | 'not_git_workspace';
     category: 'workspace' | 'outside_workspace' | 'sensitive' | 'ignored' | 'read_only' | 'missing_grant_root' | 'not_git_workspace';
     reason: string;
+    cwd?: string;
+    repoRoot?: string;
+    grantRoot?: string;
+    relativePath?: string;
+    sandboxMode?: string;
+    matchedPattern?: string;
     [key: string]: unknown;
 };
 /** Structural approval input. Product adapters may attach additional audit evidence. */

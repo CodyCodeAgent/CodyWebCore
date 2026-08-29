@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.23.1
+
+- Declared the shared optional command/file policy evidence fields so products consume one server-request DTO without casts or shadow types.
+
 ## 0.23.0
 
 - Added the canonical server-request normalizer and immutable thread-scoped pending-request store.
