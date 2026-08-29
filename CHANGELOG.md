@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.31.0
+
+- Restart a hung App Server after initialization timeout, while preserving the existing guard that forbids recovery with pending server requests.
+- Added deterministic fault injection proving a second initialization uses a fresh process.
+
 ## 0.30.0
 
 - Synchronized the exported runtime diagnostic version with the package version.

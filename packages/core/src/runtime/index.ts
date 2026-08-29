@@ -10,7 +10,7 @@ import {
   normalizeRpcResponse,
 } from '../protocol/index.js'
 
-export const CODY_WEB_CORE_VERSION = '0.30.0'
+export const CODY_WEB_CORE_VERSION = '0.31.0'
 
 export type { RuntimeNotification, ServerRequest } from '../protocol/index.js'
 
@@ -346,7 +346,8 @@ export function createAppServerHost(options: AppServerHostOptions = {}): AppServ
   }
 
   const recover = (method: string): void => {
-    if (!READ_RECOVERY_METHODS.has(method) || pending.size > 0 || pendingServerRequests.size > 0 || Date.now() < restartAt) return
+    const canRecoverTimedOutMethod = method === 'initialize' || READ_RECOVERY_METHODS.has(method)
+    if (!canRecoverTimedOutMethod || pending.size > 0 || pendingServerRequests.size > 0 || Date.now() < restartAt) return
     restartAt = Date.now() + (options.restartCooldownMs ?? DEFAULT_RESTART_COOLDOWN_MS)
     pushLog('warning', 'bridge', `Restarting App Server after timed out ${method}.`)
     const recovery = stopProcess()

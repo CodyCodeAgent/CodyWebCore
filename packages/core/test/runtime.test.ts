@@ -84,6 +84,20 @@ describe('AppServerHost', () => {
     await running.dispose()
   })
 
+  it('replaces an App Server that hangs during initialization', async () => {
+    let spawnCount = 0
+    const spawn: SpawnAppServer = (...args) => fakeAppServer(spawnCount++ === 0 ? 'hang-initialize' : 'normal')(...args)
+    const host = createAppServerHost({ spawn, rpcTimeoutMs: 250, restartCooldownMs: 10 })
+
+    await expect(host.ensureInitialized()).rejects.toThrow('initialize timed out')
+    await host.ensureInitialized()
+
+    await expect(host.call<{ initialized: number }>('stats')).resolves.toEqual({ initialized: 1 })
+    expect(spawnCount).toBe(2)
+    expect(host.diagnostics()).toMatchObject({ status: 'running', recovering: false, initialized: true })
+    await host.dispose()
+  })
+
   it('waits for a timed-out read process to exit before initializing its replacement', async () => {
     let spawnCount = 0
     const spawn: SpawnAppServer = (...args) => fakeAppServer(spawnCount++ === 0 ? 'hang-read' : 'normal')(...args)

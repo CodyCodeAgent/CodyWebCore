@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { READ_RECOVERY_METHODS, isNotification, isServerRequest, normalizeRpcResponse, } from '../protocol/index.js';
-export const CODY_WEB_CORE_VERSION = '0.30.0';
+export const CODY_WEB_CORE_VERSION = '0.31.0';
 const DEFAULT_TIMEOUT_MS = 20_000;
 const DEFAULT_RESTART_COOLDOWN_MS = 1_750;
 const MAX_LOGS = 80;
@@ -242,7 +242,8 @@ export function createAppServerHost(options = {}) {
         process.stdin.write(`${JSON.stringify(payload)}\n`);
     };
     const recover = (method) => {
-        if (!READ_RECOVERY_METHODS.has(method) || pending.size > 0 || pendingServerRequests.size > 0 || Date.now() < restartAt)
+        const canRecoverTimedOutMethod = method === 'initialize' || READ_RECOVERY_METHODS.has(method);
+        if (!canRecoverTimedOutMethod || pending.size > 0 || pendingServerRequests.size > 0 || Date.now() < restartAt)
             return;
         restartAt = Date.now() + (options.restartCooldownMs ?? DEFAULT_RESTART_COOLDOWN_MS);
         pushLog('warning', 'bridge', `Restarting App Server after timed out ${method}.`);
