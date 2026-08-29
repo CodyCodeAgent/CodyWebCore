@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.19.0
+
+- Added a shared multi-thread conversation-state registry for products with one App Server notification subscription.
+- Preserved referential identity for untouched threads and added explicit registry pruning and selection helpers.
+
 ## 0.18.0
 
 - Added a shared transcript selector so caches and non-Vue surfaces consume the same feed ordering and turn semantics as the shared renderer.

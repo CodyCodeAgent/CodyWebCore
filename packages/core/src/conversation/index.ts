@@ -919,6 +919,47 @@ export function reduceConversationEvents(initial: ConversationState, events: rea
   return events.reduce(reduceConversationEvent, initial)
 }
 
+export type ConversationStateRegistry = Readonly<Record<string, ConversationState>>
+
+/**
+ * Reduces a mixed stream for any number of threads while preserving referential
+ * identity for every untouched thread. Products can keep one shared App Server
+ * subscription without rebuilding per-thread reducers.
+ */
+export function reduceConversationRegistryEvents(
+  previous: ConversationStateRegistry,
+  events: readonly CodexEvent[],
+): ConversationStateRegistry {
+  if (events.length === 0) return previous
+  let next: Record<string, ConversationState> | null = null
+  for (const event of events) {
+    if (!event.threadId) continue
+    const currentRegistry = next ?? previous
+    const current = currentRegistry[event.threadId] ?? createConversationState(event.threadId)
+    const updated = reduceConversationEvent(current, event)
+    if (updated === current) continue
+    if (!next) next = { ...previous }
+    next[event.threadId] = updated
+  }
+  return next ?? previous
+}
+
+export function conversationStateFromRegistry(
+  registry: ConversationStateRegistry,
+  threadId: string,
+): ConversationState {
+  return registry[threadId] ?? createConversationState(threadId)
+}
+
+export function pruneConversationStateRegistry(
+  registry: ConversationStateRegistry,
+  activeThreadIds: ReadonlySet<string>,
+): ConversationStateRegistry {
+  const entries = Object.entries(registry).filter(([threadId]) => activeThreadIds.has(threadId))
+  if (entries.length === Object.keys(registry).length) return registry
+  return Object.fromEntries(entries)
+}
+
 /**
  * Selects one protocol-ordered, framework-neutral feed from reducer state.
  * Renderers may group or localize entries, but must not rebuild ordering or

@@ -233,6 +233,15 @@ export declare function createConversationState(threadId?: string): Conversation
 /** Applies normalized live and history events through the same deterministic state transition path. */
 export declare function reduceConversationEvent(previous: ConversationState, event: CodexEvent): ConversationState;
 export declare function reduceConversationEvents(initial: ConversationState, events: readonly CodexEvent[]): ConversationState;
+export type ConversationStateRegistry = Readonly<Record<string, ConversationState>>;
+/**
+ * Reduces a mixed stream for any number of threads while preserving referential
+ * identity for every untouched thread. Products can keep one shared App Server
+ * subscription without rebuilding per-thread reducers.
+ */
+export declare function reduceConversationRegistryEvents(previous: ConversationStateRegistry, events: readonly CodexEvent[]): ConversationStateRegistry;
+export declare function conversationStateFromRegistry(registry: ConversationStateRegistry, threadId: string): ConversationState;
+export declare function pruneConversationStateRegistry(registry: ConversationStateRegistry, activeThreadIds: ReadonlySet<string>): ConversationStateRegistry;
 /**
  * Selects one protocol-ordered, framework-neutral feed from reducer state.
  * Renderers may group or localize entries, but must not rebuild ordering or

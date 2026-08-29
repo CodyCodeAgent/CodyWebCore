@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildConversationScrollMetrics,
   conversationFeedFromState,
+  conversationStateFromRegistry,
   conversationTranscriptFromState,
   createConversationState,
   dataAuthorityFor,
@@ -10,6 +11,8 @@ import {
   nextVisibleMessageCount,
   previewToolOutput,
   reduceConversationEvents,
+  reduceConversationRegistryEvents,
+  pruneConversationStateRegistry,
   restoredConversationScrollTop,
   shouldPreserveConversationViewport,
   upsertLiveDelta,
@@ -217,6 +220,24 @@ describe('conversation core', () => {
       [undefined, 'Done'],
       ['worked', 'Worked for 3s'],
     ])
+  })
+
+  it('reduces a shared notification stream into isolated thread states', () => {
+    const registry = reduceConversationRegistryEvents({}, [
+      { id: 'a-start', type: 'turn.started', threadId: 'thread-a', turnId: 'turn-a', atIso: '2026-01-01T00:00:00.000Z', data: {} },
+      { id: 'b-start', type: 'turn.started', threadId: 'thread-b', turnId: 'turn-b', atIso: '2026-01-01T00:00:01.000Z', data: {} },
+      { id: 'a-answer', type: 'assistant.completed', threadId: 'thread-a', turnId: 'turn-a', itemId: 'agent-a', atIso: '2026-01-01T00:00:02.000Z', data: { text: 'A' } },
+    ])
+
+    expect(conversationStateFromRegistry(registry, 'thread-a')).toMatchObject({
+      activeTurnId: 'turn-a',
+      messages: [expect.objectContaining({ text: 'A' })],
+    })
+    expect(conversationStateFromRegistry(registry, 'thread-b')).toMatchObject({ activeTurnId: 'turn-b', messages: [] })
+    expect(reduceConversationRegistryEvents(registry, [{
+      id: 'a-answer', type: 'assistant.completed', threadId: 'thread-a', turnId: 'turn-a', itemId: 'agent-a', atIso: '2026-01-01T00:00:02.000Z', data: { text: 'A' },
+    }])).toBe(registry)
+    expect(pruneConversationStateRegistry(registry, new Set(['thread-b']))).toEqual({ 'thread-b': registry['thread-b'] })
   })
 
   it('keeps history windows and scroll restoration deterministic', () => {
