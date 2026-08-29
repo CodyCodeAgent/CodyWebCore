@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.30.0
+
+- Synchronized the exported runtime diagnostic version with the package version.
+- Added a release-contract test that fails whenever package and runtime versions drift.
+
 ## 0.29.0
 
 - Added complete typed Goal read/write authority, including paused, blocked, limited and complete states.
