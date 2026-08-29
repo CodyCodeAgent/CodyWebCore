@@ -15,7 +15,13 @@ class FakeHost implements AppServerHost {
     this.calls.push({ method, params })
     if (method === 'thread/start') return { thread: { id: 'thread-1' }, model: 'gpt', modelProvider: 'openai', cwd: '/repo', approvalPolicy: 'on-request', sandbox: { type: 'workspaceWrite', writableRoots: ['/repo'], networkAccess: false, excludeTmpdirEnvVar: true, excludeSlashTmp: true }, reasoningEffort: null } as T
     if (method === 'thread/resume') return { thread: { id: 'thread-1' } } as T
-    if (method === 'thread/read') return { thread: { id: 'thread-1', turns: [] } } as T
+    if (method === 'thread/read') return { thread: {
+      id: 'thread-1', extra: null, sessionId: 'session-1', forkedFromId: null, parentThreadId: null,
+      preview: '', ephemeral: false, section: null, sectionEnteredAt: null, historyMode: 'paginated',
+      modelProvider: 'openai', createdAt: 0, updatedAt: 0, recencyAt: null, status: { type: 'idle' },
+      path: null, cwd: '/repo', cliVersion: 'test', source: 'appServer', canAcceptDirectInput: true,
+      threadSource: null, agentNickname: null, agentRole: null, gitInfo: null, name: null, turns: [],
+    } } as T
     if (method === 'turn/start') return { turn: { id: `turn-${String(this.nextTurn++)}`, items: [], status: 'inProgress', error: null } } as T
     return {} as T
   }

@@ -1,6 +1,7 @@
 import { asRecord } from '../protocol/index.js';
 import { createTypedCodexClient } from '../protocol/methods.js';
-import { normalizeThreadHistory } from './normalization.js';
+import { normalizeThreadHistory, textFromError } from './normalization.js';
+import { latestAssistantTextFromEvents } from '../conversation/index.js';
 function timestampIso(seconds) {
     return Number.isFinite(seconds) ? new Date(seconds * 1_000).toISOString() : '';
 }
@@ -12,6 +13,18 @@ function sourceLabel(value) {
         return '';
     const kind = typeof row.type === 'string' ? row.type : typeof row.kind === 'string' ? row.kind : Object.keys(row)[0];
     return kind ?? '';
+}
+function threadSummary(thread) {
+    return {
+        threadId: thread.id.trim(),
+        preview: thread.preview.trim(),
+        name: thread.name?.trim() ?? '',
+        cwd: thread.cwd.trim(),
+        createdAtIso: timestampIso(thread.createdAt),
+        updatedAtIso: timestampIso(thread.updatedAt),
+        source: sourceLabel(thread.source),
+        canAcceptDirectInput: thread.canAcceptDirectInput,
+    };
 }
 export class CodexSessionCatalog {
     client;
@@ -33,16 +46,7 @@ export class CodexSessionCatalog {
                 ...(options.cwd ? { cwd: options.cwd } : {}),
                 ...(options.searchTerm?.trim() ? { searchTerm: options.searchTerm.trim() } : {}),
             });
-            rows.push(...result.data.map(thread => ({
-                threadId: thread.id,
-                preview: thread.preview.trim(),
-                name: thread.name?.trim() ?? '',
-                cwd: thread.cwd.trim(),
-                createdAtIso: timestampIso(thread.createdAt),
-                updatedAtIso: timestampIso(thread.updatedAt),
-                source: sourceLabel(thread.source),
-                canAcceptDirectInput: thread.canAcceptDirectInput,
-            })));
+            rows.push(...result.data.map(threadSummary));
             cursor = result.nextCursor;
             if (!cursor)
                 break;
@@ -50,11 +54,31 @@ export class CodexSessionCatalog {
         return rows;
     }
     async readThread(threadId) {
+        return (await this.readThreadSnapshot(threadId)).events;
+    }
+    async readThreadSnapshot(threadId, includeTurns = true) {
         const normalized = threadId.trim();
         if (!normalized)
             throw new Error('threadId is required');
-        const result = await this.client.call('thread/read', { threadId: normalized, includeTurns: true });
-        return normalizeThreadHistory(result, normalized);
+        const result = await this.client.call('thread/read', { threadId: normalized, includeTurns });
+        const events = includeTurns ? normalizeThreadHistory(result, normalized) : [];
+        return {
+            summary: threadSummary(result.thread),
+            events,
+            turns: includeTurns ? result.thread.turns.map(turn => {
+                const turnEvents = events.filter(event => event.turnId === turn.id);
+                return {
+                    turnId: turn.id,
+                    status: turn.status,
+                    error: textFromError(turn.error),
+                    assistantText: latestAssistantTextFromEvents(turnEvents),
+                    startedAtIso: turn.startedAt === null ? '' : timestampIso(turn.startedAt),
+                    completedAtIso: turn.completedAt === null ? '' : timestampIso(turn.completedAt),
+                    durationMs: turn.durationMs,
+                    events: turnEvents,
+                };
+            }) : [],
+        };
     }
     async listModels() {
         const rows = [];
@@ -83,6 +107,42 @@ export class CodexSessionCatalog {
             model: mode.model ?? '',
             reasoningEffort: mode.reasoning_effort ?? '',
         }));
+    }
+    async listSkillCatalog(cwds = [], forceReload = false) {
+        const normalizedCwds = [...new Set(cwds.map(cwd => cwd.trim()).filter(Boolean))];
+        const result = await this.client.call('skills/list', {
+            ...(normalizedCwds.length ? { cwds: normalizedCwds } : {}),
+            ...(forceReload ? { forceReload: true } : {}),
+        });
+        return result.data.map(group => ({
+            cwd: group.cwd.trim(),
+            skills: group.skills.map(skill => ({
+                name: skill.name.trim(),
+                path: skill.path.trim(),
+                displayName: skill.interface?.displayName?.trim() || skill.name.trim(),
+                description: skill.interface?.shortDescription?.trim() || skill.shortDescription?.trim() || skill.description.trim(),
+                scope: skill.scope,
+                enabled: skill.enabled,
+            })),
+            errors: group.errors.map(error => ({ path: error.path.trim(), message: error.message.trim() })),
+        }));
+    }
+    async listSkills(cwds = [], forceReload = false) {
+        const byIdentity = new Map();
+        for (const group of await this.listSkillCatalog(cwds, forceReload)) {
+            for (const skill of group.skills) {
+                if (!skill.name || !skill.path)
+                    continue;
+                byIdentity.set(`${skill.name}\n${skill.path}`, skill);
+            }
+        }
+        return [...byIdentity.values()].sort((left, right) => left.name.localeCompare(right.name) || left.path.localeCompare(right.path));
+    }
+    async setSkillEnabled(path, enabled) {
+        const normalized = path.trim();
+        if (!normalized)
+            throw new Error('skill path is required');
+        await this.client.call('skills/config/write', { path: normalized, enabled });
     }
     async setCollaborationMode(threadId, collaborationMode) {
         await this.client.call('thread/settings/update', { threadId, collaborationMode });

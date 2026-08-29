@@ -22,6 +22,7 @@ export declare class CodexThreadCommands {
     renameThread(threadId: string, name: string): Promise<void>;
     forkThread(threadId: string, overrides?: ThreadForkOverrides): Promise<string>;
     compactThread(threadId: string): Promise<void>;
+    archiveThread(threadId: string): Promise<void>;
     startTurn(threadId: string, input: TurnStartInput): Promise<string>;
     steerTurn(threadId: string, expectedTurnId: string, input: UserInput[]): Promise<void>;
     interruptTurn(threadId: string, turnId: string): Promise<void>;

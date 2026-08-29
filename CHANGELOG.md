@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.27.0
+
+- Added a stable Thread snapshot that owns durable Turn status, errors, assistant output, timestamps and normalized events without exposing generated records to products.
+- Added the shared Skill catalog, normalization, deduplication and enablement client.
+- Added Thread archival to the schema-bound command surface so products no longer assemble remaining lifecycle RPCs.
+
 ## 0.26.0
 
 - Added one schema-bound Thread/Turn command client for start, resume, rename, fork, compact, turn start, steer and interrupt.

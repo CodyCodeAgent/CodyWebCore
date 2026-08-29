@@ -54,6 +54,10 @@ export class CodexThreadCommands {
     await this.client.call('thread/compact/start', { threadId: requiredId(threadId, 'threadId') })
   }
 
+  async archiveThread(threadId: string): Promise<void> {
+    await this.client.call('thread/archive', { threadId: requiredId(threadId, 'threadId') })
+  }
+
   async startTurn(threadId: string, input: TurnStartInput): Promise<string> {
     const result = await this.client.call('turn/start', { ...input, threadId: requiredId(threadId, 'threadId') })
     return requiredId(result.turn.id, 'turn/start result turn id')

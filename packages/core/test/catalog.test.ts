@@ -63,4 +63,45 @@ describe('CodexSessionCatalog', () => {
     expect(rpc.call).toHaveBeenNthCalledWith(2, 'thread/goal/set', { threadId: 'thread-1', objective: 'Ship it', status: 'active' }, undefined)
     expect(rpc.call).toHaveBeenNthCalledWith(3, 'thread/goal/clear', { threadId: 'thread-1' }, undefined)
   })
+
+  it('normalizes durable snapshots without leaking generated thread records', async () => {
+    const rpc = rpcWith(() => ({ thread: {
+      id: 'thread-1', preview: ' Review ', name: 'Code review', cwd: '/repo', createdAt: 10, updatedAt: 20,
+      extra: null, sessionId: 'session-1', forkedFromId: null, parentThreadId: null, ephemeral: false,
+      section: null, sectionEnteredAt: null, historyMode: 'paginated', recencyAt: 20, status: { type: 'idle' },
+      source: 'appServer', canAcceptDirectInput: false, path: null, modelProvider: 'openai', cliVersion: 'test', gitInfo: null,
+      threadSource: null, agentNickname: null, agentRole: null,
+      turns: [{ id: 'turn-1', status: 'completed', error: null, startedAt: 11, completedAt: 12, durationMs: 1_000, itemsView: 'full', items: [
+        { id: 'assistant-1', type: 'agentMessage', text: 'done' },
+      ] }],
+    } }))
+    const catalog = new CodexSessionCatalog(rpc)
+
+    await expect(catalog.readThreadSnapshot(' thread-1 ')).resolves.toMatchObject({
+      summary: { threadId: 'thread-1', name: 'Code review', updatedAtIso: '1970-01-01T00:00:20.000Z' },
+      turns: [{ turnId: 'turn-1', status: 'completed', assistantText: 'done', durationMs: 1_000 }],
+    })
+  })
+
+  it('owns skill discovery, normalization, dedupe and enablement', async () => {
+    const rpc = rpcWith((method) => method === 'skills/list' ? { data: [{ cwd: '/repo', skills: [
+      { name: ' docs ', path: ' /skills/docs ', description: 'long', shortDescription: 'short', interface: { displayName: 'Docs', shortDescription: 'Use docs', iconSmallUrl: null, iconLargeUrl: null }, scope: 'repo', enabled: true },
+      { name: ' docs ', path: ' /skills/docs ', description: 'duplicate', scope: 'repo', enabled: true },
+    ], errors: [{ path: ' /bad ', message: ' invalid ' }] }] } : {})
+    const catalog = new CodexSessionCatalog(rpc)
+
+    await expect(catalog.listSkillCatalog([' /repo ', '/repo'])).resolves.toEqual([{
+      cwd: '/repo',
+      skills: [
+        { name: 'docs', path: '/skills/docs', displayName: 'Docs', description: 'Use docs', scope: 'repo', enabled: true },
+        { name: 'docs', path: '/skills/docs', displayName: 'docs', description: 'duplicate', scope: 'repo', enabled: true },
+      ],
+      errors: [{ path: '/bad', message: 'invalid' }],
+    }])
+    await expect(catalog.listSkills(['/repo'])).resolves.toEqual([
+      { name: 'docs', path: '/skills/docs', displayName: 'docs', description: 'duplicate', scope: 'repo', enabled: true },
+    ])
+    await catalog.setSkillEnabled(' /skills/docs ', false)
+    expect(rpc.call).toHaveBeenLastCalledWith('skills/config/write', { path: '/skills/docs', enabled: false }, undefined)
+  })
 })

@@ -4,8 +4,10 @@ import type { CollaborationMode } from '../protocol/generated/CollaborationMode.
 import type { ReasoningEffort } from '../protocol/generated/ReasoningEffort.js'
 import type { ModelListResponse } from '../protocol/generated/v2/ModelListResponse.js'
 import type { ThreadListResponse } from '../protocol/generated/v2/ThreadListResponse.js'
-import { normalizeThreadHistory } from './normalization.js'
-import type { CodexEvent } from '../conversation/index.js'
+import type { Thread } from '../protocol/generated/v2/Thread.js'
+import type { SkillScope } from '../protocol/generated/v2/SkillScope.js'
+import { normalizeThreadHistory, textFromError } from './normalization.js'
+import { latestAssistantTextFromEvents, type CodexEvent } from '../conversation/index.js'
 
 export interface CodexThreadSummary {
   threadId: string
@@ -36,6 +38,38 @@ export interface CodexCollaborationModeOption {
   reasoningEffort: ReasoningEffort | ''
 }
 
+export interface CodexTurnSnapshot {
+  turnId: string
+  status: string
+  error: string
+  assistantText: string
+  startedAtIso: string
+  completedAtIso: string
+  durationMs: number | null
+  events: CodexEvent[]
+}
+
+export interface CodexThreadSnapshot {
+  summary: CodexThreadSummary
+  turns: CodexTurnSnapshot[]
+  events: CodexEvent[]
+}
+
+export interface CodexSkillOption {
+  name: string
+  path: string
+  displayName: string
+  description: string
+  scope: SkillScope
+  enabled: boolean
+}
+
+export interface CodexSkillCatalogGroup {
+  cwd: string
+  skills: CodexSkillOption[]
+  errors: Array<{ path: string; message: string }>
+}
+
 export interface ListCodexThreadsOptions {
   archived?: boolean
   limit?: number
@@ -54,6 +88,19 @@ function sourceLabel(value: unknown): string {
   if (!row) return ''
   const kind = typeof row.type === 'string' ? row.type : typeof row.kind === 'string' ? row.kind : Object.keys(row)[0]
   return kind ?? ''
+}
+
+function threadSummary(thread: Thread): CodexThreadSummary {
+  return {
+    threadId: thread.id.trim(),
+    preview: thread.preview.trim(),
+    name: thread.name?.trim() ?? '',
+    cwd: thread.cwd.trim(),
+    createdAtIso: timestampIso(thread.createdAt),
+    updatedAtIso: timestampIso(thread.updatedAt),
+    source: sourceLabel(thread.source),
+    canAcceptDirectInput: thread.canAcceptDirectInput,
+  }
 }
 
 export class CodexSessionCatalog {
@@ -78,16 +125,7 @@ export class CodexSessionCatalog {
         ...(options.cwd ? { cwd: options.cwd } : {}),
         ...(options.searchTerm?.trim() ? { searchTerm: options.searchTerm.trim() } : {}),
       })
-      rows.push(...result.data.map(thread => ({
-        threadId: thread.id,
-        preview: thread.preview.trim(),
-        name: thread.name?.trim() ?? '',
-        cwd: thread.cwd.trim(),
-        createdAtIso: timestampIso(thread.createdAt),
-        updatedAtIso: timestampIso(thread.updatedAt),
-        source: sourceLabel(thread.source),
-        canAcceptDirectInput: thread.canAcceptDirectInput,
-      })))
+      rows.push(...result.data.map(threadSummary))
       cursor = result.nextCursor
       if (!cursor) break
     }
@@ -95,10 +133,31 @@ export class CodexSessionCatalog {
   }
 
   async readThread(threadId: string): Promise<CodexEvent[]> {
+    return (await this.readThreadSnapshot(threadId)).events
+  }
+
+  async readThreadSnapshot(threadId: string, includeTurns = true): Promise<CodexThreadSnapshot> {
     const normalized = threadId.trim()
     if (!normalized) throw new Error('threadId is required')
-    const result = await this.client.call('thread/read', { threadId: normalized, includeTurns: true })
-    return normalizeThreadHistory(result, normalized)
+    const result = await this.client.call('thread/read', { threadId: normalized, includeTurns })
+    const events = includeTurns ? normalizeThreadHistory(result, normalized) : []
+    return {
+      summary: threadSummary(result.thread),
+      events,
+      turns: includeTurns ? result.thread.turns.map(turn => {
+        const turnEvents = events.filter(event => event.turnId === turn.id)
+        return {
+          turnId: turn.id,
+          status: turn.status,
+          error: textFromError(turn.error),
+          assistantText: latestAssistantTextFromEvents(turnEvents),
+          startedAtIso: turn.startedAt === null ? '' : timestampIso(turn.startedAt),
+          completedAtIso: turn.completedAt === null ? '' : timestampIso(turn.completedAt),
+          durationMs: turn.durationMs,
+          events: turnEvents,
+        }
+      }) : [],
+    }
   }
 
   async listModels(): Promise<CodexModelOption[]> {
@@ -129,6 +188,43 @@ export class CodexSessionCatalog {
       model: mode.model ?? '',
       reasoningEffort: mode.reasoning_effort ?? '',
     }))
+  }
+
+  async listSkillCatalog(cwds: string[] = [], forceReload = false): Promise<CodexSkillCatalogGroup[]> {
+    const normalizedCwds = [...new Set(cwds.map(cwd => cwd.trim()).filter(Boolean))]
+    const result = await this.client.call('skills/list', {
+      ...(normalizedCwds.length ? { cwds: normalizedCwds } : {}),
+      ...(forceReload ? { forceReload: true } : {}),
+    })
+    return result.data.map(group => ({
+      cwd: group.cwd.trim(),
+      skills: group.skills.map(skill => ({
+        name: skill.name.trim(),
+        path: skill.path.trim(),
+        displayName: skill.interface?.displayName?.trim() || skill.name.trim(),
+        description: skill.interface?.shortDescription?.trim() || skill.shortDescription?.trim() || skill.description.trim(),
+        scope: skill.scope,
+        enabled: skill.enabled,
+      })),
+      errors: group.errors.map(error => ({ path: error.path.trim(), message: error.message.trim() })),
+    }))
+  }
+
+  async listSkills(cwds: string[] = [], forceReload = false): Promise<CodexSkillOption[]> {
+    const byIdentity = new Map<string, CodexSkillOption>()
+    for (const group of await this.listSkillCatalog(cwds, forceReload)) {
+      for (const skill of group.skills) {
+        if (!skill.name || !skill.path) continue
+        byIdentity.set(`${skill.name}\n${skill.path}`, skill)
+      }
+    }
+    return [...byIdentity.values()].sort((left, right) => left.name.localeCompare(right.name) || left.path.localeCompare(right.path))
+  }
+
+  async setSkillEnabled(path: string, enabled: boolean): Promise<void> {
+    const normalized = path.trim()
+    if (!normalized) throw new Error('skill path is required')
+    await this.client.call('skills/config/write', { path: normalized, enabled })
   }
 
   async setCollaborationMode(threadId: string, collaborationMode: CollaborationMode): Promise<void> {

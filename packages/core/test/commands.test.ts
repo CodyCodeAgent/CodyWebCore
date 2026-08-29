@@ -18,12 +18,14 @@ describe('CodexThreadCommands', () => {
     await commands.renameThread(' thread-1 ', ' Review ')
     await expect(commands.forkThread(' thread-1 ')).resolves.toBe('thread-1')
     await commands.compactThread(' thread-1 ')
+    await commands.archiveThread(' thread-1 ')
 
     expect(call).toHaveBeenNthCalledWith(1, 'thread/start', { cwd: '/repo' }, undefined)
     expect(call).toHaveBeenNthCalledWith(2, 'thread/resume', { cwd: '/next', threadId: 'thread-1' }, undefined)
     expect(call).toHaveBeenNthCalledWith(3, 'thread/name/set', { threadId: 'thread-1', name: 'Review' }, undefined)
     expect(call).toHaveBeenNthCalledWith(4, 'thread/fork', { threadId: 'thread-1' }, undefined)
     expect(call).toHaveBeenNthCalledWith(5, 'thread/compact/start', { threadId: 'thread-1' }, undefined)
+    expect(call).toHaveBeenNthCalledWith(6, 'thread/archive', { threadId: 'thread-1' }, undefined)
   })
 
   it('owns exact turn payloads and rejects missing identifiers', async () => {

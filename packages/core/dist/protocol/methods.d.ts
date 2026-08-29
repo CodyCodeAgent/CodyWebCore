@@ -26,6 +26,10 @@ import type { ThreadSetNameParams } from './generated/v2/ThreadSetNameParams.js'
 import type { ThreadSetNameResponse } from './generated/v2/ThreadSetNameResponse.js';
 import type { ThreadCompactStartParams } from './generated/v2/ThreadCompactStartParams.js';
 import type { ThreadCompactStartResponse } from './generated/v2/ThreadCompactStartResponse.js';
+import type { ThreadArchiveParams } from './generated/v2/ThreadArchiveParams.js';
+import type { ThreadArchiveResponse } from './generated/v2/ThreadArchiveResponse.js';
+import type { SkillsConfigWriteParams } from './generated/v2/SkillsConfigWriteParams.js';
+import type { SkillsConfigWriteResponse } from './generated/v2/SkillsConfigWriteResponse.js';
 import type { TurnInterruptParams } from './generated/v2/TurnInterruptParams.js';
 import type { TurnInterruptResponse } from './generated/v2/TurnInterruptResponse.js';
 import type { TurnStartParams } from './generated/v2/TurnStartParams.js';
@@ -53,6 +57,10 @@ export interface CodexMethodMap {
     'thread/compact/start': {
         params: ThreadCompactStartParams;
         result: ThreadCompactStartResponse;
+    };
+    'thread/archive': {
+        params: ThreadArchiveParams;
+        result: ThreadArchiveResponse;
     };
     'thread/list': {
         params: ThreadListParams;
@@ -97,6 +105,10 @@ export interface CodexMethodMap {
     'skills/list': {
         params: SkillsListParams;
         result: SkillsListResponse;
+    };
+    'skills/config/write': {
+        params: SkillsConfigWriteParams;
+        result: SkillsConfigWriteResponse;
     };
     'collaborationMode/list': {
         params: CollaborationModeListParams;
