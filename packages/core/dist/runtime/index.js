@@ -303,7 +303,7 @@ export function createAppServerHost(options = {}) {
                 await new Promise((resolve) => setTimeout(resolve, restartAt - Date.now()));
             try {
                 await call('initialize', options.initializeParams ?? {
-                    clientInfo: { name: 'cody-web-core', title: 'Cody Web Core', version: '0.8.1' },
+                    clientInfo: { name: 'cody-web-core', title: 'Cody Web Core', version: '0.9.0' },
                     capabilities: { experimentalApi: true, requestAttestation: false },
                 });
             }

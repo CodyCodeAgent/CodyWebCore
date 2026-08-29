@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.0
+
+- Added a product-neutral `composer` boundary for canonical queue/steer semantics, submission normalization, Skills, images, context attachments and trigger parsing.
+- Centralized model, reasoning and collaboration-mode reconciliation without absorbing either product's permission policy.
+- Separated image validation and context materialization from product upload/resource transports.
+- Fixed the shared Vue composer so Skills-only turns are valid while empty submits remain blocked.
+
 ## 0.8.1
 
 - Removed the last CodyWeb-specific command-policy filename from the framework-neutral approval risk copy.

@@ -37,6 +37,17 @@ describe('shared conversation components', () => {
     expect(wrapper.emitted('update:permission')?.at(-1)).toEqual(['workspace-write'])
   })
 
+  it('allows a skills-only turn and rejects an empty submit', async () => {
+    const empty = mount(CodyComposer, { props: { draft: '', skills: [{ value: 'review', label: 'Review' }], selectedSkills: [] } })
+    await empty.find('form').trigger('submit')
+    expect(empty.emitted('send')).toBeUndefined()
+
+    const withSkill = mount(CodyComposer, { props: { draft: '', skills: [{ value: 'review', label: 'Review' }], selectedSkills: ['review'] } })
+    expect((withSkill.find('.cody-composer-send').element as HTMLButtonElement).disabled).toBe(false)
+    await withSkill.find('form').trigger('submit')
+    expect(withSkill.emitted('send')).toEqual([[]])
+  })
+
   it('keeps completed tools collapsed and running tools open', () => {
     const wrapper = mount(CodyConversation, {
       props: {

@@ -1,5 +1,5 @@
 <template>
-  <form class="cody-composer" :data-variant="variant" data-cody-component="composer-surface" @submit.prevent="emit('send')">
+  <form class="cody-composer" :data-variant="variant" data-cody-component="composer-surface" @submit.prevent="send">
     <div class="cody-composer-shell">
       <div v-if="selectedSkills.length" class="cody-composer-selected" aria-label="Selected skills">
         <span v-for="skill in selectedSkills" :key="skill" class="cody-composer-chip">
@@ -7,7 +7,7 @@
           <button type="button" :disabled="disabled" :aria-label="`移除 Skill ${optionLabel(skills, skill)}`" @click="removeSkill(skill)">×</button>
         </span>
       </div>
-      <textarea :value="draft" rows="1" :disabled="disabled" :placeholder="placeholder" @input="emit('update:draft', ($event.target as HTMLTextAreaElement).value)" @keydown.enter.exact.prevent="emit('send')" />
+      <textarea :value="draft" rows="1" :disabled="disabled" :placeholder="placeholder" @input="emit('update:draft', ($event.target as HTMLTextAreaElement).value)" @keydown.enter.exact.prevent="send" />
       <div class="cody-composer-controls">
         <slot name="leading" />
         <label v-if="skills.length" class="cody-composer-compact-control cody-composer-skill-control" title="为本轮显式选择 Skill">
@@ -25,7 +25,7 @@
         <slot name="controls" />
         <div class="cody-composer-actions">
           <button v-if="isRunning" class="cody-composer-stop" type="button" :disabled="disabled" @click="emit('stop')">停止</button>
-          <button class="cody-composer-send" type="submit" :disabled="disabled || !draft.trim()" :aria-label="submitLabel">↑</button>
+          <button class="cody-composer-send" type="submit" :disabled="!canSend" :aria-label="submitLabel">↑</button>
         </div>
       </div>
       <p v-if="selectedPermissionDescription" class="cody-composer-policy">{{ selectedPermissionDescription }}</p>
@@ -35,6 +35,7 @@
 
 <script setup lang="ts">
 import { computed, defineComponent, h } from 'vue'
+import { composerHasContent } from '@codycodeagent/cody-web-core/composer'
 import type { CodyComposerOption } from './types.js'
 
 const ComposerSelect = defineComponent({
@@ -83,8 +84,10 @@ const emit = defineEmits<{
 }>()
 const unselectedSkills = computed(() => props.skills.filter(option => !props.selectedSkills.includes(option.value)))
 const selectedPermissionDescription = computed(() => props.permissionOptions.find(option => option.value === props.selectedPermission)?.description ?? '')
+const canSend = computed(() => !props.disabled && composerHasContent({ text: props.draft, skills: props.selectedSkills }))
 const submitLabel = computed(() => props.isRunning && props.selectedSubmitMode === 'guide' ? '发送引导' : props.isRunning ? '加入队列' : '发送')
 function optionLabel(options: CodyComposerOption[], value: string): string { return options.find(option => option.value === value)?.label ?? value }
 function addSkill(value: string): void { if (value && !props.selectedSkills.includes(value)) emit('update:selected-skills', [...props.selectedSkills, value]) }
 function removeSkill(value: string): void { emit('update:selected-skills', props.selectedSkills.filter(skill => skill !== value)) }
+function send(): void { if (canSend.value) emit('send') }
 </script>
