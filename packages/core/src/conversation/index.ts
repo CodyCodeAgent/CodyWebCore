@@ -540,6 +540,14 @@ export type ConversationState = {
   appliedEventIds: string[]
 }
 
+export type ConversationFeedEntry =
+  | { id: string; kind: 'message'; turnId?: string; message: ConversationMessage }
+  | { id: string; kind: 'timeline'; turnId?: string; entry: ConversationTimelineEntry }
+  | { id: string; kind: 'plan'; turnId?: string; plan: ConversationPlanState }
+  | { id: string; kind: 'request'; turnId?: string; request: ConversationRequest }
+  | { id: string; kind: 'turn'; turnId: string; status: 'completed' | 'failed' | 'interrupted'; durationMs: number | null; error: string }
+  | { id: string; kind: 'activity'; turnId: string; status: 'running' | 'retrying' | 'waiting'; label: string; detail: string }
+
 const MAX_APPLIED_EVENT_IDS = 10_000
 
 function eventText(data: Record<string, unknown>, fallback = ''): string {
@@ -909,4 +917,96 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
 
 export function reduceConversationEvents(initial: ConversationState, events: readonly CodexEvent[]): ConversationState {
   return events.reduce(reduceConversationEvent, initial)
+}
+
+/**
+ * Selects one protocol-ordered, framework-neutral feed from reducer state.
+ * Renderers may group or localize entries, but must not rebuild ordering or
+ * terminal/activity semantics independently.
+ */
+export function conversationFeedFromState(state: ConversationState): ConversationFeedEntry[] {
+  const feed: ConversationFeedEntry[] = []
+  const seen = new Set<string>()
+  const messages = new Map(state.messages.map((message) => [message.id, message]))
+  const timeline = new Map(state.timeline.map((entry) => [entry.id, entry]))
+
+  const appendTurn = (id: string, turnId: string, status: 'completed' | 'failed' | 'interrupted'): void => {
+    const turn = state.turns[turnId]
+    if (!turn) return
+    const durationMs = turn.startedAtIso && turn.completedAtIso
+      ? Math.max(Date.parse(turn.completedAtIso) - Date.parse(turn.startedAtIso), 0)
+      : null
+    feed.push({ id, kind: 'turn', turnId, status, durationMs, error: turn.error ?? '' })
+    seen.add(id)
+  }
+
+  for (const ref of state.presentation) {
+    if (ref.kind === 'message') {
+      const message = messages.get(ref.id)
+      if (message) { feed.push({ id: ref.id, kind: 'message', turnId: ref.turnId, message }); seen.add(ref.id) }
+      continue
+    }
+    if (ref.kind === 'timeline') {
+      const entry = timeline.get(ref.id)
+      if (entry) { feed.push({ id: ref.id, kind: 'timeline', turnId: ref.turnId, entry }); seen.add(ref.id) }
+      continue
+    }
+    if (ref.kind === 'plan') {
+      if (state.plan?.text && (!ref.turnId || ref.turnId === state.plan.turnId)) {
+        feed.push({ id: ref.id, kind: 'plan', turnId: ref.turnId, plan: state.plan })
+        seen.add(ref.id)
+      }
+      continue
+    }
+    if (ref.kind === 'request') {
+      const request = state.pendingRequests.find((row) => `request:${row.id}` === ref.id)
+      if (request) { feed.push({ id: ref.id, kind: 'request', turnId: ref.turnId, request }); seen.add(ref.id) }
+      continue
+    }
+    if (ref.turnId && ref.kind === 'worked') appendTurn(ref.id, ref.turnId, 'completed')
+    else if (ref.turnId && ref.kind === 'failure') appendTurn(ref.id, ref.turnId, 'failed')
+    else if (ref.turnId && ref.kind === 'interrupted') appendTurn(ref.id, ref.turnId, 'interrupted')
+  }
+
+  for (const message of state.messages) {
+    if (!seen.has(message.id)) feed.push({ id: message.id, kind: 'message', turnId: message.turnId, message })
+  }
+  for (const entry of state.timeline) {
+    if (!seen.has(entry.id)) feed.push({ id: entry.id, kind: 'timeline', turnId: entry.turnId, entry })
+  }
+  const planId = `plan:${state.plan?.turnId || 'current'}`
+  if (state.plan?.text && !seen.has(planId)) feed.push({ id: planId, kind: 'plan', turnId: state.plan.turnId, plan: state.plan })
+  for (const request of state.pendingRequests) {
+    const requestId = `request:${request.id}`
+    if (!seen.has(requestId)) feed.push({ id: requestId, kind: 'request', turnId: request.turnId, request })
+  }
+  for (const turn of Object.values(state.turns)) {
+    if (turn.lifecycle === 'failed' && !seen.has(`failure:${turn.id}`)) appendTurn(`failure:${turn.id}`, turn.id, 'failed')
+    if (turn.lifecycle === 'interrupted' && !seen.has(`interrupted:${turn.id}`)) appendTurn(`interrupted:${turn.id}`, turn.id, 'interrupted')
+  }
+
+  const activeTurn = state.activeTurnId ? state.turns[state.activeTurnId] : undefined
+  if (activeTurn) {
+    const pendingRequest = state.pendingRequests.find((request) => !request.turnId || request.turnId === activeTurn.id)
+    if (pendingRequest) {
+      feed.push({
+        id: `activity:${activeTurn.id}`, kind: 'activity', turnId: activeTurn.id, status: 'waiting',
+        label: pendingRequest.kind === 'approval' ? 'Waiting for approval' : 'Waiting for answer',
+        detail: 'Codex will continue after this request is resolved.',
+      })
+    } else if (activeTurn.lifecycle === 'retrying') {
+      feed.push({
+        id: `activity:${activeTurn.id}`, kind: 'activity', turnId: activeTurn.id, status: 'retrying',
+        label: activeTurn.retryMessage || 'Codex is reconnecting',
+        detail: state.connection.status === 'disconnected' ? 'Connection interrupted; waiting to recover.' : 'Restoring this response.',
+      })
+    } else if (activeTurn.lifecycle === 'running') {
+      feed.push({
+        id: `activity:${activeTurn.id}`, kind: 'activity', turnId: activeTurn.id, status: 'running',
+        label: state.activity?.label || 'Codex is working',
+        detail: state.connection.status === 'connected' ? 'Live updates active.' : 'Waiting to restore the connection.',
+      })
+    }
+  }
+  return feed
 }

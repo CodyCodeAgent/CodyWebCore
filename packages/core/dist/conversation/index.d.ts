@@ -194,8 +194,49 @@ export type ConversationState = {
     presentation: ConversationPresentationRef[];
     appliedEventIds: string[];
 };
+export type ConversationFeedEntry = {
+    id: string;
+    kind: 'message';
+    turnId?: string;
+    message: ConversationMessage;
+} | {
+    id: string;
+    kind: 'timeline';
+    turnId?: string;
+    entry: ConversationTimelineEntry;
+} | {
+    id: string;
+    kind: 'plan';
+    turnId?: string;
+    plan: ConversationPlanState;
+} | {
+    id: string;
+    kind: 'request';
+    turnId?: string;
+    request: ConversationRequest;
+} | {
+    id: string;
+    kind: 'turn';
+    turnId: string;
+    status: 'completed' | 'failed' | 'interrupted';
+    durationMs: number | null;
+    error: string;
+} | {
+    id: string;
+    kind: 'activity';
+    turnId: string;
+    status: 'running' | 'retrying' | 'waiting';
+    label: string;
+    detail: string;
+};
 export declare function createConversationState(threadId?: string): ConversationState;
 /** Applies normalized live and history events through the same deterministic state transition path. */
 export declare function reduceConversationEvent(previous: ConversationState, event: CodexEvent): ConversationState;
 export declare function reduceConversationEvents(initial: ConversationState, events: readonly CodexEvent[]): ConversationState;
+/**
+ * Selects one protocol-ordered, framework-neutral feed from reducer state.
+ * Renderers may group or localize entries, but must not rebuild ordering or
+ * terminal/activity semantics independently.
+ */
+export declare function conversationFeedFromState(state: ConversationState): ConversationFeedEntry[];
 //# sourceMappingURL=index.d.ts.map

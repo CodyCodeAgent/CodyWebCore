@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.17.0
+
+- Added one framework-neutral, protocol-ordered conversation feed selector for messages, tools, plans, requests, turn receipts and live activity.
+- Switched the shared Vue renderer to consume the Core feed instead of independently rebuilding ordering and terminal semantics.
+
 ## 0.16.1
 
 - Included the generated Vue controller-composable declarations required by Git package consumers.

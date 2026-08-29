@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildConversationScrollMetrics,
+  conversationFeedFromState,
   createConversationState,
   dataAuthorityFor,
   hiddenMessageCount,
@@ -188,6 +189,27 @@ describe('conversation core', () => {
     ])
     expect(state.reasoningText).toBe('')
     expect(state.timeline).toContainEqual(expect.objectContaining({ kind: 'reasoning', text: 'Inspecting' }))
+  })
+
+  it('selects one protocol-ordered feed for every renderer', () => {
+    const base = { threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:00.000Z' }
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { ...base, id: 'start', type: 'turn.started', data: {} },
+      { ...base, id: 'user', itemId: 'user-1', type: 'user.completed', data: { text: 'Inspect' } },
+      { ...base, id: 'tool', itemId: 'tool-1', type: 'tool.completed', data: { tool: { kind: 'command', title: 'Command', status: 'completed', summary: 'pnpm test', details: [] } } },
+      { ...base, id: 'answer', itemId: 'agent-1', type: 'assistant.completed', data: { text: 'Done' } },
+      { ...base, id: 'done', type: 'turn.completed', atIso: '2026-01-01T00:00:03.000Z', data: {} },
+    ])
+
+    expect(conversationFeedFromState(state).map((entry) => [entry.kind, entry.id])).toEqual([
+      ['message', 'user:user-1'],
+      ['timeline', 'tool:tool-1'],
+      ['message', 'agent:agent-1'],
+      ['turn', 'worked:turn-1'],
+    ])
+    expect(conversationFeedFromState(state).at(-1)).toMatchObject({
+      kind: 'turn', status: 'completed', durationMs: 3_000,
+    })
   })
 
   it('keeps history windows and scroll restoration deterministic', () => {
