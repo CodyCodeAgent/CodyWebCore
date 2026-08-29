@@ -20,6 +20,12 @@ import type { ThreadGoalSetParams } from './generated/v2/ThreadGoalSetParams.js'
 import type { ThreadGoalSetResponse } from './generated/v2/ThreadGoalSetResponse.js';
 import type { ThreadSettingsUpdateParams } from './generated/v2/ThreadSettingsUpdateParams.js';
 import type { ThreadSettingsUpdateResponse } from './generated/v2/ThreadSettingsUpdateResponse.js';
+import type { ThreadForkParams } from './generated/v2/ThreadForkParams.js';
+import type { ThreadForkResponse } from './generated/v2/ThreadForkResponse.js';
+import type { ThreadSetNameParams } from './generated/v2/ThreadSetNameParams.js';
+import type { ThreadSetNameResponse } from './generated/v2/ThreadSetNameResponse.js';
+import type { ThreadCompactStartParams } from './generated/v2/ThreadCompactStartParams.js';
+import type { ThreadCompactStartResponse } from './generated/v2/ThreadCompactStartResponse.js';
 import type { TurnInterruptParams } from './generated/v2/TurnInterruptParams.js';
 import type { TurnInterruptResponse } from './generated/v2/TurnInterruptResponse.js';
 import type { TurnStartParams } from './generated/v2/TurnStartParams.js';
@@ -35,6 +41,18 @@ export interface CodexMethodMap {
     'thread/resume': {
         params: ThreadResumeParams;
         result: ThreadResumeResponse;
+    };
+    'thread/fork': {
+        params: ThreadForkParams;
+        result: ThreadForkResponse;
+    };
+    'thread/name/set': {
+        params: ThreadSetNameParams;
+        result: ThreadSetNameResponse;
+    };
+    'thread/compact/start': {
+        params: ThreadCompactStartParams;
+        result: ThreadCompactStartResponse;
     };
     'thread/list': {
         params: ThreadListParams;

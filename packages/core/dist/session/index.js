@@ -1,9 +1,11 @@
 import { asRecord, isApprovalRequestMethod, isToolUserInputRequestMethod, readItemId, readString, readThreadId, readTurnId, } from '../protocol/index.js';
-import { createTypedCodexClient } from '../protocol/methods.js';
-import { contentFromUserItem, normalizeCodexNotification, normalizeThreadHistory, outputText, textFromError, } from './normalization.js';
+import { contentFromUserItem, normalizeCodexNotification, outputText, textFromError, } from './normalization.js';
+import { CodexThreadCommands } from './commands.js';
+import { CodexSessionCatalog } from './catalog.js';
 export * from './token-usage.js';
 export * from './turn-input.js';
 export * from './catalog.js';
+export * from './commands.js';
 export { conversationToolFromItem, normalizeCodexNotification, normalizeThreadHistory, readCodexStatus, } from './normalization.js';
 const DEFAULT_TURN_INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000;
 export class CodexSessionManager {
@@ -15,13 +17,15 @@ export class CodexSessionManager {
     turnWatchdogs = new Map();
     terminalEvents = new Map();
     pendingRequests = new Map();
-    client;
+    commands;
+    catalog;
     nowIso;
     eventSequence = 0;
     unlisten = null;
     constructor(options) {
         this.options = options;
-        this.client = createTypedCodexClient(options.host);
+        this.commands = new CodexThreadCommands(options.host);
+        this.catalog = new CodexSessionCatalog(options.host);
         this.nowIso = options.nowIso ?? (() => new Date().toISOString());
         this.unlisten = options.host.subscribe((notification) => { void this.handleNotification(notification); });
     }
@@ -31,22 +35,18 @@ export class CodexSessionManager {
     }
     async create(bindingId, context) {
         await this.options.host.ensureInitialized();
-        const result = await this.client.call('thread/start', {
+        const threadId = await this.commands.startThread({
             ...context.thread,
             experimentalRawEvents: context.thread.experimentalRawEvents ?? false,
         });
-        const binding = { id: bindingId, threadId: result.thread.id };
+        const binding = { id: bindingId, threadId };
         this.attachLocal(binding, context);
         this.emit({ type: 'thread.attached', threadId: binding.threadId, data: { bindingId, mode: 'created' } });
         return binding;
     }
     async resume(binding, context) {
         await this.options.host.ensureInitialized();
-        const params = {
-            ...context.thread,
-            threadId: binding.threadId,
-        };
-        await this.client.call('thread/resume', params);
+        await this.commands.resumeThread(binding.threadId, context.thread);
         this.forgetTerminalEvents(binding.threadId);
         this.attachLocal(binding, context);
         this.emit({ type: 'thread.attached', threadId: binding.threadId, data: { bindingId: binding.id, mode: 'resumed' } });
@@ -65,8 +65,7 @@ export class CodexSessionManager {
     async read(bindingId) {
         const session = this.require(bindingId);
         await this.ensureSessionReady(session);
-        const result = await this.client.call('thread/read', { threadId: session.binding.threadId, includeTurns: true });
-        return normalizeThreadHistory(result, session.binding.threadId);
+        return this.catalog.readThread(session.binding.threadId);
     }
     async send(bindingId, input, mode = 'queue') {
         const session = this.require(bindingId);
@@ -74,7 +73,7 @@ export class CodexSessionManager {
         if (mode === 'steer') {
             if (!session.activeTurnId)
                 throw new Error('turn/steer requires an active turn');
-            await this.client.call('turn/steer', { threadId: session.binding.threadId, expectedTurnId: session.activeTurnId, input: input.input });
+            await this.commands.steerTurn(session.binding.threadId, session.activeTurnId, input.input);
             return { threadId: session.binding.threadId, turnId: session.activeTurnId };
         }
         let resolveStarted;
@@ -82,9 +81,8 @@ export class CodexSessionManager {
         const started = new Promise((resolve, reject) => { resolveStarted = resolve; rejectStarted = reject; });
         const execute = async () => {
             try {
-                const result = await this.client.call('turn/start', {
+                const turnId = await this.commands.startTurn(session.binding.threadId, {
                     ...(session.context.turn ?? {}),
-                    threadId: session.binding.threadId,
                     input: input.input,
                     ...(input.model !== undefined ? { model: input.model } : {}),
                     ...(input.effort !== undefined ? { effort: input.effort } : {}),
@@ -95,7 +93,7 @@ export class CodexSessionManager {
                     ...(input.runtimeWorkspaceRoots !== undefined ? { runtimeWorkspaceRoots: input.runtimeWorkspaceRoots } : {}),
                     ...(input.sandboxPolicy !== undefined ? { sandboxPolicy: input.sandboxPolicy } : {}),
                 });
-                const handle = { threadId: session.binding.threadId, turnId: result.turn.id };
+                const handle = { threadId: session.binding.threadId, turnId };
                 session.activeTurnId = handle.turnId;
                 this.emit({ type: 'user.completed', threadId: handle.threadId, turnId: handle.turnId, data: { ...contentFromInputs(input.input), optimistic: true } });
                 resolveStarted(handle);
@@ -119,7 +117,7 @@ export class CodexSessionManager {
         await this.ensureSessionReady(session);
         if (!session.activeTurnId)
             return false;
-        await this.client.call('turn/interrupt', { threadId: session.binding.threadId, turnId: session.activeTurnId });
+        await this.commands.interruptTurn(session.binding.threadId, session.activeTurnId);
         return true;
     }
     waitForTurn(handle) {
@@ -192,10 +190,7 @@ export class CodexSessionManager {
         if (session.attached)
             return;
         await this.options.host.ensureInitialized();
-        await this.client.call('thread/resume', {
-            ...session.context.thread,
-            threadId: session.binding.threadId,
-        });
+        await this.commands.resumeThread(session.binding.threadId, session.context.thread);
         this.forgetTerminalEvents(session.binding.threadId);
         session.attached = true;
         this.emit({ type: 'runtime.connected', threadId: session.binding.threadId, data: { resumed: true } });
@@ -270,7 +265,7 @@ export class CodexSessionManager {
             const key = this.turnKey(watchdog.handle.threadId, watchdog.handle.turnId);
             if (this.turnWatchdogs.get(key) !== watchdog)
                 return;
-            void this.client.call('turn/interrupt', watchdog.handle).catch((error) => {
+            void this.commands.interruptTurn(watchdog.handle.threadId, watchdog.handle.turnId).catch((error) => {
                 this.options.onDiagnostic?.({
                     level: 'warning',
                     message: `Failed to interrupt inactive Codex turn: ${textFromError(error) || 'unknown error'}`,

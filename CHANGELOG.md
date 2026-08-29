@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.26.0
+
+- Added one schema-bound Thread/Turn command client for start, resume, rename, fork, compact, turn start, steer and interrupt.
+- Rewired the stateful session manager through the same command client so browser and server products cannot drift on lifecycle payloads.
+- Added exact payload and malformed-success contract tests for the shared command surface.
+
 ## 0.25.0
 
 - Added a typed session catalog for paginated Thread discovery, durable history, models, collaboration modes, Thread settings and goals.
