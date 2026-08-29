@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.1
+
+- Removed the legacy `guide` UI alias from the shared Vue composer; submission mode values are now canonical `queue | steer` end to end.
+
 ## 0.9.0
 
 - Added a product-neutral `composer` boundary for canonical queue/steer semantics, submission normalization, Skills, images, context attachments and trigger parsing.

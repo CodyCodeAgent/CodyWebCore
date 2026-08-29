@@ -13,7 +13,7 @@ describe('shared conversation components', () => {
         draft: '继续',
         collaborationModes: [{ value: 'default', label: 'Default' }, { value: 'plan', label: 'Plan' }],
         selectedCollaborationMode: 'default',
-        submitModes: [{ value: 'queue', label: '排队' }, { value: 'guide', label: '引导' }],
+        submitModes: [{ value: 'queue', label: '排队' }, { value: 'steer', label: '引导' }],
         selectedSubmitMode: 'queue',
         models: [{ value: 'gpt-5.6-sol', label: 'gpt-5.6-sol' }],
         selectedModel: 'gpt-5.6-sol',
@@ -26,13 +26,13 @@ describe('shared conversation components', () => {
 
     const selects = wrapper.findAll('select')
     await selects[0]!.setValue('plan')
-    await selects[1]!.setValue('guide')
+    await selects[1]!.setValue('steer')
     await selects[2]!.setValue('gpt-5.6-sol')
     await selects[3]!.setValue('high')
     await selects[4]!.setValue('workspace-write')
 
     expect(wrapper.emitted('update:collaboration-mode')?.at(-1)).toEqual(['plan'])
-    expect(wrapper.emitted('update:submit-mode')?.at(-1)).toEqual(['guide'])
+    expect(wrapper.emitted('update:submit-mode')?.at(-1)).toEqual(['steer'])
     expect(wrapper.emitted('update:reasoning')?.at(-1)).toEqual(['high'])
     expect(wrapper.emitted('update:permission')?.at(-1)).toEqual(['workspace-write'])
   })

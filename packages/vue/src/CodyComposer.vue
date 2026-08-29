@@ -85,7 +85,7 @@ const emit = defineEmits<{
 const unselectedSkills = computed(() => props.skills.filter(option => !props.selectedSkills.includes(option.value)))
 const selectedPermissionDescription = computed(() => props.permissionOptions.find(option => option.value === props.selectedPermission)?.description ?? '')
 const canSend = computed(() => !props.disabled && composerHasContent({ text: props.draft, skills: props.selectedSkills }))
-const submitLabel = computed(() => props.isRunning && props.selectedSubmitMode === 'guide' ? '发送引导' : props.isRunning ? '加入队列' : '发送')
+const submitLabel = computed(() => props.isRunning && props.selectedSubmitMode === 'steer' ? '发送引导' : props.isRunning ? '加入队列' : '发送')
 function optionLabel(options: CodyComposerOption[], value: string): string { return options.find(option => option.value === value)?.label ?? value }
 function addSkill(value: string): void { if (value && !props.selectedSkills.includes(value)) emit('update:selected-skills', [...props.selectedSkills, value]) }
 function removeSkill(value: string): void { emit('update:selected-skills', props.selectedSkills.filter(skill => skill !== value)) }

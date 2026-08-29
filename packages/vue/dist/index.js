@@ -936,7 +936,7 @@ const Ht = ["data-variant"], Gt = { class: "cody-composer-shell" }, Qt = {
     }), i = e, s = t, r = j(() => i.skills.filter((f) => !i.selectedSkills.includes(f.value))), w = j(() => {
       var f;
       return ((f = i.permissionOptions.find((k) => k.value === i.selectedPermission)) == null ? void 0 : f.description) ?? "";
-    }), d = j(() => !i.disabled && Vt({ text: i.draft, skills: i.selectedSkills })), u = j(() => i.isRunning && i.selectedSubmitMode === "guide" ? "发送引导" : i.isRunning ? "加入队列" : "发送");
+    }), d = j(() => !i.disabled && Vt({ text: i.draft, skills: i.selectedSkills })), u = j(() => i.isRunning && i.selectedSubmitMode === "steer" ? "发送引导" : i.isRunning ? "加入队列" : "发送");
     function n(f, k) {
       var y;
       return ((y = f.find((E) => E.value === k)) == null ? void 0 : y.label) ?? k;
