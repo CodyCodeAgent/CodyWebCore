@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.23.2
+
+- Exported one Core runtime version constant and used it in App Server initialization metadata so product manifests cannot silently drift.
+
 ## 0.23.1
 
 - Declared the shared optional command/file policy evidence fields so products consume one server-request DTO without casts or shadow types.
