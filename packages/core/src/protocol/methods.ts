@@ -18,6 +18,8 @@ import type { ThreadGoalClearParams } from './generated/v2/ThreadGoalClearParams
 import type { ThreadGoalClearResponse } from './generated/v2/ThreadGoalClearResponse.js'
 import type { ThreadGoalSetParams } from './generated/v2/ThreadGoalSetParams.js'
 import type { ThreadGoalSetResponse } from './generated/v2/ThreadGoalSetResponse.js'
+import type { ThreadGoalGetParams } from './generated/v2/ThreadGoalGetParams.js'
+import type { ThreadGoalGetResponse } from './generated/v2/ThreadGoalGetResponse.js'
 import type { ThreadSettingsUpdateParams } from './generated/v2/ThreadSettingsUpdateParams.js'
 import type { ThreadSettingsUpdateResponse } from './generated/v2/ThreadSettingsUpdateResponse.js'
 import type { ThreadForkParams } from './generated/v2/ThreadForkParams.js'
@@ -50,6 +52,7 @@ export interface CodexMethodMap {
   'thread/read': { params: ThreadReadParams; result: ThreadReadResponse }
   'thread/settings/update': { params: ThreadSettingsUpdateParams; result: ThreadSettingsUpdateResponse }
   'thread/goal/set': { params: ThreadGoalSetParams; result: ThreadGoalSetResponse }
+  'thread/goal/get': { params: ThreadGoalGetParams; result: ThreadGoalGetResponse }
   'thread/goal/clear': { params: ThreadGoalClearParams; result: ThreadGoalClearResponse }
   'turn/start': { params: TurnStartParams; result: TurnStartResponse }
   'turn/steer': { params: TurnSteerParams; result: TurnSteerResponse }

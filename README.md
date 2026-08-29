@@ -21,8 +21,8 @@ Framework-neutral Codex App Server primitives shared by CodyWebUI and CodyWork.
 
 | Core | Codex App Server boundary | Product migration |
 | --- | --- | --- |
-| 0.28.0 | Current generated schema; complete stable Thread/Turn snapshots, Skill view models and Thread lifecycle commands | Products consume Core snapshots/catalogs and must not parse generated Thread, Turn or Skill records |
-| 0.15–0.27.0 | Progressive shared runtime, conversation, request, presentation, command and catalog authority | Superseded by 0.28.0 because the initial Skill catalog omitted product-facing metadata |
+| 0.29.0 | Current generated schema; complete Thread/Turn/Goal snapshots, Skill view models and Thread lifecycle commands | Products use structured Core state APIs instead of encoding collaboration or Goal state in prompts |
+| 0.15–0.28.0 | Progressive shared runtime, conversation, request, presentation, command and catalog authority | Superseded by 0.29.0 because Goal state was not fully represented |
 | ≤ 0.14 | Runtime/protocol foundation without the complete shared conversation authority | Superseded; do not use for either product |
 
 Schema snapshots live in `packages/core/schema/json`. Changes to generated schemas, normalized events, runtime recovery or Vue interaction contracts require a minor version and changelog entry.

@@ -165,8 +165,33 @@ export class CodexSessionCatalog {
     async setCollaborationMode(threadId, collaborationMode) {
         await this.client.call('thread/settings/update', { threadId, collaborationMode });
     }
-    async setGoal(threadId, objective, status = 'active') {
-        await this.client.call('thread/goal/set', { threadId, objective, status });
+    async getGoal(threadId) {
+        const normalized = threadId.trim();
+        if (!normalized)
+            throw new Error('threadId is required');
+        const result = await this.client.call('thread/goal/get', { threadId: normalized });
+        const goal = result.goal;
+        return goal ? {
+            threadId: goal.threadId.trim(),
+            objective: goal.objective.trim(),
+            status: goal.status,
+            tokenBudget: goal.tokenBudget,
+            tokensUsed: goal.tokensUsed,
+            timeUsedSeconds: goal.timeUsedSeconds,
+            createdAtIso: timestampIso(goal.createdAt),
+            updatedAtIso: timestampIso(goal.updatedAt),
+        } : null;
+    }
+    async setGoal(threadId, input) {
+        const normalized = threadId.trim();
+        if (!normalized)
+            throw new Error('threadId is required');
+        await this.client.call('thread/goal/set', {
+            threadId: normalized,
+            ...(input.objective !== undefined ? { objective: input.objective?.trim() || null } : {}),
+            ...(input.status !== undefined ? { status: input.status } : {}),
+            ...(input.tokenBudget !== undefined ? { tokenBudget: input.tokenBudget } : {}),
+        });
     }
     async clearGoal(threadId) {
         await this.client.call('thread/goal/clear', { threadId });

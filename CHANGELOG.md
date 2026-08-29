@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.29.0
+
+- Added complete typed Goal read/write authority, including paused, blocked, limited and complete states.
+- Replaced the narrow objective/status helper with a generated-schema-aligned structured Goal update contract.
+
 ## 0.28.0
 
 - Completed stable Thread summaries with session-tree, active-state and ephemeral metadata needed by products.

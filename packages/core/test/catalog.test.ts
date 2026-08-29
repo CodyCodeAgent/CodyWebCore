@@ -57,12 +57,25 @@ describe('CodexSessionCatalog', () => {
     const collaborationMode = { mode: 'plan' as const, settings: { model: 'gpt-5.6-sol', reasoning_effort: 'high', developer_instructions: null } }
 
     await catalog.setCollaborationMode('thread-1', collaborationMode)
-    await catalog.setGoal('thread-1', 'Ship it')
+    await catalog.setGoal(' thread-1 ', { objective: ' Ship it ', status: 'paused' })
     await catalog.clearGoal('thread-1')
 
     expect(rpc.call).toHaveBeenNthCalledWith(1, 'thread/settings/update', { threadId: 'thread-1', collaborationMode }, undefined)
-    expect(rpc.call).toHaveBeenNthCalledWith(2, 'thread/goal/set', { threadId: 'thread-1', objective: 'Ship it', status: 'active' }, undefined)
+    expect(rpc.call).toHaveBeenNthCalledWith(2, 'thread/goal/set', { threadId: 'thread-1', objective: 'Ship it', status: 'paused' }, undefined)
     expect(rpc.call).toHaveBeenNthCalledWith(3, 'thread/goal/clear', { threadId: 'thread-1' }, undefined)
+  })
+
+  it('normalizes native goal state', async () => {
+    const rpc = rpcWith(() => ({ goal: {
+      threadId: ' thread-1 ', objective: ' Ship it ', status: 'active', tokenBudget: 10_000,
+      tokensUsed: 250, timeUsedSeconds: 12, createdAt: 10, updatedAt: 20,
+    } }))
+    const catalog = new CodexSessionCatalog(rpc)
+    await expect(catalog.getGoal(' thread-1 ')).resolves.toEqual({
+      threadId: 'thread-1', objective: 'Ship it', status: 'active', tokenBudget: 10_000,
+      tokensUsed: 250, timeUsedSeconds: 12,
+      createdAtIso: '1970-01-01T00:00:10.000Z', updatedAtIso: '1970-01-01T00:00:20.000Z',
+    })
   })
 
   it('normalizes durable snapshots without leaking generated thread records', async () => {

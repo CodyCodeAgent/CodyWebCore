@@ -2,6 +2,7 @@ import { type CodexRpcCaller } from '../protocol/methods.js';
 import type { CollaborationMode } from '../protocol/generated/CollaborationMode.js';
 import type { ReasoningEffort } from '../protocol/generated/ReasoningEffort.js';
 import type { SkillScope } from '../protocol/generated/v2/SkillScope.js';
+import type { ThreadGoalStatus } from '../protocol/generated/v2/ThreadGoalStatus.js';
 import { type CodexEvent } from '../conversation/index.js';
 export interface CodexThreadSummary {
     threadId: string;
@@ -79,6 +80,16 @@ export interface CodexSkillCatalogGroup {
         message: string;
     }>;
 }
+export interface CodexThreadGoalSnapshot {
+    threadId: string;
+    objective: string;
+    status: ThreadGoalStatus;
+    tokenBudget: number | null;
+    tokensUsed: number;
+    timeUsedSeconds: number;
+    createdAtIso: string;
+    updatedAtIso: string;
+}
 export interface ListCodexThreadsOptions {
     archived?: boolean;
     limit?: number;
@@ -98,7 +109,12 @@ export declare class CodexSessionCatalog {
     listSkills(cwds?: string[], forceReload?: boolean): Promise<CodexSkillOption[]>;
     setSkillEnabled(path: string, enabled: boolean): Promise<void>;
     setCollaborationMode(threadId: string, collaborationMode: CollaborationMode): Promise<void>;
-    setGoal(threadId: string, objective: string, status?: 'active' | 'complete'): Promise<void>;
+    getGoal(threadId: string): Promise<CodexThreadGoalSnapshot | null>;
+    setGoal(threadId: string, input: {
+        objective?: string | null;
+        status?: ThreadGoalStatus | null;
+        tokenBudget?: number | null;
+    }): Promise<void>;
     clearGoal(threadId: string): Promise<void>;
 }
 //# sourceMappingURL=catalog.d.ts.map

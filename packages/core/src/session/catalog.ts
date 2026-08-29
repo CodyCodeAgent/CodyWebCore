@@ -6,6 +6,7 @@ import type { ModelListResponse } from '../protocol/generated/v2/ModelListRespon
 import type { ThreadListResponse } from '../protocol/generated/v2/ThreadListResponse.js'
 import type { Thread } from '../protocol/generated/v2/Thread.js'
 import type { SkillScope } from '../protocol/generated/v2/SkillScope.js'
+import type { ThreadGoalStatus } from '../protocol/generated/v2/ThreadGoalStatus.js'
 import { normalizeThreadHistory, textFromError } from './normalization.js'
 import { latestAssistantTextFromEvents, type CodexEvent } from '../conversation/index.js'
 
@@ -88,6 +89,17 @@ export interface CodexSkillCatalogGroup {
   cwd: string
   skills: CodexSkillOption[]
   errors: Array<{ path: string; message: string }>
+}
+
+export interface CodexThreadGoalSnapshot {
+  threadId: string
+  objective: string
+  status: ThreadGoalStatus
+  tokenBudget: number | null
+  tokensUsed: number
+  timeUsedSeconds: number
+  createdAtIso: string
+  updatedAtIso: string
 }
 
 export interface ListCodexThreadsOptions {
@@ -269,8 +281,32 @@ export class CodexSessionCatalog {
     await this.client.call('thread/settings/update', { threadId, collaborationMode })
   }
 
-  async setGoal(threadId: string, objective: string, status: 'active' | 'complete' = 'active'): Promise<void> {
-    await this.client.call('thread/goal/set', { threadId, objective, status })
+  async getGoal(threadId: string): Promise<CodexThreadGoalSnapshot | null> {
+    const normalized = threadId.trim()
+    if (!normalized) throw new Error('threadId is required')
+    const result = await this.client.call('thread/goal/get', { threadId: normalized })
+    const goal = result.goal
+    return goal ? {
+      threadId: goal.threadId.trim(),
+      objective: goal.objective.trim(),
+      status: goal.status,
+      tokenBudget: goal.tokenBudget,
+      tokensUsed: goal.tokensUsed,
+      timeUsedSeconds: goal.timeUsedSeconds,
+      createdAtIso: timestampIso(goal.createdAt),
+      updatedAtIso: timestampIso(goal.updatedAt),
+    } : null
+  }
+
+  async setGoal(threadId: string, input: { objective?: string | null; status?: ThreadGoalStatus | null; tokenBudget?: number | null }): Promise<void> {
+    const normalized = threadId.trim()
+    if (!normalized) throw new Error('threadId is required')
+    await this.client.call('thread/goal/set', {
+      threadId: normalized,
+      ...(input.objective !== undefined ? { objective: input.objective?.trim() || null } : {}),
+      ...(input.status !== undefined ? { status: input.status } : {}),
+      ...(input.tokenBudget !== undefined ? { tokenBudget: input.tokenBudget } : {}),
+    })
   }
 
   async clearGoal(threadId: string): Promise<void> {
