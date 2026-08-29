@@ -250,7 +250,12 @@ describe('CodexSessionManager', () => {
     host.emit('turn/started', { threadId: 'thread-1', turn: { id: handle.turnId } })
     host.emit('warning', { threadId: 'thread-1', turnId: handle.turnId, message: 'Response stream interrupted; reconnecting.' })
     for (let attempt = 1; attempt <= 5; attempt += 1) {
-      host.emit('error', { threadId: 'thread-1', turnId: handle.turnId, willRetry: true, error: { message: `Reconnecting... ${String(attempt)}/5` } })
+      host.emit('error', {
+        threadId: 'thread-1',
+        turnId: handle.turnId,
+        ...(attempt % 2 === 0 ? { willRetry: true } : {}),
+        error: { message: `Reconnecting... ${String(attempt)}/5` },
+      })
     }
     host.emit('turn/completed', { threadId: 'thread-1', turn: { id: handle.turnId, status: 'completed', items: [], error: null } })
     host.emit('turn/completed', { threadId: 'thread-1', turn: { id: handle.turnId, status: 'completed', items: [], error: null } })
@@ -261,6 +266,34 @@ describe('CodexSessionManager', () => {
     expect(events.filter((event) => event.type === 'turn.completed')).toHaveLength(1)
     const state = reduceConversationEvents(createConversationState('thread-1'), events)
     expect(state.turns[handle.turnId]).toMatchObject({ lifecycle: 'completed' })
+    await manager.dispose()
+  })
+
+  it('waits for an authoritative terminal notification after a turn-scoped error', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host })
+    await manager.create('conversation-1', context)
+    const events: CodexEvent[] = []
+    manager.subscribe((event) => events.push(event))
+    const handle = await manager.send('conversation-1', { input: [{ type: 'text', text: 'hello', text_elements: [] }] })
+    host.emit('turn/started', { threadId: 'thread-1', turn: { id: handle.turnId } })
+    host.emit('error', {
+      threadId: 'thread-1',
+      turnId: handle.turnId,
+      error: { message: 'Reconnecting... 5/5' },
+    })
+    expect(events.at(-1)).toMatchObject({ type: 'turn.retrying', turnId: handle.turnId })
+    expect(events.some((event) => event.type === 'turn.failed')).toBe(false)
+    host.emit('turn/failed', {
+      threadId: 'thread-1',
+      turnId: handle.turnId,
+      error: { message: 'request timed out' },
+    })
+    await expect(manager.waitForTurn(handle)).resolves.toMatchObject({
+      type: 'turn.failed',
+      data: expect.objectContaining({ error: 'request timed out' }),
+    })
+    expect(events.filter((event) => event.type === 'turn.failed')).toHaveLength(1)
     await manager.dispose()
   })
 

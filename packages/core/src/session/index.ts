@@ -511,9 +511,15 @@ export function normalizeCodexNotification(
     }]
   }
   if (notification.method === 'error') {
-    const willRetry = params.willRetry === true || params.will_retry === true
-    return [{ id: id(willRetry ? 'retrying' : 'failed'), type: willRetry ? 'turn.retrying' : 'turn.failed', ...common, data: {
-      error: textFromError(params.error ?? params), willRetry, raw: params,
+    // App Server emits turn-scoped `error` notifications while the upstream
+    // response stream is reconnecting. `willRetry` has not been present in
+    // every supported build, so absence of that hint is not terminal
+    // authority. A Turn only ends through turn/completed, turn/failed or
+    // turn/interrupted.
+    return [{ id: id('retrying'), type: 'turn.retrying', ...common, data: {
+      error: textFromError(params.error ?? params),
+      willRetry: params.willRetry === true || params.will_retry === true,
+      raw: params,
     } }]
   }
   if (notification.method === 'warning' && turnId) {

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.22.3
+
+- Treat turn-scoped App Server `error` notifications as retry diagnostics until an authoritative terminal Turn notification arrives, including older payloads without `willRetry`.
+
 ## 0.22.2
 
 - Added a shared terminal-Turn selector so product adapters do not reimplement completion/failure/interruption classification.
