@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.22.1
+
+- Centralized token-usage compatibility parsing and normalized usage embedded in terminal Turn payloads.
+
 ## 0.22.0
 
 - Normalized completed Turn items and exposed one final-assistant selector so product services no longer parse native item payloads.

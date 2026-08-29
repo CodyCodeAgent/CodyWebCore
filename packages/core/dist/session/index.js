@@ -57,6 +57,28 @@ function readNonNegativeNumber(value) {
     const numeric = typeof value === 'bigint' ? Number(value) : typeof value === 'string' ? Number(value.trim()) : value;
     return typeof numeric === 'number' && Number.isFinite(numeric) && numeric >= 0 ? numeric : null;
 }
+/** Reads token usage compatibility fields at the protocol boundary. */
+export function codexTokenUsageFromPayload(payload) {
+    const row = asRecord(payload);
+    const turn = asRecord(row?.turn);
+    const usage = asRecord(row?.usage) ?? asRecord(row?.tokenUsage) ?? asRecord(row?.token_usage)
+        ?? asRecord(turn?.usage) ?? asRecord(turn?.tokenUsage) ?? asRecord(turn?.token_usage);
+    if (!usage)
+        return null;
+    const last = asRecord(usage.last) ?? usage;
+    const inputTokens = readNonNegativeInteger(last.inputTokens) ?? readNonNegativeInteger(last.input_tokens) ?? 0;
+    const outputTokens = readNonNegativeInteger(last.outputTokens) ?? readNonNegativeInteger(last.output_tokens) ?? 0;
+    const totalTokens = readNonNegativeInteger(last.totalTokens) ?? readNonNegativeInteger(last.total_tokens) ?? inputTokens + outputTokens;
+    if (totalTokens <= 0 && inputTokens <= 0 && outputTokens <= 0)
+        return null;
+    return {
+        inputTokens,
+        outputTokens,
+        totalTokens,
+        contextWindow: readNonNegativeInteger(usage.modelContextWindow) ?? readNonNegativeInteger(usage.model_context_window),
+        autoCompactTokenLimit: readNonNegativeInteger(usage.autoCompactTokenLimit) ?? readNonNegativeInteger(usage.auto_compact_token_limit),
+    };
+}
 function timestampValueIso(value) {
     const numeric = typeof value === 'bigint' ? Number(value) : typeof value === 'string' && /^\d+(?:\.\d+)?$/u.test(value.trim()) ? Number(value) : null;
     if (typeof value === 'number' || numeric !== null) {
@@ -348,7 +370,12 @@ export function normalizeCodexNotification(notification, options = {}) {
             item,
             atIso: completedAtIso,
         }));
-        return [...completedItems, {
+        const usage = codexTokenUsageFromPayload(params);
+        const usageEvents = usage ? [{
+                id: id('context-usage'), type: 'thread.context.updated', ...common, atIso: completedAtIso,
+                data: { turnId: completedTurnId, usedTokens: usage.totalTokens, ...usage },
+            }] : [];
+        return [...completedItems, ...usageEvents, {
                 id: id('terminal'), type, ...common, atIso: completedAtIso, ...(completedTurnId ? { turnId: completedTurnId } : {}),
                 data: type === 'turn.failed'
                     ? { error: textFromError(turn?.error), status, ...(durationMs !== null ? { durationMs } : {}), raw: params }
@@ -408,17 +435,13 @@ export function normalizeCodexNotification(notification, options = {}) {
         ];
     }
     if (notification.method === 'thread/tokenUsage/updated') {
-        const usage = asRecord(params.tokenUsage) ?? asRecord(params.token_usage);
-        const last = asRecord(usage?.last);
-        const usedTokens = readNonNegativeInteger(last?.totalTokens) ?? readNonNegativeInteger(last?.total_tokens);
-        if (usedTokens === null)
+        const usage = codexTokenUsageFromPayload(params);
+        if (!usage)
             return [];
         return [{ id: id('context-usage'), type: 'thread.context.updated', ...common, data: {
                     turnId,
-                    usedTokens,
-                    inputTokens: readNonNegativeInteger(last?.inputTokens) ?? readNonNegativeInteger(last?.input_tokens) ?? 0,
-                    contextWindow: readNonNegativeInteger(usage?.modelContextWindow) ?? readNonNegativeInteger(usage?.model_context_window),
-                    autoCompactTokenLimit: readNonNegativeInteger(usage?.autoCompactTokenLimit) ?? readNonNegativeInteger(usage?.auto_compact_token_limit),
+                    usedTokens: usage.totalTokens,
+                    ...usage,
                 } }];
     }
     if (notification.method === 'thread/compacted') {

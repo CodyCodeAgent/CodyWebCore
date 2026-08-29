@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AppServerDiagnostics, AppServerHost, RuntimeNotification, RuntimeNotificationListener, ServerRequestReply } from '../src/runtime/index.js'
-import { buildTurnUserInput, CodexSessionManager, conversationToolFromItem, normalizeCodexNotification, normalizeThreadHistory } from '../src/session/index.js'
+import { buildTurnUserInput, codexTokenUsageFromPayload, CodexSessionManager, conversationToolFromItem, normalizeCodexNotification, normalizeThreadHistory } from '../src/session/index.js'
 import { createConversationState, latestAssistantTextFromEvents, reduceConversationEvents, type CodexEvent } from '../src/conversation/index.js'
 
 class FakeHost implements AppServerHost {
@@ -99,6 +99,15 @@ describe('normalizeCodexNotification', () => {
     expect(latestAssistantTextFromEvents(events)).toBe('Final')
   })
 
+  it('normalizes token usage from both live and terminal payload shapes', () => {
+    expect(codexTokenUsageFromPayload({ turn: { token_usage: { last: {
+      input_tokens: 10, output_tokens: 5, total_tokens: 15,
+    } } } })).toEqual({
+      inputTokens: 10, outputTokens: 5, totalTokens: 15,
+      contextWindow: null, autoCompactTokenLimit: null,
+    })
+  })
+
   it('keeps structured plan steps when replacing the live plan snapshot', () => {
     const [event] = normalizeCodexNotification({
       method: 'turn/plan/updated',
@@ -133,7 +142,10 @@ describe('normalizeCodexNotification', () => {
       atIso: '2026-01-01T00:00:00.000Z',
     }, options)).toEqual([expect.objectContaining({
       type: 'thread.context.updated',
-      data: { turnId: 'turn-1', usedTokens: 1200, inputTokens: 900, contextWindow: 128_000, autoCompactTokenLimit: null },
+      data: {
+        turnId: 'turn-1', usedTokens: 1200, inputTokens: 900, outputTokens: 0, totalTokens: 1200,
+        contextWindow: 128_000, autoCompactTokenLimit: null,
+      },
     })])
     expect(normalizeCodexNotification({
       method: 'thread/compacted', params: { threadId: 'thread-1' }, atIso: '2026-01-01T00:00:01.000Z',

@@ -84,6 +84,15 @@ export type CodexSessionManagerOptions = {
     turnInactivityTimeoutMs?: number;
     onDiagnostic?: (diagnostic: CodexSessionDiagnostic) => void;
 };
+export type CodexTokenUsage = {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    contextWindow: number | null;
+    autoCompactTokenLimit: number | null;
+};
+/** Reads token usage compatibility fields at the protocol boundary. */
+export declare function codexTokenUsageFromPayload(payload: unknown): CodexTokenUsage | null;
 export declare function readCodexStatus(value: unknown): string;
 /** Canonical history/realtime tool view model for native Codex items. */
 export declare function conversationToolFromItem(item: unknown, phase?: 'started' | 'updated' | 'completed'): ConversationTool | null;
