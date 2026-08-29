@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.16.1
+
+- Included the generated Vue controller-composable declarations required by Git package consumers.
+
 ## 0.16.0
 
 - Added a Vue conversation-controller composable that owns history, realtime, switching and disposal lifecycle.
