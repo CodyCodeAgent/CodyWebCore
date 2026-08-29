@@ -98,7 +98,7 @@ const Qe = {
   "approvalRisk.impact.commandExecution": "The command will run on this machine in the selected workspace.",
   "approvalRisk.impact.sessionPolicyChange": "Accepting for session may allow similar commands without asking again.",
   "approvalRisk.impact.outsideWorkspacePaths": "The command references path(s) outside cwd: {paths}",
-  "approvalRisk.impact.noCommandPolicy": "No .cody-web-ui.yml command allowlist or denylist is configured for this command.",
+  "approvalRisk.impact.noCommandPolicy": "No injected command allowlist or denylist is configured for this command.",
   "approvalRisk.impact.cwd": "cwd: {cwd}",
   "approvalRisk.impact.fileWriteAccess": "Codex may write files after this approval.",
   "approvalRisk.impact.writeRoot": "write root: {path}",

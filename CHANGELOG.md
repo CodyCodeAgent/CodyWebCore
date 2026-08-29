@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.1
+
+- Removed the last CodyWeb-specific command-policy filename from the framework-neutral approval risk copy.
+- Updated App Server initialization metadata to report the current shared runtime version.
+
 ## 0.8.0
 
 - Centralized Codex server-request method classification and removed product-specific method predicates.
