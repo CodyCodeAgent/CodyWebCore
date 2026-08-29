@@ -105,11 +105,18 @@ describe('shared conversation components', () => {
           request: {
             id: 'request-42',
             kind: 'approval',
-            params: { command: 'pnpm test' },
+            threadId: 'thread-1',
+            method: 'item/commandExecution/requestApproval',
+            requestedAtIso: '2026-08-28T00:00:00.000Z',
+            params: { command: 'sudo rm -rf /tmp/example', cwd: '/workspace/app' },
           },
         }],
       },
     })
+
+    expect(wrapper.find('.cody-approval-risk-level').text()).toBe('high')
+    expect(wrapper.find('.cody-approval-risk-subject').text()).toContain('sudo rm -rf')
+    expect(wrapper.text()).toContain('Deletes files')
 
     const buttons = wrapper.findAll('.cody-request-actions button')
     await buttons[0]!.trigger('click')

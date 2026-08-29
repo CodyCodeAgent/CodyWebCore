@@ -85,4 +85,13 @@ export interface TypedCodexClient {
     }): Promise<T>;
 }
 export declare function createTypedCodexClient(rpc: CodexRpcCaller): TypedCodexClient;
+export declare const COMMAND_APPROVAL_REQUEST_METHOD = "item/commandExecution/requestApproval";
+export declare const FILE_CHANGE_APPROVAL_REQUEST_METHOD = "item/fileChange/requestApproval";
+export declare const TOOL_USER_INPUT_REQUEST_METHOD = "item/tool/requestUserInput";
+export declare const TOOL_CALL_REQUEST_METHOD = "item/tool/call";
+export declare function isCommandApprovalRequestMethod(method: string): boolean;
+export declare function isFileChangeApprovalRequestMethod(method: string): boolean;
+export declare function isApprovalRequestMethod(method: string): boolean;
+export declare function isToolUserInputRequestMethod(method: string): boolean;
+export declare function isToolCallRequestMethod(method: string): boolean;
 //# sourceMappingURL=methods.d.ts.map

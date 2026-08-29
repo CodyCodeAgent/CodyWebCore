@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0
+
+- Centralized Codex server-request method classification and removed product-specific method predicates.
+- Added framework-neutral approval risk summaries for commands, file changes, external tools and manual decisions, including policy evidence and scope mapping.
+- Upgraded the shared Vue request card to show risk level, protected subject, risk labels, impact details and a recommendation before the user decides.
+- Added contract tests for destructive commands, outside-workspace paths, sensitive writes, policy evidence and shared approval rendering.
+
 ## 0.7.0
 
 - Added a framework-neutral `presentation` boundary for tool status, bounded output previews, and consecutive file-change grouping.
