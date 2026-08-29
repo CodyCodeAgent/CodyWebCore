@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.21.0
+
+- Added a shared assistant/plan overlay-message selector for products that merge live state with independently paged durable history.
+- Preserved native plan item identity across structured plan snapshot updates.
+
 ## 0.20.1
 
 - Scoped plan snapshots to their thread and counted revisions from authoritative replacements rather than transport deltas.

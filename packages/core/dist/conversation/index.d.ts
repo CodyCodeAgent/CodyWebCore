@@ -103,6 +103,7 @@ export type ConversationRequest = {
 export type ConversationPlanState = {
     threadId: string;
     turnId?: string;
+    itemId?: string;
     text: string;
     explanation?: string;
     steps?: Array<{
@@ -204,6 +205,8 @@ export type ConversationLiveOverlay = {
     reasoningText: string;
     errorText: string;
 };
+/** Assistant and plan messages that should overlay durable history. */
+export declare function conversationOverlayMessagesFromState(state: ConversationState): ConversationMessage[];
 export type ConversationFeedEntry = {
     id: string;
     kind: 'message';

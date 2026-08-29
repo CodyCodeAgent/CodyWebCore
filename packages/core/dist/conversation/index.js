@@ -368,6 +368,21 @@ export function normalizedConversationBottomLockFrames(frames) {
 export function shouldLockConversationToBottom(scrollState) {
     return shouldRestoreConversationToBottom(scrollState);
 }
+/** Assistant and plan messages that should overlay durable history. */
+export function conversationOverlayMessagesFromState(state) {
+    const messages = state.messages
+        .filter((message) => message.role === 'assistant')
+        .map((message) => ({ ...message, messageType: 'agentMessage.live' }));
+    if (!state.plan?.text)
+        return messages;
+    return [...messages, {
+            id: state.plan.itemId || `plan:${state.plan.turnId || 'current'}:live`,
+            turnId: state.plan.turnId,
+            role: 'assistant',
+            text: state.plan.text,
+            messageType: 'plan.live',
+        }];
+}
 const MAX_APPLIED_EVENT_IDS = 10_000;
 function eventText(data, fallback = '') {
     const value = data.text ?? data.error ?? data.message;
@@ -684,7 +699,8 @@ export function reduceConversationEvent(previous, event) {
     if (event.type === 'plan.delta' || event.type === 'plan.replaced') {
         const text = eventText(event.data);
         const planId = `plan:${event.turnId || 'current'}`;
-        const previousRevision = state.plan && state.plan.turnId === event.turnId ? state.plan.revision : 0;
+        const currentPlan = state.plan && state.plan.turnId === event.turnId ? state.plan : null;
+        const previousRevision = currentPlan?.revision ?? 0;
         const revision = event.type === 'plan.replaced' ? previousRevision + 1 : previousRevision;
         return {
             ...state,
@@ -692,6 +708,7 @@ export function reduceConversationEvent(previous, event) {
             plan: {
                 threadId: event.threadId,
                 turnId: event.turnId,
+                itemId: event.itemId || currentPlan?.itemId,
                 text: event.type === 'plan.delta' ? `${state.plan?.text ?? ''}${text}` : text,
                 ...(typeof event.data.explanation === 'string' ? { explanation: event.data.explanation } : {}),
                 ...(Array.isArray(event.data.steps) ? { steps: event.data.steps } : {}),

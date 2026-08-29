@@ -380,6 +380,7 @@ export type ConversationRequest = {
 export type ConversationPlanState = {
   threadId: string
   turnId?: string
+  itemId?: string
   text: string
   explanation?: string
   steps?: Array<{ step: string; status: 'pending' | 'inProgress' | 'completed' }>
@@ -549,6 +550,21 @@ export type ConversationLiveOverlay = {
   activityDetails: string[]
   reasoningText: string
   errorText: string
+}
+
+/** Assistant and plan messages that should overlay durable history. */
+export function conversationOverlayMessagesFromState(state: ConversationState): ConversationMessage[] {
+  const messages = state.messages
+    .filter((message) => message.role === 'assistant')
+    .map((message) => ({ ...message, messageType: 'agentMessage.live' }))
+  if (!state.plan?.text) return messages
+  return [...messages, {
+    id: state.plan.itemId || `plan:${state.plan.turnId || 'current'}:live`,
+    turnId: state.plan.turnId,
+    role: 'assistant',
+    text: state.plan.text,
+    messageType: 'plan.live',
+  }]
 }
 
 export type ConversationFeedEntry =
@@ -885,7 +901,8 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
   if (event.type === 'plan.delta' || event.type === 'plan.replaced') {
     const text = eventText(event.data)
     const planId = `plan:${event.turnId || 'current'}`
-    const previousRevision = state.plan && state.plan.turnId === event.turnId ? state.plan.revision : 0
+    const currentPlan = state.plan && state.plan.turnId === event.turnId ? state.plan : null
+    const previousRevision = currentPlan?.revision ?? 0
     const revision = event.type === 'plan.replaced' ? previousRevision + 1 : previousRevision
     return {
       ...state,
@@ -893,6 +910,7 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
       plan: {
         threadId: event.threadId,
         turnId: event.turnId,
+        itemId: event.itemId || currentPlan?.itemId,
         text: event.type === 'plan.delta' ? `${state.plan?.text ?? ''}${text}` : text,
         ...(typeof event.data.explanation === 'string' ? { explanation: event.data.explanation } : {}),
         ...(Array.isArray(event.data.steps) ? { steps: event.data.steps as ConversationPlanState['steps'] } : {}),
