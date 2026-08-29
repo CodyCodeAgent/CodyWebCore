@@ -7,6 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@codycodeagent/cody-web-core/conversation': resolve(import.meta.dirname, '../core/dist/conversation/index.js'),
+      '@codycodeagent/cody-web-core/client': resolve(import.meta.dirname, '../core/dist/client/index.js'),
       '@codycodeagent/cody-web-core/composer': resolve(import.meta.dirname, '../core/dist/composer/index.js'),
       '@codycodeagent/cody-web-core/presentation': resolve(import.meta.dirname, '../core/dist/presentation/index.js'),
     },
@@ -21,6 +22,7 @@ export default defineConfig({
     // declared dependencies, while the core release stays small and versionable.
     rollupOptions: {
       external: (id) => id === 'vue'
+        || id.startsWith('@codycodeagent/cody-web-core/')
         || id === 'dompurify'
         || id === 'markdown-it'
         || id === 'markdown-it-footnote'

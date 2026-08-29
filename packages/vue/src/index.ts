@@ -6,3 +6,5 @@ export { DEFAULT_CODY_MARKDOWN_LABELS, renderCodyMarkdown, stabilizeStreamingMar
 export type { CodyMarkdownLabels } from './markdown.js'
 export { conversationEntriesFromState, questionFieldsFromParams, requestSummary } from './types.js'
 export type { CodyComposerOption, CodyConversationEntry, CodyMessage, CodyMessageRole, CodyQuestionField, CodyTool } from './types.js'
+export { useConversationController } from './useConversationController.js'
+export type { UseConversationController } from './useConversationController.js'

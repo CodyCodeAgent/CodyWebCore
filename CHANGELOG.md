@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.0
+
+- Added a Vue conversation-controller composable that owns history, realtime, switching and disposal lifecycle.
+- Prevented disposed controllers from publishing stale state after a rapid thread switch.
+- Kept history-failure degradation and realtime continuity identical across Vue products.
+
 ## 0.15.1
 
 - Kept realtime conversations usable when the initial native-history read fails while retaining the error for explicit retry UI.

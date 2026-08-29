@@ -6,6 +6,7 @@
     "baseUrl": ".",
     "paths": {
       "@codycodeagent/cody-web-core/conversation": ["../core/dist/conversation/index.d.ts"],
+      "@codycodeagent/cody-web-core/client": ["../core/dist/client/index.d.ts"],
       "@codycodeagent/cody-web-core/composer": ["../core/dist/composer/index.d.ts"],
       "@codycodeagent/cody-web-core/presentation": ["../core/dist/presentation/index.d.ts"]
     },
