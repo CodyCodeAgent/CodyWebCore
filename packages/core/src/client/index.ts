@@ -32,7 +32,14 @@ export function createConversationController(threadId: string, transport: Conver
   let state = createConversationState(threadId)
   let readRevision = 0
   let unsubscribeTransport: (() => void) | null = null
+  let started = false
+  let initialReadSettled = false
+  let initialReadPromise: Promise<void> | null = null
+  let connectionRevision = 0
+  let realtimeEventRevision = 0
+  let realtimeJournal: Array<{ revision: number; event: CodexEvent }> = []
   const listeners = new Set<(value: ConversationState) => void>()
+  const MAX_REALTIME_JOURNAL_EVENTS = 10_000
 
   const publish = (next: ConversationState): void => {
     if (next === state) return
@@ -42,48 +49,80 @@ export function createConversationController(threadId: string, transport: Conver
 
   const refresh = async (): Promise<void> => {
     const revision = ++readRevision
-    publish({ ...state, history: { ...state.history, loading: true, requestRevision: revision } })
+    const realtimeRevisionAtStart = realtimeEventRevision
+    publish({ ...state, history: { ...state.history, loading: true, requestRevision: revision, error: '' } })
     try {
       const events = await transport.read(threadId)
       if (revision !== readRevision) return
-      // A read snapshot replaces native-derived state while preserving only
-      // connection and pending realtime requests that have not materialized yet.
-      const snapshot = reduceConversationEvents(createConversationState(threadId), events)
+      // Native history is authoritative, but events arriving after this read
+      // started may not have reached its snapshot yet. Replay only that suffix;
+      // older live overlays are intentionally replaced by native history.
+      const snapshot = reduceConversationEvents(
+        reduceConversationEvents(createConversationState(threadId), events),
+        realtimeJournal
+          .filter((entry) => entry.revision > realtimeRevisionAtStart)
+          .map((entry) => entry.event),
+      )
       publish({
         ...snapshot,
         connection: state.connection,
-        pendingRequests: state.pendingRequests,
-        history: { ...snapshot.history, loading: false, requestRevision: revision },
+        history: {
+          ...snapshot.history,
+          loading: false,
+          requestRevision: revision,
+          error: '',
+          loadedAtIso: new Date().toISOString(),
+        },
       })
     } catch (error) {
       if (revision !== readRevision) return
-      publish({ ...state, history: { ...state.history, loading: false, requestRevision: revision } })
+      publish({
+        ...state,
+        history: {
+          ...state.history,
+          loading: false,
+          requestRevision: revision,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      })
       throw error
     }
   }
 
-  const start = async (): Promise<void> => {
+  const start = (): Promise<void> => {
+    if (started && initialReadPromise) return initialReadPromise
+    if (started) return Promise.resolve()
+    started = true
     if (!unsubscribeTransport) {
       unsubscribeTransport = transport.subscribe(threadId, (value) => {
         if (value.type === 'event') {
+          realtimeEventRevision += 1
+          realtimeJournal = [
+            ...realtimeJournal,
+            { revision: realtimeEventRevision, event: value.event },
+          ].slice(-MAX_REALTIME_JOURNAL_EVENTS)
           publish(reduceConversationEvent(state, value.event))
           return
         }
         if (value.type === 'connected') {
           publish(reduceConversationEvent(state, {
-            id: `connection:${threadId}:${Date.now()}:connected`, type: 'runtime.connected', threadId,
+            id: `connection:${threadId}:${String(++connectionRevision)}:connected`, type: 'runtime.connected', threadId,
             atIso: new Date().toISOString(), data: {},
           }))
-          void refresh().catch(() => undefined)
+          if (initialReadSettled) void refresh().catch(() => undefined)
           return
         }
         publish(reduceConversationEvent(state, {
-          id: `connection:${threadId}:${Date.now()}:disconnected`, type: 'runtime.disconnected', threadId,
+          id: `connection:${threadId}:${String(++connectionRevision)}:disconnected`, type: 'runtime.disconnected', threadId,
           atIso: new Date().toISOString(), data: { error: value.error ?? 'Realtime connection disconnected.' },
         }))
       })
     }
-    await refresh()
+    initialReadPromise = refresh().finally(() => {
+      initialReadSettled = true
+      initialReadPromise = null
+    })
+    return initialReadPromise
   }
 
   return {
@@ -91,7 +130,17 @@ export function createConversationController(threadId: string, transport: Conver
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener) },
     start,
     refresh,
-    dispose() { readRevision += 1; unsubscribeTransport?.(); unsubscribeTransport = null; listeners.clear() },
+    dispose() {
+      readRevision += 1
+      started = false
+      initialReadSettled = false
+      initialReadPromise = null
+      realtimeJournal = []
+      realtimeEventRevision = 0
+      unsubscribeTransport?.()
+      unsubscribeTransport = null
+      listeners.clear()
+    },
   }
 }
 

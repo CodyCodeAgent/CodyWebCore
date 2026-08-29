@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { createConversationState, dataAuthorityFor, mergeMessages, previewToolOutput, reduceConversationEvents, upsertLiveDelta } from '../src/conversation/index.js'
+import {
+  buildConversationScrollMetrics,
+  createConversationState,
+  dataAuthorityFor,
+  hiddenMessageCount,
+  mergeMessages,
+  nextVisibleMessageCount,
+  previewToolOutput,
+  reduceConversationEvents,
+  restoredConversationScrollTop,
+  shouldPreserveConversationViewport,
+  upsertLiveDelta,
+} from '../src/conversation/index.js'
 
 describe('conversation core', () => {
   it('replaces an optimistic user message without duplicating it', () => {
@@ -107,5 +119,19 @@ describe('conversation core', () => {
       { id: 'done', type: 'turn.completed', threadId: 'thread-1', turnId: 'turn-1', atIso: '1970-01-01T00:00:00.000Z', data: { history: true, durationKnown: false } },
     ])
     expect(state.presentation).not.toContainEqual(expect.objectContaining({ kind: 'worked' }))
+  })
+
+  it('keeps history windows and scroll restoration deterministic', () => {
+    expect(hiddenMessageCount(200, 80)).toBe(120)
+    expect(nextVisibleMessageCount(200, 80)).toBe(160)
+    expect(nextVisibleMessageCount(100, 80)).toBe(100)
+    expect(buildConversationScrollMetrics({
+      scrollTop: 780,
+      scrollHeight: 1_000,
+      clientHeight: 200,
+      bottomThresholdPx: 16,
+    })).toEqual({ maxScrollTop: 800, scrollRatio: 0.975, isAtBottom: false })
+    expect(restoredConversationScrollTop({ scrollTop: 20, scrollRatio: 0.5, isAtBottom: false }, 800)).toBe(400)
+    expect(shouldPreserveConversationViewport({ scrollTop: 20, isAtBottom: false })).toBe(true)
   })
 })

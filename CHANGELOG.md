@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.0
+
+- Fixed native-history/realtime races by replaying events that arrive while a history read is in flight.
+- Prevented initial socket connection from launching a duplicate history read and exposed history read failures in shared state.
+- Added framework-neutral history-window and scroll-follow primitives for both product UIs.
+
 ## 0.9.1
 
 - Removed the legacy `guide` UI alias from the shared Vue composer; submission mode values are now canonical `queue | steer` end to end.
