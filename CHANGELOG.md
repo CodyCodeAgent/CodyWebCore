@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.21.3
+
+- Kept assistant overlays live when a provider omits an explicit turn-start notification; only terminal lifecycle states finalize them.
+
 ## 0.21.2
 
 - Finalized assistant overlay rows when their turn ends and removed ended plan overlays while durable history catches up.

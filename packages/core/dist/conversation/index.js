@@ -372,13 +372,15 @@ export function shouldLockConversationToBottom(scrollState) {
 export function conversationOverlayMessagesFromState(state) {
     const messages = state.messages
         .filter((message) => message.role === 'assistant')
-        .map((message) => ({
-        ...message,
-        id: message.id.replace(/^(?:live|agent):/u, ''),
-        messageType: message.turnId && state.turns[message.turnId]?.lifecycle !== 'running'
-            ? 'agentMessage'
-            : 'agentMessage.live',
-    }));
+        .map((message) => {
+        const lifecycle = message.turnId ? state.turns[message.turnId]?.lifecycle : undefined;
+        const terminal = lifecycle === 'completed' || lifecycle === 'failed' || lifecycle === 'interrupted';
+        return {
+            ...message,
+            id: message.id.replace(/^(?:live|agent):/u, ''),
+            messageType: terminal ? 'agentMessage' : 'agentMessage.live',
+        };
+    });
     if (!state.plan?.text || state.plan.lifecycle === 'ended')
         return messages;
     return [...messages, {
