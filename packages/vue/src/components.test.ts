@@ -48,6 +48,16 @@ describe('shared conversation components', () => {
     expect(withSkill.emitted('send')).toEqual([[]])
   })
 
+  it('emits stop while a turn is running', async () => {
+    const wrapper = mount(CodyComposer, {
+      props: { draft: '', isRunning: true, disabled: false },
+    })
+
+    await wrapper.find('.cody-composer-stop').trigger('click')
+
+    expect(wrapper.emitted('stop')).toEqual([[]])
+  })
+
   it('keeps completed tools collapsed and running tools open', () => {
     const wrapper = mount(CodyConversation, {
       props: {
