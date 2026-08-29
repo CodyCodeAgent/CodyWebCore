@@ -1,9 +1,16 @@
 import { createTypedCodexClient } from '../protocol/methods.js';
+import { asRecord } from '../protocol/index.js';
 function requiredId(value, label) {
+    if (typeof value !== 'string')
+        throw new Error(`${label} must be a string`);
     const normalized = value.trim();
     if (!normalized)
         throw new Error(`${label} is required`);
     return normalized;
+}
+function responseId(value, objectKey, label) {
+    const nested = asRecord(asRecord(value)?.[objectKey]);
+    return requiredId(nested?.id, label);
 }
 /**
  * Stateless, schema-bound Codex thread and turn commands.
@@ -19,7 +26,7 @@ export class CodexThreadCommands {
     }
     async startThread(params = {}) {
         const result = await this.client.call('thread/start', params);
-        return requiredId(result.thread.id, 'thread/start result thread id');
+        return responseId(result, 'thread', 'thread/start result thread id');
     }
     async resumeThread(threadId, overrides = {}) {
         await this.client.call('thread/resume', { ...overrides, threadId: requiredId(threadId, 'threadId') });
@@ -32,7 +39,7 @@ export class CodexThreadCommands {
     }
     async forkThread(threadId, overrides = {}) {
         const result = await this.client.call('thread/fork', { ...overrides, threadId: requiredId(threadId, 'threadId') });
-        return requiredId(result.thread.id, 'thread/fork result thread id');
+        return responseId(result, 'thread', 'thread/fork result thread id');
     }
     async compactThread(threadId) {
         await this.client.call('thread/compact/start', { threadId: requiredId(threadId, 'threadId') });
@@ -42,7 +49,7 @@ export class CodexThreadCommands {
     }
     async startTurn(threadId, input) {
         const result = await this.client.call('turn/start', { ...input, threadId: requiredId(threadId, 'threadId') });
-        return requiredId(result.turn.id, 'turn/start result turn id');
+        return responseId(result, 'turn', 'turn/start result turn id');
     }
     async steerTurn(threadId, expectedTurnId, input) {
         await this.client.call('turn/steer', {

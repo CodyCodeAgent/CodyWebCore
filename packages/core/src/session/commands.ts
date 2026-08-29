@@ -1,4 +1,5 @@
 import { createTypedCodexClient, type CodexRpcCaller, type TypedCodexClient } from '../protocol/methods.js'
+import { asRecord } from '../protocol/index.js'
 import type { ThreadForkParams } from '../protocol/generated/v2/ThreadForkParams.js'
 import type { ThreadResumeParams } from '../protocol/generated/v2/ThreadResumeParams.js'
 import type { ThreadStartParams } from '../protocol/generated/v2/ThreadStartParams.js'
@@ -9,10 +10,16 @@ export type ThreadResumeOverrides = Omit<ThreadResumeParams, 'threadId'>
 export type ThreadForkOverrides = Omit<ThreadForkParams, 'threadId'>
 export type TurnStartInput = Omit<TurnStartParams, 'threadId'>
 
-function requiredId(value: string, label: string): string {
+function requiredId(value: unknown, label: string): string {
+  if (typeof value !== 'string') throw new Error(`${label} must be a string`)
   const normalized = value.trim()
   if (!normalized) throw new Error(`${label} is required`)
   return normalized
+}
+
+function responseId(value: unknown, objectKey: 'thread' | 'turn', label: string): string {
+  const nested = asRecord(asRecord(value)?.[objectKey])
+  return requiredId(nested?.id, label)
 }
 
 /**
@@ -31,7 +38,7 @@ export class CodexThreadCommands {
 
   async startThread(params: ThreadStartParams = {}): Promise<string> {
     const result = await this.client.call('thread/start', params)
-    return requiredId(result.thread.id, 'thread/start result thread id')
+    return responseId(result, 'thread', 'thread/start result thread id')
   }
 
   async resumeThread(threadId: string, overrides: ThreadResumeOverrides = {}): Promise<void> {
@@ -47,7 +54,7 @@ export class CodexThreadCommands {
 
   async forkThread(threadId: string, overrides: ThreadForkOverrides = {}): Promise<string> {
     const result = await this.client.call('thread/fork', { ...overrides, threadId: requiredId(threadId, 'threadId') })
-    return requiredId(result.thread.id, 'thread/fork result thread id')
+    return responseId(result, 'thread', 'thread/fork result thread id')
   }
 
   async compactThread(threadId: string): Promise<void> {
@@ -60,7 +67,7 @@ export class CodexThreadCommands {
 
   async startTurn(threadId: string, input: TurnStartInput): Promise<string> {
     const result = await this.client.call('turn/start', { ...input, threadId: requiredId(threadId, 'threadId') })
-    return requiredId(result.turn.id, 'turn/start result turn id')
+    return responseId(result, 'turn', 'turn/start result turn id')
   }
 
   async steerTurn(threadId: string, expectedTurnId: string, input: UserInput[]): Promise<void> {

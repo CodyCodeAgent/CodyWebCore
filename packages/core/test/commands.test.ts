@@ -43,5 +43,7 @@ describe('CodexThreadCommands', () => {
   it('rejects malformed successful responses', async () => {
     const commands = new CodexThreadCommands({ call: vi.fn(async () => ({ thread: { id: '' } })) })
     await expect(commands.startThread()).rejects.toThrow('result thread id')
+    const missingEnvelope = new CodexThreadCommands({ call: vi.fn(async () => ({})) })
+    await expect(missingEnvelope.startThread()).rejects.toThrow('thread/start result thread id must be a string')
   })
 })

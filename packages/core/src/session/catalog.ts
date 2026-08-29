@@ -122,22 +122,52 @@ function sourceLabel(value: unknown): string {
   return kind ?? ''
 }
 
+function protocolString(value: unknown, label: string, required = true): string {
+  if (value === null || value === undefined) {
+    if (required) throw new Error(`${label} must be a string`)
+    return ''
+  }
+  if (typeof value !== 'string') throw new Error(`${label} must be a string`)
+  return value.trim()
+}
+
+function protocolNumber(value: unknown, label: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error(`${label} must be a finite number`)
+  return value
+}
+
 function threadSummary(thread: Thread): CodexThreadSummary {
+  const row = asRecord(thread)
+  if (!row) throw new Error('Codex thread payload must be an object')
+  const status = asRecord(row.status)
+  const statusType = protocolString(status?.type, 'Codex thread.status.type')
+  if (!['notLoaded', 'idle', 'systemError', 'active'].includes(statusType)) {
+    throw new Error(`Codex thread.status.type is invalid: ${statusType}`)
+  }
+  const ephemeral = row.ephemeral
+  if (typeof ephemeral !== 'boolean') throw new Error('Codex thread.ephemeral must be a boolean')
+  const canAcceptDirectInput = row.canAcceptDirectInput
+  if (canAcceptDirectInput !== null && typeof canAcceptDirectInput !== 'boolean') {
+    throw new Error('Codex thread.canAcceptDirectInput must be a boolean or null')
+  }
+  const activeFlags = statusType === 'active'
+    ? (Array.isArray(status?.activeFlags) ? status.activeFlags.map(sourceLabel).filter(Boolean) : (() => { throw new Error('Codex active thread.status.activeFlags must be an array') })())
+    : []
   return {
-    threadId: thread.id.trim(),
-    sessionId: thread.sessionId.trim(),
-    parentThreadId: thread.parentThreadId?.trim() ?? '',
-    forkedFromThreadId: thread.forkedFromId?.trim() ?? '',
-    preview: thread.preview.trim(),
-    name: thread.name?.trim() ?? '',
-    cwd: thread.cwd.trim(),
-    createdAtIso: timestampIso(thread.createdAt),
-    updatedAtIso: timestampIso(thread.updatedAt),
-    source: sourceLabel(thread.source),
-    status: thread.status.type,
-    activeFlags: thread.status.type === 'active' ? thread.status.activeFlags.map(sourceLabel).filter(Boolean) : [],
-    ephemeral: thread.ephemeral,
-    canAcceptDirectInput: thread.canAcceptDirectInput,
+    threadId: protocolString(row.id, 'Codex thread.id'),
+    sessionId: protocolString(row.sessionId, 'Codex thread.sessionId'),
+    parentThreadId: protocolString(row.parentThreadId, 'Codex thread.parentThreadId', false),
+    forkedFromThreadId: protocolString(row.forkedFromId, 'Codex thread.forkedFromId', false),
+    preview: protocolString(row.preview, 'Codex thread.preview'),
+    name: protocolString(row.name, 'Codex thread.name', false),
+    cwd: protocolString(row.cwd, 'Codex thread.cwd'),
+    createdAtIso: timestampIso(protocolNumber(row.createdAt, 'Codex thread.createdAt')),
+    updatedAtIso: timestampIso(protocolNumber(row.updatedAt, 'Codex thread.updatedAt')),
+    source: sourceLabel(row.source),
+    status: statusType as CodexThreadSummary['status'],
+    activeFlags,
+    ephemeral,
+    canAcceptDirectInput,
   }
 }
 
@@ -163,6 +193,7 @@ export class CodexSessionCatalog {
         ...(options.cwd ? { cwd: options.cwd } : {}),
         ...(options.searchTerm?.trim() ? { searchTerm: options.searchTerm.trim() } : {}),
       })
+      if (!Array.isArray(result.data)) throw new Error('thread/list result.data must be an array')
       rows.push(...result.data.map(threadSummary))
       cursor = result.nextCursor
       if (!cursor) break

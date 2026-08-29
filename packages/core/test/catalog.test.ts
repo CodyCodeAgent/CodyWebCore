@@ -30,6 +30,14 @@ describe('CodexSessionCatalog', () => {
     expect(rpc.call).toHaveBeenNthCalledWith(2, 'thread/list', expect.objectContaining({ cursor: 'next' }), undefined)
   })
 
+  it('reports malformed thread payload fields with protocol context', async () => {
+    const catalog = new CodexSessionCatalog(rpcWith(() => ({
+      data: [{ id: 'thread-1', preview: 'broken', cwd: '/repo', createdAt: 1, updatedAt: 2, status: { type: 'idle' }, ephemeral: false, canAcceptDirectInput: true }],
+      nextCursor: null,
+    })))
+    await expect(catalog.listThreads()).rejects.toThrow('Codex thread.sessionId must be a string')
+  })
+
   it('normalizes current model and collaboration-mode schema', async () => {
     const rpc = rpcWith((method) => {
       if (method === 'model/list') return {

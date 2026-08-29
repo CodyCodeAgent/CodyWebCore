@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.32.0
+
+- Added runtime contract validation for stable Thread summaries and Thread/Turn command result identifiers.
+- Replaced opaque property-access failures with method-and-field-specific protocol errors.
+
 ## 0.31.0
 
 - Restart a hung App Server after initialization timeout, while preserving the existing guard that forbids recovery with pending server requests.
