@@ -57,7 +57,7 @@ export declare function groupConsecutiveFileChanges<T extends ConversationMessag
     firstIndex: number;
     messages: T[];
 }>;
-export type CodexEventType = 'thread.attached' | 'thread.context.updated' | 'thread.compacted' | 'turn.started' | 'turn.activity' | 'turn.retrying' | 'turn.completed' | 'turn.failed' | 'turn.interrupted' | 'user.completed' | 'assistant.delta' | 'assistant.completed' | 'reasoning.delta' | 'reasoning.break' | 'plan.delta' | 'plan.replaced' | 'tool.started' | 'tool.updated' | 'tool.completed' | 'fileChange.updated' | 'approval.requested' | 'approval.resolved' | 'question.requested' | 'question.resolved' | 'runtime.connected' | 'runtime.disconnected' | 'provider.extension';
+export type CodexEventType = 'thread.attached' | 'thread.context.updated' | 'thread.compaction.started' | 'thread.compacted' | 'turn.started' | 'turn.activity' | 'turn.retrying' | 'turn.completed' | 'turn.failed' | 'turn.interrupted' | 'user.completed' | 'assistant.delta' | 'assistant.completed' | 'reasoning.delta' | 'reasoning.break' | 'plan.delta' | 'plan.replaced' | 'tool.started' | 'tool.updated' | 'tool.completed' | 'fileChange.updated' | 'approval.requested' | 'approval.resolved' | 'question.requested' | 'question.resolved' | 'runtime.connected' | 'runtime.disconnected' | 'provider.extension';
 /** Framework- and transport-neutral event emitted by the shared Codex session manager. */
 export type CodexEvent = {
     id: string;
@@ -74,6 +74,7 @@ export type ConversationTurnState = {
     lifecycle: TurnLifecycle;
     startedAtIso?: string;
     completedAtIso?: string;
+    durationMs?: number;
     retryMessage?: string;
     error?: string;
 };
@@ -127,7 +128,7 @@ export type ConversationContextUsageState = {
     inputTokens: number;
     contextWindow: number | null;
     autoCompactTokenLimit: number | null;
-    compactionState: 'idle' | 'compacted';
+    compactionState: 'idle' | 'compacting' | 'compacted';
     updatedAtIso: string;
 };
 export type ConversationConnectionState = {
@@ -207,6 +208,8 @@ export type ConversationLiveOverlay = {
 };
 /** Assistant and plan messages that should overlay durable history. */
 export declare function conversationOverlayMessagesFromState(state: ConversationState): ConversationMessage[];
+/** Returns the last completed assistant response without exposing native payload shapes. */
+export declare function latestAssistantTextFromEvents(events: readonly CodexEvent[]): string;
 export type ConversationFeedEntry = {
     id: string;
     kind: 'message';

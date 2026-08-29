@@ -53,6 +53,26 @@ function readNonNegativeInteger(value) {
     }
     return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
 }
+function readNonNegativeNumber(value) {
+    const numeric = typeof value === 'bigint' ? Number(value) : typeof value === 'string' ? Number(value.trim()) : value;
+    return typeof numeric === 'number' && Number.isFinite(numeric) && numeric >= 0 ? numeric : null;
+}
+function timestampValueIso(value) {
+    const numeric = typeof value === 'bigint' ? Number(value) : typeof value === 'string' && /^\d+(?:\.\d+)?$/u.test(value.trim()) ? Number(value) : null;
+    if (typeof value === 'number' || numeric !== null) {
+        const epoch = typeof value === 'number' ? value : numeric;
+        if (!Number.isFinite(epoch) || epoch <= 0)
+            return null;
+        return new Date(epoch > 10_000_000_000 ? epoch : epoch * 1_000).toISOString();
+    }
+    if (typeof value !== 'string')
+        return null;
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
+}
+function payloadTimestampIso(row, camelKey, snakeKey) {
+    return timestampValueIso(row?.[camelKey] ?? row?.[snakeKey]);
+}
 function itemId(item) {
     return readString(asRecord(item)?.id);
 }
@@ -300,9 +320,14 @@ export function normalizeCodexNotification(notification, options = {}) {
                 } }];
     }
     if (notification.method === 'turn/started') {
+        const turn = asRecord(params.turn);
+        const startedAtIso = payloadTimestampIso(turn, 'startedAt', 'started_at')
+            ?? payloadTimestampIso(params, 'startedAt', 'started_at')
+            ?? atIso;
+        const startedCommon = { ...common, atIso: startedAtIso };
         return [
-            { id: id('started'), type: 'turn.started', ...common, data: params },
-            activityEvent(common, id('activity'), 'Thinking'),
+            { id: id('started'), type: 'turn.started', ...startedCommon, data: params },
+            activityEvent(startedCommon, id('activity'), 'Thinking'),
         ];
     }
     if (notification.method === 'turn/completed') {
@@ -310,11 +335,24 @@ export function normalizeCodexNotification(notification, options = {}) {
         const status = readString(turn?.status);
         const completedTurnId = readString(turn?.id) || turnId;
         const type = status === 'failed' ? 'turn.failed' : status === 'interrupted' || status === 'cancelled' ? 'turn.interrupted' : 'turn.completed';
-        return [{
-                id: id('terminal'), type, ...common, ...(completedTurnId ? { turnId: completedTurnId } : {}),
+        const completedAtIso = payloadTimestampIso(turn, 'completedAt', 'completed_at')
+            ?? payloadTimestampIso(params, 'completedAt', 'completed_at')
+            ?? atIso;
+        const durationMs = readNonNegativeNumber(turn?.durationMs ?? turn?.duration_ms ?? params.durationMs ?? params.duration_ms);
+        const items = Array.isArray(turn?.items) ? turn.items : [];
+        const completedItems = items.flatMap((item, index) => itemEvents({
+            id: (suffix) => id(`turn-item:${String(index)}:${suffix}`, itemId(item)),
+            phase: 'completed',
+            threadId,
+            turnId: completedTurnId,
+            item,
+            atIso: completedAtIso,
+        }));
+        return [...completedItems, {
+                id: id('terminal'), type, ...common, atIso: completedAtIso, ...(completedTurnId ? { turnId: completedTurnId } : {}),
                 data: type === 'turn.failed'
-                    ? { error: textFromError(turn?.error), status, raw: params }
-                    : { status, raw: params },
+                    ? { error: textFromError(turn?.error), status, ...(durationMs !== null ? { durationMs } : {}), raw: params }
+                    : { status, ...(durationMs !== null ? { durationMs } : {}), raw: params },
             }];
     }
     if (notification.method === 'turn/failed' || notification.method === 'turn/interrupted') {

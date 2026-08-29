@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.22.0
+
+- Normalized completed Turn items and exposed one final-assistant selector so product services no longer parse native item payloads.
+- Preserved native Turn timestamps and explicit durations instead of measuring transport arrival latency.
+- Added reducer-owned optimistic context-compaction state for product controls.
+
 ## 0.21.3
 
 - Kept assistant overlays live when a provider omits an explicit turn-start notification; only terminal lifecycle states finalize them.

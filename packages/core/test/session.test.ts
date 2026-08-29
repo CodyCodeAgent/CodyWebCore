@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AppServerDiagnostics, AppServerHost, RuntimeNotification, RuntimeNotificationListener, ServerRequestReply } from '../src/runtime/index.js'
 import { buildTurnUserInput, CodexSessionManager, conversationToolFromItem, normalizeCodexNotification, normalizeThreadHistory } from '../src/session/index.js'
-import { createConversationState, reduceConversationEvents, type CodexEvent } from '../src/conversation/index.js'
+import { createConversationState, latestAssistantTextFromEvents, reduceConversationEvents, type CodexEvent } from '../src/conversation/index.js'
 
 class FakeHost implements AppServerHost {
   readonly listeners = new Set<RuntimeNotificationListener>()
@@ -78,9 +78,25 @@ describe('normalizeCodexNotification', () => {
 
     expect(normalizeCodexNotification({
       method: 'turn/completed',
-      params: { threadId: 'thread-1', turn: { id: 'turn-1', status: 'completed' } },
+      params: { threadId: 'thread-1', turn: { id: 'turn-1', status: 'completed', completedAt: '2026-01-01T00:00:02.500Z', durationMs: 2_500, items: [{ id: 'agent-1', type: 'agentMessage', text: 'Final answer' }] } },
       atIso: '2026-01-01T00:00:02.000Z',
-    }, options)).toEqual([expect.objectContaining({ type: 'turn.completed', turnId: 'turn-1' })])
+    }, options)).toEqual([
+      expect.objectContaining({ type: 'assistant.completed', itemId: 'agent-1', atIso: '2026-01-01T00:00:02.500Z' }),
+      expect.objectContaining({ type: 'turn.completed', turnId: 'turn-1', atIso: '2026-01-01T00:00:02.500Z', data: expect.objectContaining({ durationMs: 2_500 }) }),
+    ])
+  })
+
+  it('selects the final assistant response from normalized item or terminal payloads', () => {
+    const events = normalizeCodexNotification({
+      method: 'turn/completed',
+      params: { threadId: 'thread-1', turn: { id: 'turn-1', status: 'completed', items: [
+        { id: 'agent-1', type: 'agentMessage', text: 'First' },
+        { id: 'tool-1', type: 'commandExecution', status: 'completed' },
+        { id: 'agent-2', type: 'agentMessage', text: 'Final' },
+      ] } },
+      atIso: '2026-01-01T00:00:02.000Z',
+    }, options)
+    expect(latestAssistantTextFromEvents(events)).toBe('Final')
   })
 
   it('keeps structured plan steps when replacing the live plan snapshot', () => {

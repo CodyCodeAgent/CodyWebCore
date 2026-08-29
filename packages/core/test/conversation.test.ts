@@ -112,6 +112,7 @@ describe('conversation core', () => {
       { ...base, id: 'usage', type: 'thread.context.updated', data: {
         turnId: 'turn-1', usedTokens: 1200, inputTokens: 900, contextWindow: 128_000, autoCompactTokenLimit: 100_000,
       } },
+      { ...base, id: 'compacting', type: 'thread.compaction.started', data: {} },
       { ...base, id: 'compacted', type: 'thread.compacted', data: {} },
     ])
 
@@ -121,6 +122,14 @@ describe('conversation core', () => {
       turnId: 'turn-1', usedTokens: 1200, inputTokens: 900, contextWindow: 128_000,
       autoCompactTokenLimit: 100_000, compactionState: 'compacted', updatedAtIso: base.atIso,
     })
+  })
+
+  it('prefers a native turn duration over transport arrival latency', () => {
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { id: 'start', type: 'turn.started', threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:00.000Z', data: {} },
+      { id: 'done', type: 'turn.completed', threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:09.000Z', data: { durationMs: 1_250 } },
+    ])
+    expect(conversationFeedFromState(state).at(-1)).toMatchObject({ kind: 'turn', durationMs: 1_250 })
   })
 
   it('never promotes a terminal-only diagnostic turn to active', () => {

@@ -391,6 +391,18 @@ export function conversationOverlayMessagesFromState(state) {
             messageType: 'plan.live',
         }];
 }
+/** Returns the last completed assistant response without exposing native payload shapes. */
+export function latestAssistantTextFromEvents(events) {
+    for (let index = events.length - 1; index >= 0; index -= 1) {
+        const event = events[index];
+        if (event?.type !== 'assistant.completed')
+            continue;
+        const text = eventText(event.data).trim();
+        if (text)
+            return text;
+    }
+    return '';
+}
 const MAX_APPLIED_EVENT_IDS = 10_000;
 function eventText(data, fallback = '') {
     const value = data.text ?? data.error ?? data.message;
@@ -475,6 +487,9 @@ function updateTurn(state, event, lifecycle) {
     const terminal = lifecycle === 'completed' || lifecycle === 'failed' || lifecycle === 'interrupted';
     const error = lifecycle === 'failed' ? eventText(event.data, 'Codex failed to complete this turn.') : undefined;
     const retryMessage = lifecycle === 'retrying' ? eventText(event.data, 'Reconnecting…') : undefined;
+    const explicitDurationMs = typeof event.data.durationMs === 'number' && Number.isFinite(event.data.durationMs)
+        ? Math.max(event.data.durationMs, 0)
+        : undefined;
     return {
         ...state,
         activeTurnId: terminal
@@ -487,6 +502,7 @@ function updateTurn(state, event, lifecycle) {
                 lifecycle,
                 startedAtIso: current?.startedAtIso ?? (lifecycle === 'running' ? event.atIso : undefined),
                 ...(terminal ? { completedAtIso: event.atIso } : {}),
+                ...(explicitDurationMs !== undefined ? { durationMs: explicitDurationMs } : {}),
                 ...(retryMessage ? { retryMessage } : {}),
                 ...(error ? { error } : {}),
             },
@@ -565,6 +581,21 @@ export function reduceConversationEvent(previous, event) {
                 compactionState: 'idle',
                 updatedAtIso: event.atIso,
             },
+        };
+    }
+    if (event.type === 'thread.compaction.started') {
+        return {
+            ...state,
+            contextUsage: {
+                turnId: state.contextUsage?.turnId ?? event.turnId ?? '',
+                usedTokens: state.contextUsage?.usedTokens ?? 0,
+                inputTokens: state.contextUsage?.inputTokens ?? 0,
+                contextWindow: state.contextUsage?.contextWindow ?? null,
+                autoCompactTokenLimit: state.contextUsage?.autoCompactTokenLimit ?? null,
+                compactionState: 'compacting',
+                updatedAtIso: event.atIso,
+            },
+            activity: { label: 'Compacting context', details: [], updatedAtIso: event.atIso },
         };
     }
     if (event.type === 'thread.compacted') {
@@ -826,9 +857,9 @@ export function conversationFeedFromState(state) {
         const turn = state.turns[turnId];
         if (!turn)
             return;
-        const durationMs = turn.startedAtIso && turn.completedAtIso
+        const durationMs = turn.durationMs ?? (turn.startedAtIso && turn.completedAtIso
             ? Math.max(Date.parse(turn.completedAtIso) - Date.parse(turn.startedAtIso), 0)
-            : null;
+            : null);
         feed.push({ id, kind: 'turn', turnId, status, durationMs, error: turn.error ?? '' });
         seen.add(id);
     };
