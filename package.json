@@ -30,9 +30,10 @@
     "mermaid": "^11.16.0"
   },
   "scripts": {
+    "check:boundaries": "node scripts/check-boundaries.mjs",
     "generate:protocol": "node scripts/generate-protocol.mjs",
     "build": "pnpm --filter @codycodeagent/cody-web-core-build build && pnpm --filter @codycodeagent/cody-web-ui build",
-    "test": "pnpm --filter @codycodeagent/cody-web-core-build test && pnpm --filter @codycodeagent/cody-web-core-build build && pnpm --filter @codycodeagent/cody-web-ui test",
+    "test": "pnpm check:boundaries && pnpm --filter @codycodeagent/cody-web-core-build test && pnpm --filter @codycodeagent/cody-web-core-build build && pnpm --filter @codycodeagent/cody-web-ui test",
     "typecheck": "pnpm --filter @codycodeagent/cody-web-core-build typecheck && pnpm --filter @codycodeagent/cody-web-ui typecheck"
   }
 }

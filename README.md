@@ -21,14 +21,13 @@ Framework-neutral Codex App Server primitives shared by CodyWebUI and CodyWork.
 
 | Core | Codex App Server boundary | Product migration |
 | --- | --- | --- |
-| 0.6.7 | Same wire schema; adds normalized `turn.interrupted` terminal semantics | Products should treat a user stop as neutral/idle and must not surface it as a provider failure |
-| 0.6.6 | Same 0.6.5 runtime/protocol contract; adds shared Vue live-turn and retry presentation | Products should delete local live-status placeholders and render the activity entry from shared conversation state |
-| 0.6.1 | Same 0.6.0 runtime/protocol contract; fixes terminal-event conversation authority | Products should upgrade together so failed historical diagnostics cannot leave the composer in a false running state |
-| 0.6.0 | Same Codex 0.148.x wire schema as 0.5.1; adds Core-only runtime failure diagnostics (no generated protocol change) | Products may adopt `failureReport()` incrementally; existing host calls remain unchanged |
-| 0.5.1 | Codex 0.148.x generated schema; current `permissions` profiles and `runtimeWorkspaceRoots`; unknown notifications are retained as `provider.extension` | CodyWebUI and CodyWork use the same runtime, protocol readers and conversation rules |
-| 0.5.0 | Earlier generated schema with legacy `readOnlyAccess` compatibility | Superseded; products must upgrade together |
+| 0.22.4 | Current generated schema; one terminal/retry authority, terminal item/usage recovery and shared Vue conversation/composer | CodyWeb and CodyWork must upgrade together and delete local Turn/message reconciliation |
+| 0.15–0.22.2 | Progressive shared activity, plans, token usage, history/live feed, overlays and native terminal outcomes | Superseded by 0.22.4 because older releases may classify reconnect diagnostics as terminal |
+| ≤ 0.14 | Runtime/protocol foundation without the complete shared conversation authority | Superseded; do not use for either product |
 
 Schema snapshots live in `packages/core/schema/json`. Changes to generated schemas, normalized events, runtime recovery or Vue interaction contracts require a minor version and changelog entry.
+
+The complete dependency, authority and product-adapter contract is documented in [ARCHITECTURE.md](./ARCHITECTURE.md). `pnpm check:boundaries` enforces the internal import direction.
 
 Run `pnpm generate:protocol` with the target `codex` binary on `PATH` to atomically regenerate both TypeScript and JSON snapshots. The command records the generator version in `packages/core/schema/CODEX_VERSION`.
 
