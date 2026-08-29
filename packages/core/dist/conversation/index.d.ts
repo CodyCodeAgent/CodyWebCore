@@ -20,6 +20,10 @@ export type ConversationMessage = {
         path: string;
         displayName?: string;
     }>;
+    outbox?: {
+        status: 'queued' | 'sending' | 'failed';
+        lastError?: string;
+    };
     tool?: ConversationTool | null;
     messageType?: string;
     rawPayload?: unknown;
@@ -28,6 +32,9 @@ export type ConversationMessage = {
 export type DataAuthority = 'overlay' | 'replace-snapshot' | 'invalidate' | 'apply-delta-then-reconcile' | 'ignore';
 export declare function dataAuthorityFor(method: string): DataAuthority;
 export declare function normalizeMessageText(value: string): string;
+export declare function areConversationMessageFieldsEqual<T extends ConversationMessage>(first: T, second: T): boolean;
+export declare function areConversationMessageArraysStable<T extends ConversationMessage>(first: T[], second: T[]): boolean;
+export declare function removeDuplicateAdjacentUserMessages<T extends ConversationMessage>(messages: T[]): T[];
 export declare function mergeMessages<T extends ConversationMessage>(previous: T[], incoming: T[], options?: {
     preserveMissing?: boolean;
 }): T[];
@@ -37,6 +44,8 @@ export declare function upsertLiveDelta<T extends ConversationMessage>(messages:
     turnId?: string;
     messageType: 'agentMessage.live' | 'plan.live';
 }): T[];
+export declare function removeRedundantLiveAssistantMessages<T extends ConversationMessage>(messages: T[], persisted: T[]): T[];
+export declare function compactConversationMessages<T extends ConversationMessage>(messages: T[]): T[];
 export declare function reconcilePersistedMessages<T extends ConversationMessage>(messages: T[], persisted: T[]): T[];
 export declare function toolStatusTone(status: string): 'neutral' | 'running' | 'success' | 'danger';
 export declare function previewToolOutput(output: string, maxLines?: number, maxChars?: number): {

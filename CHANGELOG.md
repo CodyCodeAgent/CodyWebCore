@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.13.0
+
+- Promoted protocol-order insertion, outbox/optimistic convergence and replay de-duplication into the shared conversation core.
+- Normalized local-image identities and preserved intentionally repeated prompts across completed turn boundaries.
+- Added stable message comparison, display compaction and live/persisted assistant reconciliation primitives.
+- Exposed the session and client entrypoints consistently from the build package.
+
 ## 0.12.0
 
 - Added one rich native-item tool normalizer shared by history and realtime paths.

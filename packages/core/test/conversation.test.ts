@@ -32,6 +32,41 @@ describe('conversation core', () => {
     expect(output).toEqual([{ id: 'item-1', turnId: 'turn-1', role: 'assistant', text: 'Hello world' }])
   })
 
+  it('keeps historical protocol order while preserving a live suffix', () => {
+    const oldAnswer = { id: 'old-answer', turnId: 'old', role: 'assistant' as const, text: 'old answer' }
+    const receipt = { id: 'worked:old', turnId: 'old', role: 'system' as const, text: 'Answered', messageType: 'worked' }
+    const currentUser = { id: 'current-user', turnId: 'current', role: 'user' as const, text: 'new question' }
+    const liveAnswer = { id: 'live:current', turnId: 'current', role: 'assistant' as const, text: 'streaming', messageType: 'agentMessage.live' }
+    const missingOldUser = { id: 'old-user', turnId: 'old', role: 'user' as const, text: 'old question' }
+
+    const output = mergeMessages(
+      [oldAnswer, receipt, currentUser, liveAnswer],
+      [missingOldUser, oldAnswer, receipt, currentUser],
+      { preserveMissing: true },
+    )
+
+    expect(output.map((message) => message.id)).toEqual(['old-user', 'old-answer', 'worked:old', 'current-user', 'live:current'])
+  })
+
+  it('reconciles outbox users and normalized local-image identities', () => {
+    const output = mergeMessages(
+      [{
+        id: 'outbox', role: 'user' as const, text: 'inspect', messageType: 'userMessage.outbox.sending',
+        images: ['/codex-api/local-image?path=%2Ftmp%2Fshot.png'], outbox: { status: 'sending' as const },
+      }],
+      [{ id: 'native', role: 'user' as const, text: ' inspect ', images: ['/tmp/shot.png'] }],
+      { preserveMissing: true },
+    )
+    expect(output.map((message) => message.id)).toEqual(['native'])
+  })
+
+  it('preserves intentionally repeated prompts across worked turn boundaries', () => {
+    const first = { id: 'first', turnId: 'one', role: 'user' as const, text: 'retry' }
+    const receipt = { id: 'worked:one', turnId: 'one', role: 'system' as const, text: 'Answered', messageType: 'worked' }
+    const second = { id: 'second', turnId: 'two', role: 'user' as const, text: 'retry' }
+    expect(mergeMessages([first, receipt], [first, receipt, second], { preserveMissing: true })).toEqual([first, receipt, second])
+  })
+
   it('keeps realtime deltas in one row', () => {
     const once = upsertLiveDelta([], { messageId: 'a', textDelta: 'one', messageType: 'agentMessage.live' })
     const twice = upsertLiveDelta(once, { messageId: 'a', textDelta: ' two', messageType: 'plan.live', turnId: 'turn-1' })
