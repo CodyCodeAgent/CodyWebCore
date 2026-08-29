@@ -24,6 +24,7 @@ import type { ExecutionContext, TurnInput } from './turn-input.js'
 
 export * from './token-usage.js'
 export * from './turn-input.js'
+export * from './catalog.js'
 export {
   conversationToolFromItem,
   normalizeCodexNotification,

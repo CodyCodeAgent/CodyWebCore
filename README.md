@@ -21,8 +21,8 @@ Framework-neutral Codex App Server primitives shared by CodyWebUI and CodyWork.
 
 | Core | Codex App Server boundary | Product migration |
 | --- | --- | --- |
-| 0.24.0 | Current generated schema; modular protocol normalization, one terminal/retry authority, canonical message/request reconciliation and presentation | CodyWeb and CodyWork must upgrade together and delete local Turn/message/request reconciliation |
-| 0.15–0.23.2 | Progressive shared activity, plans, token usage, history/live feed, overlays and native terminal outcomes | Superseded by 0.24.0 because products otherwise retain duplicate DTOs/state machines and Core internals remain coupled |
+| 0.25.0 | Current generated schema; typed Thread/catalog/settings/goal client plus modular protocol, conversation, request and presentation authority | CodyWeb and CodyWork must use Core catalog/session clients instead of assembling App Server RPC payloads |
+| 0.15–0.24.0 | Progressive shared activity, plans, token usage, history/live feed, overlays, request models and native terminal outcomes | Superseded by 0.25.0 because product-side catalog/settings payloads could still drift from generated schema |
 | ≤ 0.14 | Runtime/protocol foundation without the complete shared conversation authority | Superseded; do not use for either product |
 
 Schema snapshots live in `packages/core/schema/json`. Changes to generated schemas, normalized events, runtime recovery or Vue interaction contracts require a minor version and changelog entry.

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.25.0
+
+- Added a typed session catalog for paginated Thread discovery, durable history, models, collaboration modes, Thread settings and goals.
+- Made current generated App Server schema fields authoritative for collaboration-mode and model normalization.
+- Added generated-schema methods for Thread settings and goal updates so products no longer hand-build those RPC payloads.
+
 ## 0.24.0
 
 - Split message reconciliation, history-window rules, Turn input building, token usage and App Server normalization into focused internal modules while preserving public entrypoints.

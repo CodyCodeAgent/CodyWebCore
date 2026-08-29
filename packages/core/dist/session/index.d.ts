@@ -3,6 +3,7 @@ import type { CodexEvent } from '../conversation/index.js';
 import type { ExecutionContext, TurnInput } from './turn-input.js';
 export * from './token-usage.js';
 export * from './turn-input.js';
+export * from './catalog.js';
 export { conversationToolFromItem, normalizeCodexNotification, normalizeThreadHistory, readCodexStatus, } from './normalization.js';
 export type { CodexNotificationEventIdentity, CodexNotificationInput, NormalizeCodexNotificationOptions, } from './normalization.js';
 export type ThreadBinding = {

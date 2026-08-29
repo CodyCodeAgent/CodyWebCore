@@ -14,6 +14,12 @@ import type { ThreadResumeParams } from './generated/v2/ThreadResumeParams.js';
 import type { ThreadResumeResponse } from './generated/v2/ThreadResumeResponse.js';
 import type { ThreadStartParams } from './generated/v2/ThreadStartParams.js';
 import type { ThreadStartResponse } from './generated/v2/ThreadStartResponse.js';
+import type { ThreadGoalClearParams } from './generated/v2/ThreadGoalClearParams.js';
+import type { ThreadGoalClearResponse } from './generated/v2/ThreadGoalClearResponse.js';
+import type { ThreadGoalSetParams } from './generated/v2/ThreadGoalSetParams.js';
+import type { ThreadGoalSetResponse } from './generated/v2/ThreadGoalSetResponse.js';
+import type { ThreadSettingsUpdateParams } from './generated/v2/ThreadSettingsUpdateParams.js';
+import type { ThreadSettingsUpdateResponse } from './generated/v2/ThreadSettingsUpdateResponse.js';
 import type { TurnInterruptParams } from './generated/v2/TurnInterruptParams.js';
 import type { TurnInterruptResponse } from './generated/v2/TurnInterruptResponse.js';
 import type { TurnStartParams } from './generated/v2/TurnStartParams.js';
@@ -41,6 +47,18 @@ export interface CodexMethodMap {
     'thread/read': {
         params: ThreadReadParams;
         result: ThreadReadResponse;
+    };
+    'thread/settings/update': {
+        params: ThreadSettingsUpdateParams;
+        result: ThreadSettingsUpdateResponse;
+    };
+    'thread/goal/set': {
+        params: ThreadGoalSetParams;
+        result: ThreadGoalSetResponse;
+    };
+    'thread/goal/clear': {
+        params: ThreadGoalClearParams;
+        result: ThreadGoalClearResponse;
     };
     'turn/start': {
         params: TurnStartParams;

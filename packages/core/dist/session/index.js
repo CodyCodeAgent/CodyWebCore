@@ -3,6 +3,7 @@ import { createTypedCodexClient } from '../protocol/methods.js';
 import { contentFromUserItem, normalizeCodexNotification, normalizeThreadHistory, outputText, textFromError, } from './normalization.js';
 export * from './token-usage.js';
 export * from './turn-input.js';
+export * from './catalog.js';
 export { conversationToolFromItem, normalizeCodexNotification, normalizeThreadHistory, readCodexStatus, } from './normalization.js';
 const DEFAULT_TURN_INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000;
 export class CodexSessionManager {
