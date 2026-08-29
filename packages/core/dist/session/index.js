@@ -42,6 +42,17 @@ function readDelta(params) {
     return readString(params.delta) || readString(params.textDelta) || readString(params.text_delta)
         || readString(params.content) || readString(params.text);
 }
+function readNonNegativeInteger(value) {
+    if (typeof value === 'bigint') {
+        const numeric = Number(value);
+        return Number.isSafeInteger(numeric) && numeric >= 0 ? numeric : null;
+    }
+    if (typeof value === 'string' && /^\d+$/u.test(value.trim())) {
+        const numeric = Number(value);
+        return Number.isSafeInteger(numeric) ? numeric : null;
+    }
+    return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
 function itemId(item) {
     return readString(asRecord(item)?.id);
 }
@@ -230,24 +241,31 @@ function itemEvents(input) {
         return [];
     return [{ id: input.id(`tool:${input.phase}`), type: input.phase === 'started' ? 'tool.started' : 'tool.completed', ...common, data: { tool, item: input.item } }];
 }
-function structuredPlanText(params) {
+function structuredPlan(params) {
     const parts = [];
     const explanation = readString(params.explanation);
     if (explanation)
         parts.push(explanation);
     const plan = Array.isArray(params.plan) ? params.plan : [];
-    const steps = plan.flatMap((value, index) => {
+    const steps = plan.flatMap((value) => {
         const row = asRecord(value);
         const step = readString(row?.step);
         if (!step)
             return [];
         const status = readString(row?.status);
-        const marker = status === 'completed' ? '[done]' : status === 'inProgress' ? '[doing]' : '[todo]';
-        return [`${String(index + 1)}. ${marker} ${step}`];
+        if (status !== 'pending' && status !== 'inProgress' && status !== 'completed')
+            return [];
+        return [{ step, status: status }];
     });
     if (steps.length)
-        parts.push(steps.join('\n'));
-    return parts.join('\n\n');
+        parts.push(steps.map((row, index) => {
+            const marker = row.status === 'completed' ? '[done]' : row.status === 'inProgress' ? '[doing]' : '[todo]';
+            return `${String(index + 1)}. ${marker} ${row.step}`;
+        }).join('\n'));
+    return { text: parts.join('\n\n'), explanation, steps };
+}
+function activityEvent(common, id, label) {
+    return { id, type: 'turn.activity', ...common, data: { label, details: [] } };
 }
 /**
  * Converts one raw App Server notification into framework- and product-neutral
@@ -282,7 +300,10 @@ export function normalizeCodexNotification(notification, options = {}) {
                 } }];
     }
     if (notification.method === 'turn/started') {
-        return [{ id: id('started'), type: 'turn.started', ...common, data: params }];
+        return [
+            { id: id('started'), type: 'turn.started', ...common, data: params },
+            activityEvent(common, id('activity'), 'Thinking'),
+        ];
     }
     if (notification.method === 'turn/completed') {
         const turn = asRecord(params.turn);
@@ -318,19 +339,52 @@ export function normalizeCodexNotification(notification, options = {}) {
                 } }];
     }
     if (notification.method === 'item/agentMessage/delta') {
-        return [{ id: id('assistant-delta'), type: 'assistant.delta', ...common, data: { text: readDelta(params) } }];
+        return [
+            { id: id('assistant-delta'), type: 'assistant.delta', ...common, data: { text: readDelta(params) } },
+            activityEvent(common, id('activity'), 'Writing response'),
+        ];
     }
     if (notification.method === 'item/reasoning/summaryTextDelta' || notification.method === 'item/reasoning/textDelta') {
-        return [{ id: id('reasoning-delta'), type: 'reasoning.delta', ...common, data: { text: readDelta(params) } }];
+        return [
+            { id: id('reasoning-delta'), type: 'reasoning.delta', ...common, data: { text: readDelta(params) } },
+            activityEvent(common, id('activity'), 'Thinking'),
+        ];
     }
     if (notification.method === 'item/reasoning/summaryPartAdded') {
-        return [{ id: id('reasoning-break'), type: 'reasoning.break', ...common, data: {} }];
+        return [
+            { id: id('reasoning-break'), type: 'reasoning.break', ...common, data: {} },
+            activityEvent(common, id('activity'), 'Thinking'),
+        ];
     }
     if (notification.method === 'item/plan/delta') {
-        return [{ id: id('plan-delta'), type: 'plan.delta', ...common, data: { text: readDelta(params) } }];
+        return [
+            { id: id('plan-delta'), type: 'plan.delta', ...common, data: { text: readDelta(params) } },
+            activityEvent(common, id('activity'), 'Writing plan'),
+        ];
     }
     if (notification.method === 'turn/plan/updated') {
-        return [{ id: id('plan-replaced'), type: 'plan.replaced', ...common, data: { text: structuredPlanText(params), raw: params } }];
+        const plan = structuredPlan(params);
+        return [
+            { id: id('plan-replaced'), type: 'plan.replaced', ...common, data: { ...plan, raw: params } },
+            activityEvent(common, id('activity'), 'Writing plan'),
+        ];
+    }
+    if (notification.method === 'thread/tokenUsage/updated') {
+        const usage = asRecord(params.tokenUsage) ?? asRecord(params.token_usage);
+        const last = asRecord(usage?.last);
+        const usedTokens = readNonNegativeInteger(last?.totalTokens) ?? readNonNegativeInteger(last?.total_tokens);
+        if (usedTokens === null)
+            return [];
+        return [{ id: id('context-usage'), type: 'thread.context.updated', ...common, data: {
+                    turnId,
+                    usedTokens,
+                    inputTokens: readNonNegativeInteger(last?.inputTokens) ?? readNonNegativeInteger(last?.input_tokens) ?? 0,
+                    contextWindow: readNonNegativeInteger(usage?.modelContextWindow) ?? readNonNegativeInteger(usage?.model_context_window),
+                    autoCompactTokenLimit: readNonNegativeInteger(usage?.autoCompactTokenLimit) ?? readNonNegativeInteger(usage?.auto_compact_token_limit),
+                } }];
+    }
+    if (notification.method === 'thread/compacted') {
+        return [{ id: id('compacted'), type: 'thread.compacted', ...common, data: {} }];
     }
     if (notification.method === 'turn/diff/updated' || notification.method === 'item/fileChange/patchUpdated') {
         return [{ id: id('file-change'), type: 'fileChange.updated', ...common, data: {
@@ -353,7 +407,12 @@ export function normalizeCodexNotification(notification, options = {}) {
     if (notification.method === 'item/started' || notification.method === 'item/completed') {
         const phase = notification.method === 'item/started' ? 'started' : 'completed';
         const item = params.item;
-        return itemEvents({ id: (suffix) => id(suffix, itemId(item)), phase, threadId, turnId, item, atIso });
+        const events = itemEvents({ id: (suffix) => id(suffix, itemId(item)), phase, threadId, turnId, item, atIso });
+        if (phase !== 'started')
+            return events;
+        const itemType = readString(asRecord(item)?.type).toLowerCase();
+        const label = itemType === 'reasoning' ? 'Thinking' : itemType === 'agentmessage' ? 'Writing response' : itemType === 'plan' ? 'Writing plan' : '';
+        return label ? [...events, activityEvent(common, id('activity'), label)] : events;
     }
     return options.includeProviderExtensions
         ? [{ id: id('extension'), type: 'provider.extension', ...common, data: { method: notification.method, params } }]

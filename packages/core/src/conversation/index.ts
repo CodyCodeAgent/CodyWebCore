@@ -313,7 +313,10 @@ export function groupConsecutiveFileChanges<T extends ConversationMessage>(messa
 
 export type CodexEventType =
   | 'thread.attached'
+  | 'thread.context.updated'
+  | 'thread.compacted'
   | 'turn.started'
+  | 'turn.activity'
   | 'turn.retrying'
   | 'turn.completed'
   | 'turn.failed'
@@ -377,7 +380,25 @@ export type ConversationRequest = {
 export type ConversationPlanState = {
   turnId?: string
   text: string
+  explanation?: string
+  steps?: Array<{ step: string; status: 'pending' | 'inProgress' | 'completed' }>
   raw: unknown
+  updatedAtIso: string
+}
+
+export type ConversationActivityState = {
+  label: string
+  details: string[]
+  updatedAtIso: string
+}
+
+export type ConversationContextUsageState = {
+  turnId: string
+  usedTokens: number
+  inputTokens: number
+  contextWindow: number | null
+  autoCompactTokenLimit: number | null
+  compactionState: 'idle' | 'compacted'
   updatedAtIso: string
 }
 
@@ -509,6 +530,8 @@ export type ConversationState = {
   timeline: ConversationTimelineEntry[]
   reasoningText: string
   plan: ConversationPlanState | null
+  activity: ConversationActivityState | null
+  contextUsage: ConversationContextUsageState | null
   pendingRequests: ConversationRequest[]
   connection: ConversationConnectionState
   history: ConversationHistoryState
@@ -636,6 +659,8 @@ export function createConversationState(threadId = ''): ConversationState {
     timeline: [],
     reasoningText: '',
     plan: null,
+    activity: null,
+    contextUsage: null,
     pendingRequests: [],
     connection: { status: 'connected', message: '', updatedAtIso: new Date(0).toISOString() },
     history: {
@@ -679,7 +704,48 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
     return { ...state, connection: { status: 'connected', message: '', updatedAtIso: event.atIso } }
   }
   if (event.type === 'runtime.disconnected') {
-    return { ...state, activeTurnId: '', connection: { status: 'disconnected', message: eventText(event.data), updatedAtIso: event.atIso } }
+    return { ...state, activeTurnId: '', activity: null, connection: { status: 'disconnected', message: eventText(event.data), updatedAtIso: event.atIso } }
+  }
+  if (event.type === 'thread.context.updated') {
+    return {
+      ...state,
+      contextUsage: {
+        turnId: typeof event.data.turnId === 'string' ? event.data.turnId : event.turnId ?? '',
+        usedTokens: typeof event.data.usedTokens === 'number' ? event.data.usedTokens : 0,
+        inputTokens: typeof event.data.inputTokens === 'number' ? event.data.inputTokens : 0,
+        contextWindow: typeof event.data.contextWindow === 'number' ? event.data.contextWindow : state.contextUsage?.contextWindow ?? null,
+        autoCompactTokenLimit: typeof event.data.autoCompactTokenLimit === 'number' ? event.data.autoCompactTokenLimit : state.contextUsage?.autoCompactTokenLimit ?? null,
+        compactionState: 'idle',
+        updatedAtIso: event.atIso,
+      },
+    }
+  }
+  if (event.type === 'thread.compacted') {
+    return {
+      ...state,
+      activeTurnId: '',
+      activity: null,
+      contextUsage: {
+        turnId: state.contextUsage?.turnId ?? event.turnId ?? '',
+        usedTokens: state.contextUsage?.usedTokens ?? 0,
+        inputTokens: state.contextUsage?.inputTokens ?? 0,
+        contextWindow: state.contextUsage?.contextWindow ?? null,
+        autoCompactTokenLimit: state.contextUsage?.autoCompactTokenLimit ?? null,
+        compactionState: 'compacted',
+        updatedAtIso: event.atIso,
+      },
+    }
+  }
+  if (event.type === 'turn.activity') {
+    const label = typeof event.data.label === 'string' ? event.data.label : ''
+    return {
+      ...state,
+      activity: label ? {
+        label,
+        details: Array.isArray(event.data.details) ? event.data.details.filter((value): value is string => typeof value === 'string') : [],
+        updatedAtIso: event.atIso,
+      } : null,
+    }
   }
   if (event.type === 'turn.started') return updateTurn(state, event, 'running')
   if (event.type === 'turn.retrying') return updateTurn(state, event, 'retrying')
@@ -691,21 +757,21 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
     const presentation = event.data.durationKnown === false
       ? updated.presentation
       : appendPresentation(updated.presentation, { id: `worked:${turnId}`, kind: 'worked', turnId })
-    return { ...updated, timeline, presentation, reasoningText: '' }
+    return { ...updated, timeline, presentation, reasoningText: '', activity: null }
   }
   if (event.type === 'turn.failed') {
     const updated = updateTurn(state, event, 'failed')
     const turnId = event.turnId || state.activeTurnId
     return turnId
-      ? { ...updated, timeline: terminalizeTurnTools(updated.timeline, turnId, 'failed'), presentation: appendPresentation(updated.presentation, { id: `failure:${turnId}`, kind: 'failure', turnId }), reasoningText: '' }
-      : updated
+      ? { ...updated, timeline: terminalizeTurnTools(updated.timeline, turnId, 'failed'), presentation: appendPresentation(updated.presentation, { id: `failure:${turnId}`, kind: 'failure', turnId }), reasoningText: '', activity: null }
+      : { ...updated, activity: null }
   }
   if (event.type === 'turn.interrupted') {
     const updated = updateTurn(state, event, 'interrupted')
     const turnId = event.turnId || state.activeTurnId
     return turnId
-      ? { ...updated, timeline: terminalizeTurnTools(updated.timeline, turnId, 'cancelled'), presentation: appendPresentation(updated.presentation, { id: `interrupted:${turnId}`, kind: 'interrupted', turnId }), reasoningText: '' }
-      : updated
+      ? { ...updated, timeline: terminalizeTurnTools(updated.timeline, turnId, 'cancelled'), presentation: appendPresentation(updated.presentation, { id: `interrupted:${turnId}`, kind: 'interrupted', turnId }), reasoningText: '', activity: null }
+      : { ...updated, activity: null }
   }
 
   if (event.type === 'user.completed') {
@@ -797,6 +863,8 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
       plan: {
         turnId: event.turnId,
         text: event.type === 'plan.delta' ? `${state.plan?.text ?? ''}${text}` : text,
+        ...(typeof event.data.explanation === 'string' ? { explanation: event.data.explanation } : {}),
+        ...(Array.isArray(event.data.steps) ? { steps: event.data.steps as ConversationPlanState['steps'] } : {}),
         raw: event.data.raw ?? event.data,
         updatedAtIso: event.atIso,
       },

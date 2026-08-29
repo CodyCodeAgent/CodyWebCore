@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.15.0
+
+- Normalized turn activity, token usage and compaction into the shared event vocabulary.
+- Added reducer-owned activity and context-usage state so products no longer parse those App Server payloads independently.
+- Preserved structured plan explanation and typed steps alongside its rendered text snapshot.
+
 ## 0.14.0
 
 - Serialized read-timeout recovery so callers cannot re-enter a dying App Server process.

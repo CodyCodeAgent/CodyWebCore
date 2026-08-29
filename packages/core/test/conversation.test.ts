@@ -94,6 +94,28 @@ describe('conversation core', () => {
     expect(state.activeTurnId).toBe('')
   })
 
+  it('owns transient activity, structured plans and context compaction state', () => {
+    const base = { threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:00.000Z' }
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { ...base, id: 'start', type: 'turn.started', data: {} },
+      { ...base, id: 'activity', type: 'turn.activity', data: { label: 'Writing plan', details: [] } },
+      { ...base, id: 'plan', type: 'plan.replaced', data: {
+        text: '1. Inspect', explanation: 'Plan', steps: [{ step: 'Inspect', status: 'inProgress' }], raw: {},
+      } },
+      { ...base, id: 'usage', type: 'thread.context.updated', data: {
+        turnId: 'turn-1', usedTokens: 1200, inputTokens: 900, contextWindow: 128_000, autoCompactTokenLimit: 100_000,
+      } },
+      { ...base, id: 'compacted', type: 'thread.compacted', data: {} },
+    ])
+
+    expect(state.activity).toBeNull()
+    expect(state.plan).toMatchObject({ explanation: 'Plan', steps: [{ step: 'Inspect', status: 'inProgress' }] })
+    expect(state.contextUsage).toEqual({
+      turnId: 'turn-1', usedTokens: 1200, inputTokens: 900, contextWindow: 128_000,
+      autoCompactTokenLimit: 100_000, compactionState: 'compacted', updatedAtIso: base.atIso,
+    })
+  })
+
   it('never promotes a terminal-only diagnostic turn to active', () => {
     const state = reduceConversationEvents(createConversationState('thread-1'), [{
       id: 'local-failure',

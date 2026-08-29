@@ -57,7 +57,7 @@ export declare function groupConsecutiveFileChanges<T extends ConversationMessag
     firstIndex: number;
     messages: T[];
 }>;
-export type CodexEventType = 'thread.attached' | 'turn.started' | 'turn.retrying' | 'turn.completed' | 'turn.failed' | 'turn.interrupted' | 'user.completed' | 'assistant.delta' | 'assistant.completed' | 'reasoning.delta' | 'reasoning.break' | 'plan.delta' | 'plan.replaced' | 'tool.started' | 'tool.updated' | 'tool.completed' | 'fileChange.updated' | 'approval.requested' | 'approval.resolved' | 'question.requested' | 'question.resolved' | 'runtime.connected' | 'runtime.disconnected' | 'provider.extension';
+export type CodexEventType = 'thread.attached' | 'thread.context.updated' | 'thread.compacted' | 'turn.started' | 'turn.activity' | 'turn.retrying' | 'turn.completed' | 'turn.failed' | 'turn.interrupted' | 'user.completed' | 'assistant.delta' | 'assistant.completed' | 'reasoning.delta' | 'reasoning.break' | 'plan.delta' | 'plan.replaced' | 'tool.started' | 'tool.updated' | 'tool.completed' | 'fileChange.updated' | 'approval.requested' | 'approval.resolved' | 'question.requested' | 'question.resolved' | 'runtime.connected' | 'runtime.disconnected' | 'provider.extension';
 /** Framework- and transport-neutral event emitted by the shared Codex session manager. */
 export type CodexEvent = {
     id: string;
@@ -103,7 +103,26 @@ export type ConversationRequest = {
 export type ConversationPlanState = {
     turnId?: string;
     text: string;
+    explanation?: string;
+    steps?: Array<{
+        step: string;
+        status: 'pending' | 'inProgress' | 'completed';
+    }>;
     raw: unknown;
+    updatedAtIso: string;
+};
+export type ConversationActivityState = {
+    label: string;
+    details: string[];
+    updatedAtIso: string;
+};
+export type ConversationContextUsageState = {
+    turnId: string;
+    usedTokens: number;
+    inputTokens: number;
+    contextWindow: number | null;
+    autoCompactTokenLimit: number | null;
+    compactionState: 'idle' | 'compacted';
     updatedAtIso: string;
 };
 export type ConversationConnectionState = {
@@ -166,6 +185,8 @@ export type ConversationState = {
     timeline: ConversationTimelineEntry[];
     reasoningText: string;
     plan: ConversationPlanState | null;
+    activity: ConversationActivityState | null;
+    contextUsage: ConversationContextUsageState | null;
     pendingRequests: ConversationRequest[];
     connection: ConversationConnectionState;
     history: ConversationHistoryState;

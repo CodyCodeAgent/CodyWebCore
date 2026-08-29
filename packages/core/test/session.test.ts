@@ -57,14 +57,14 @@ describe('normalizeCodexNotification', () => {
       method: 'item/agentMessage/delta',
       params: { thread_id: 'thread-1', turn_id: 'turn-1', item_id: 'agent-1', delta: 'Hello' },
       atIso: '2026-01-01T00:00:00.000Z',
-    }, options)).toEqual([expect.objectContaining({
+    }, options)).toContainEqual(expect.objectContaining({
       id: 'event:assistant-delta',
       type: 'assistant.delta',
       threadId: 'thread-1',
       turnId: 'turn-1',
       itemId: 'agent-1',
       data: { text: 'Hello' },
-    })])
+    }))
 
     expect(normalizeCodexNotification({
       method: 'item/completed',
@@ -94,8 +94,39 @@ describe('normalizeCodexNotification', () => {
     }, options)
     expect(event).toMatchObject({
       type: 'plan.replaced',
-      data: { text: 'Implementation plan\n\n1. [done] Inspect\n2. [doing] Refactor' },
+      data: {
+        text: 'Implementation plan\n\n1. [done] Inspect\n2. [doing] Refactor',
+        explanation: 'Implementation plan',
+        steps: [{ step: 'Inspect', status: 'completed' }, { step: 'Refactor', status: 'inProgress' }],
+      },
     })
+    expect(normalizeCodexNotification({
+      method: 'turn/plan/updated',
+      params: { threadId: 'thread-1', turnId: 'turn-1', plan: [] },
+      atIso: '2026-01-01T00:00:01.000Z',
+    }, options)).toContainEqual(expect.objectContaining({ type: 'turn.activity', data: { label: 'Writing plan', details: [] } }))
+  })
+
+  it('normalizes context usage, compaction and activity without product protocol readers', () => {
+    expect(normalizeCodexNotification({
+      method: 'thread/tokenUsage/updated',
+      params: {
+        thread_id: 'thread-1', turn_id: 'turn-1',
+        token_usage: { last: { total_tokens: '1200', input_tokens: 900 }, model_context_window: 128_000 },
+      },
+      atIso: '2026-01-01T00:00:00.000Z',
+    }, options)).toEqual([expect.objectContaining({
+      type: 'thread.context.updated',
+      data: { turnId: 'turn-1', usedTokens: 1200, inputTokens: 900, contextWindow: 128_000, autoCompactTokenLimit: null },
+    })])
+    expect(normalizeCodexNotification({
+      method: 'thread/compacted', params: { threadId: 'thread-1' }, atIso: '2026-01-01T00:00:01.000Z',
+    }, options)).toEqual([expect.objectContaining({ type: 'thread.compacted' })])
+    expect(normalizeCodexNotification({
+      method: 'item/started',
+      params: { threadId: 'thread-1', turnId: 'turn-1', item: { id: 'reasoning-1', type: 'reasoning' } },
+      atIso: '2026-01-01T00:00:02.000Z',
+    }, options)).toContainEqual(expect.objectContaining({ type: 'turn.activity', data: { label: 'Thinking', details: [] } }))
   })
 
   it('does not invent events for global notifications or unknown methods unless requested', () => {
