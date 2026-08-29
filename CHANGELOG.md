@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.21.1
+
+- Replaced an assistant delta row by native item identity when the completed item arrives, even if final text differs from the streamed prefix.
+- Exposed native item ids from the live overlay selector so paged history and realtime views converge on one identity.
+
 ## 0.21.0
 
 - Added a shared assistant/plan overlay-message selector for products that merge live state with independently paged durable history.

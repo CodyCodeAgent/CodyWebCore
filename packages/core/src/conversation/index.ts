@@ -556,7 +556,11 @@ export type ConversationLiveOverlay = {
 export function conversationOverlayMessagesFromState(state: ConversationState): ConversationMessage[] {
   const messages = state.messages
     .filter((message) => message.role === 'assistant')
-    .map((message) => ({ ...message, messageType: 'agentMessage.live' }))
+    .map((message) => ({
+      ...message,
+      id: message.id.replace(/^(?:live|agent):/u, ''),
+      messageType: 'agentMessage.live',
+    }))
   if (!state.plan?.text) return messages
   return [...messages, {
     id: state.plan.itemId || `plan:${state.plan.turnId || 'current'}:live`,
@@ -863,10 +867,11 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
     const text = eventText(event.data)
     if (!text) return state
     const messageId = `agent:${event.itemId || event.id}`
+    const liveMessageId = `live:${event.itemId || event.turnId || event.id}`
     return {
       ...state,
       reasoningText: '',
-      messages: mergeMessages(state.messages, [{
+      messages: mergeMessages(state.messages.filter((message) => message.id !== liveMessageId), [{
         id: messageId,
         turnId: event.turnId,
         role: 'assistant',
