@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.23.0
+
+- Added the canonical server-request normalizer and immutable thread-scoped pending-request store.
+- Centralized approval, question and tool request classification, risk cards, metadata and protocol reply payloads.
+- Preserved injected command/file policy evidence while keeping product permission decisions outside Core.
+
 ## 0.22.4
 
 - Published the reconnect-authority fix with synchronized distributable artifacts for Git package consumers.
