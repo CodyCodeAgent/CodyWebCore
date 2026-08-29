@@ -5,7 +5,8 @@
     "moduleResolution": "NodeNext",
     "baseUrl": ".",
     "paths": {
-      "@codycodeagent/cody-web-core/conversation": ["../core/dist/conversation/index.d.ts"]
+      "@codycodeagent/cody-web-core/conversation": ["../core/dist/conversation/index.d.ts"],
+      "@codycodeagent/cody-web-core/presentation": ["../core/dist/presentation/index.d.ts"]
     },
     "rootDir": "src",
     "strict": true,

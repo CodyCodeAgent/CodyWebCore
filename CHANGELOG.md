@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.0
+
+- Added a framework-neutral `presentation` boundary for tool status, bounded output previews, and consecutive file-change grouping.
+- Replaced the shared Vue conversation component's private tool-status and output-preview implementation with the shared presentation rules.
+- Added an explicit preview/full-output control so long tool output remains compact without becoming inaccessible.
+- Added contract tests that preserve product message types while grouping file changes and keep failure state visible across a group.
+
 ## 0.6.7
 
 - Preserved native interrupted turns as `turn.interrupted` instead of misclassifying a user stop as a Runtime failure.

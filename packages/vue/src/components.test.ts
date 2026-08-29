@@ -52,6 +52,27 @@ describe('shared conversation components', () => {
     expect(cards[1]!.attributes('open')).toBe('')
   })
 
+  it('keeps long tool output bounded until the user expands it', async () => {
+    const output = Array.from({ length: 90 }, (_, index) => `line-${String(index + 1)}`).join('\n')
+    const wrapper = mount(CodyConversation, {
+      props: {
+        entries: [{
+          id: 'long-output',
+          kind: 'tool',
+          tool: { kind: 'command', title: 'Long command', status: 'completed', summary: 'done', details: [], output },
+        }],
+      },
+    })
+
+    expect(wrapper.find('pre').text()).toContain('line-80')
+    expect(wrapper.find('pre').text()).not.toContain('line-81')
+    expect(wrapper.find('.cody-tool-output-toggle').text()).toBe('Show full output')
+
+    await wrapper.find('.cody-tool-output-toggle').trigger('click')
+    expect(wrapper.find('pre').text()).toContain('line-90')
+    expect(wrapper.find('.cody-tool-output-toggle').text()).toBe('Show preview')
+  })
+
   it('renders the native retry message from shared conversation state', () => {
     const state = reduceConversationEvents(createConversationState('thread-1'), [
       { id: 'start', type: 'turn.started', threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-08-29T00:00:00.000Z', data: {} },

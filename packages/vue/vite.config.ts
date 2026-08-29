@@ -7,6 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@codycodeagent/cody-web-core/conversation': resolve(import.meta.dirname, '../core/dist/conversation/index.js'),
+      '@codycodeagent/cody-web-core/presentation': resolve(import.meta.dirname, '../core/dist/presentation/index.js'),
     },
   },
   build: {

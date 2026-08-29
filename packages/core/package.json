@@ -1,6 +1,6 @@
 {
   "name": "@codycodeagent/cody-web-core-build",
-  "version": "0.6.7",
+  "version": "0.7.0",
   "private": true,
   "description": "Shared Codex protocol, runtime, and conversation primitives for CodyWeb products",
   "license": "MIT",
@@ -9,7 +9,8 @@
   "exports": {
     "./protocol": { "types": "./dist/protocol/index.d.ts", "import": "./dist/protocol/index.js" },
     "./runtime": { "types": "./dist/runtime/index.d.ts", "import": "./dist/runtime/index.js" },
-    "./conversation": { "types": "./dist/conversation/index.d.ts", "import": "./dist/conversation/index.js" }
+    "./conversation": { "types": "./dist/conversation/index.d.ts", "import": "./dist/conversation/index.js" },
+    "./presentation": { "types": "./dist/presentation/index.d.ts", "import": "./dist/presentation/index.js" }
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

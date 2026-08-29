@@ -14,10 +14,18 @@
           <button v-if="entry.message.text" class="cody-copy-button" type="button" @click="emit('copy', entry.message.text)">复制</button>
         </div>
       </article>
-      <details v-else-if="entry.kind === 'tool'" class="cody-tool-card" :data-tone="toolTone(entry.tool.status)" :open="toolTone(entry.tool.status) === 'running'">
+      <details v-else-if="entry.kind === 'tool'" class="cody-tool-card" :data-tone="toolStatusTone(entry.tool.status)" :open="toolStatusTone(entry.tool.status) === 'working'">
         <summary><span>⌁</span><strong>{{ entry.tool.title }}</strong><small>{{ entry.tool.status }}</small></summary>
         <p>{{ entry.tool.summary }}</p><ul v-if="entry.tool.details.length"><li v-for="detail in entry.tool.details" :key="detail">{{ detail }}</li></ul>
-        <pre v-if="entry.tool.output">{{ previewOutput(entry.tool.output) }}</pre>
+        <template v-if="entry.tool.output">
+          <pre>{{ expandedToolIds[entry.id] ? entry.tool.output : buildToolOutputPreview(entry.tool.output) }}</pre>
+          <button
+            v-if="isToolOutputTruncated(entry.tool.output)"
+            class="cody-tool-output-toggle"
+            type="button"
+            @click="toggleToolOutput(entry.id)"
+          >{{ toolOutputToggleLabel(expandedToolIds[entry.id] === true) }}</button>
+        </template>
       </details>
       <details v-else-if="entry.kind === 'reasoning'" class="cody-reasoning-card"><summary>✦ {{ entry.title || '推理过程' }}</summary><pre>{{ entry.text }}</pre></details>
       <details v-else-if="entry.kind === 'plan'" class="cody-plan-card" open><summary>计划</summary><CodyMarkdown :text="entry.text" @open-file="emit('openFile', $event)" /></details>
@@ -38,7 +46,14 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import type { CodyConversationEntry } from './types.js'
+import {
+  buildToolOutputPreview,
+  isToolOutputTruncated,
+  toolOutputToggleLabel,
+  toolStatusTone,
+} from '@codycodeagent/cody-web-core/presentation'
 import CodyMarkdown from './CodyMarkdown.vue'
 import CodyRequestCard from './CodyRequestCard.vue'
 
@@ -52,15 +67,15 @@ const emit = defineEmits<{
   resolveQuestion: [requestId: string, answer: Record<string, { answers: string[] }>]
 }>()
 
-function toolTone(status: string): 'neutral' | 'running' | 'success' | 'danger' {
-  if (/cancel|interrupt/iu.test(status)) return 'neutral'
-  if (/fail|error|reject/iu.test(status)) return 'danger'
-  if (/complete|success|done|approved/iu.test(status)) return 'success'
-  if (/run|start|pending|wait/iu.test(status)) return 'running'
-  return 'neutral'
+const expandedToolIds = ref<Record<string, boolean>>({})
+
+function toggleToolOutput(entryId: string): void {
+  expandedToolIds.value = {
+    ...expandedToolIds.value,
+    [entryId]: expandedToolIds.value[entryId] !== true,
+  }
 }
 
-function previewOutput(value: string): string { return value.length > 12_000 ? `${value.slice(0, 12_000)}\n…输出已截断` : value }
 function forwardApproval(requestId: string, decision: 'accept' | 'decline'): void { emit('resolveApproval', requestId, decision) }
 function forwardQuestion(requestId: string, answer: Record<string, { answers: string[] }>): void { emit('resolveQuestion', requestId, answer) }
 </script>
