@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.15.1
+
+- Kept realtime conversations usable when the initial native-history read fails while retaining the error for explicit retry UI.
+- Rendered precise reducer-owned turn activity in the shared conversation surface.
+
 ## 0.15.0
 
 - Normalized turn activity, token usage and compaction into the shared event vocabulary.

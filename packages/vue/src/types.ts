@@ -184,7 +184,7 @@ export function conversationEntriesFromState(state: ConversationState): CodyConv
       entries.push({
         id: `activity:${activeTurn.id}`,
         kind: 'activity',
-        title: 'Codex 正在工作',
+        title: state.activity?.label || 'Codex 正在工作',
         detail: state.connection.status === 'connected' ? '实时更新中' : '等待恢复连接',
         tone: 'running',
       })

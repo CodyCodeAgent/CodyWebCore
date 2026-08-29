@@ -97,15 +97,17 @@ describe('ConversationController', () => {
     expect(readCount).toBe(1)
   })
 
-  it('exposes the latest native history read error without dropping live state', async () => {
+  it('keeps realtime usable when the initial native history read fails', async () => {
     let listener: ((value: ConversationSubscriptionEvent) => void) | undefined
     const transport: ConversationTransport = {
       read: async () => { throw new Error('history unavailable') },
       subscribe: (_threadId, next) => { listener = next; return () => undefined },
     }
     const controller = createConversationController('thread-1', transport)
-    listener?.({ type: 'event', event: event('unused', 'assistant.completed', { text: 'unused' }) })
-    await expect(controller.start()).rejects.toThrow('history unavailable')
+    await expect(controller.start()).resolves.toBeUndefined()
     expect(controller.getState().history).toMatchObject({ loading: false, error: 'history unavailable' })
+    listener?.({ type: 'event', event: event('live', 'assistant.completed', { text: 'live still works' }) })
+    expect(controller.getState().messages.map(message => message.text)).toEqual(['live still works'])
+    await expect(controller.refresh()).rejects.toThrow('history unavailable')
   })
 })

@@ -118,7 +118,10 @@ export function createConversationController(threadId: string, transport: Conver
         }))
       })
     }
-    initialReadPromise = refresh().finally(() => {
+    // Initial history is enrichment, not a prerequisite for realtime use. The
+    // error remains visible in state while the live subscription stays usable.
+    // Explicit refresh() calls still reject so retry controls can report failure.
+    initialReadPromise = refresh().catch(() => undefined).finally(() => {
       initialReadSettled = true
       initialReadPromise = null
     })
