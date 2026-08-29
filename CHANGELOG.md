@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.33.2
+
+- Keep Enter available for multiline composer input and submit only with Control/Command Enter in the shared Vue composer.
+
 ## 0.33.1
 
 - Clear unresolved approval/question snapshots when their turn completes, fails, or is interrupted so stale request cards cannot survive a terminal turn.

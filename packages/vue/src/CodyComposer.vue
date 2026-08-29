@@ -7,7 +7,7 @@
           <button type="button" :disabled="disabled" :aria-label="`移除 Skill ${optionLabel(skills, skill)}`" @click="removeSkill(skill)">×</button>
         </span>
       </div>
-      <textarea :value="draft" rows="1" :disabled="disabled" :placeholder="placeholder" @input="emit('update:draft', ($event.target as HTMLTextAreaElement).value)" @keydown.enter.exact.prevent="send" />
+      <textarea :value="draft" rows="1" :disabled="disabled" :placeholder="placeholder" @input="emit('update:draft', ($event.target as HTMLTextAreaElement).value)" @keydown="onDraftKeydown" />
       <div class="cody-composer-controls">
         <slot name="leading" />
         <label v-if="skills.length" class="cody-composer-compact-control cody-composer-skill-control" title="为本轮显式选择 Skill">
@@ -89,5 +89,10 @@ const submitLabel = computed(() => props.isRunning && props.selectedSubmitMode =
 function optionLabel(options: CodyComposerOption[], value: string): string { return options.find(option => option.value === value)?.label ?? value }
 function addSkill(value: string): void { if (value && !props.selectedSkills.includes(value)) emit('update:selected-skills', [...props.selectedSkills, value]) }
 function removeSkill(value: string): void { emit('update:selected-skills', props.selectedSkills.filter(skill => skill !== value)) }
+function onDraftKeydown(event: KeyboardEvent): void {
+  if (event.key !== 'Enter' || event.isComposing || (!event.ctrlKey && !event.metaKey)) return
+  event.preventDefault()
+  send()
+}
 function send(): void { if (canSend.value) emit('send') }
 </script>
