@@ -65,6 +65,7 @@ export type AppServerFailureDiagnostic = Readonly<{
 }>;
 export type AppServerDiagnostics = {
     status: 'running' | 'stopped';
+    recovering: boolean;
     initialized: boolean;
     pid: number | null;
     startedAtIso: string | null;

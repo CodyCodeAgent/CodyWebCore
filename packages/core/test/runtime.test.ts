@@ -4,7 +4,7 @@ import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 import { describe, expect, it } from 'vitest'
 import { createAppServerHost, type SpawnAppServer } from '../src/runtime/index.js'
 
-function fakeAppServer(mode: 'normal' | 'hang-initialize' = 'normal'): SpawnAppServer {
+function fakeAppServer(mode: 'normal' | 'hang-initialize' | 'hang-read' = 'normal'): SpawnAppServer {
   return () => {
     const child = new EventEmitter() as ChildProcessWithoutNullStreams
     const stdin = new PassThrough()
@@ -24,6 +24,7 @@ function fakeAppServer(mode: 'normal' | 'hang-initialize' = 'normal'): SpawnAppS
         if (!line) continue
         const message = JSON.parse(line) as { id: number; method?: string; result?: unknown }
         if (message.method === 'initialize') { initialized += 1; if (mode !== 'hang-initialize') write({ jsonrpc: '2.0', id: message.id, result: {} }); continue }
+        if (message.method === 'thread/read' && mode === 'hang-read') continue
         if (message.method === 'stats') { write({ jsonrpc: '2.0', id: message.id, result: { initialized } }); continue }
         if (message.method === 'hang') continue
         if (message.method === 'sensitive-logs') {
@@ -81,6 +82,20 @@ describe('AppServerHost', () => {
     })])
     expect(JSON.parse(JSON.stringify(report))).toEqual(report)
     await running.dispose()
+  })
+
+  it('waits for a timed-out read process to exit before initializing its replacement', async () => {
+    let spawnCount = 0
+    const spawn: SpawnAppServer = (...args) => fakeAppServer(spawnCount++ === 0 ? 'hang-read' : 'normal')(...args)
+    const host = createAppServerHost({ spawn, rpcTimeoutMs: 250, restartCooldownMs: 10 })
+    await host.ensureInitialized()
+    await expect(host.call('thread/read')).rejects.toThrow('thread/read timed out')
+
+    await host.ensureInitialized()
+    await expect(host.call<{ initialized: number }>('stats')).resolves.toEqual({ initialized: 1 })
+    expect(spawnCount).toBe(2)
+    expect(host.diagnostics()).toMatchObject({ status: 'running', recovering: false, initialized: true })
+    await host.dispose()
   })
 
   it('reports process exits with pending request timing but without payloads', async () => {

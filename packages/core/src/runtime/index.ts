@@ -63,6 +63,7 @@ export type AppServerFailureDiagnostic = Readonly<{
 }>
 export type AppServerDiagnostics = {
   status: 'running' | 'stopped'
+  recovering: boolean
   initialized: boolean
   pid: number | null
   startedAtIso: string | null
@@ -167,6 +168,7 @@ export function createAppServerHost(options: AppServerHostOptions = {}): AppServ
   let sequence = 1
   let stopping = false
   let restartAt = 0
+  let recoveryPromise: Promise<void> | null = null
   let sent = 0
   let completed = 0
   let failed = 0
@@ -345,7 +347,11 @@ export function createAppServerHost(options: AppServerHostOptions = {}): AppServ
     if (!READ_RECOVERY_METHODS.has(method) || pending.size > 0 || pendingServerRequests.size > 0 || Date.now() < restartAt) return
     restartAt = Date.now() + (options.restartCooldownMs ?? DEFAULT_RESTART_COOLDOWN_MS)
     pushLog('warning', 'bridge', `Restarting App Server after timed out ${method}.`)
-    void dispose()
+    const recovery = stopProcess()
+    const trackedRecovery = recovery.finally(() => {
+      if (recoveryPromise === trackedRecovery) recoveryPromise = null
+    })
+    recoveryPromise = trackedRecovery
   }
 
   const call = <T>(method: string, params: unknown = {}, rpcOptions: RpcOptions = {}): Promise<T> => {
@@ -395,13 +401,14 @@ export function createAppServerHost(options: AppServerHostOptions = {}): AppServ
   }
 
   const ensureInitialized = async (): Promise<void> => {
+    if (recoveryPromise) await recoveryPromise
     if (initialized) return
     if (initializePromise) return initializePromise
     initializePromise = (async () => {
       if (Date.now() < restartAt) await new Promise<void>((resolve) => setTimeout(resolve, restartAt - Date.now()))
       try {
         await call('initialize', options.initializeParams ?? {
-          clientInfo: { name: 'cody-web-core', title: 'Cody Web Core', version: '0.13.0' },
+          clientInfo: { name: 'cody-web-core', title: 'Cody Web Core', version: '0.14.0' },
           capabilities: { experimentalApi: true, requestAttestation: false },
         })
       } catch (error) {
@@ -413,7 +420,7 @@ export function createAppServerHost(options: AppServerHostOptions = {}): AppServ
     return initializePromise
   }
 
-  const dispose = async (): Promise<void> => {
+  const stopProcess = async (): Promise<void> => {
     const child = process
     if (!child) return
     stopping = true
@@ -424,6 +431,11 @@ export function createAppServerHost(options: AppServerHostOptions = {}): AppServ
     })
   }
 
+  const dispose = async (): Promise<void> => {
+    if (recoveryPromise) await recoveryPromise
+    await stopProcess()
+  }
+
   return {
     ensureInitialized,
     call,
@@ -432,7 +444,7 @@ export function createAppServerHost(options: AppServerHostOptions = {}): AppServ
     resolveServerRequest,
     diagnostics() {
       return {
-        status: process ? 'running' : 'stopped', initialized, pid: process?.pid ?? null,
+        status: process ? 'running' : 'stopped', recovering: recoveryPromise !== null, initialized, pid: process?.pid ?? null,
         startedAtIso, exitedAtIso, exitCode, exitSignal,
         pendingClientRequestCount: pending.size, pendingServerRequestCount: pendingServerRequests.size,
         sentClientRequestCount: sent, completedClientRequestCount: completed, failedClientRequestCount: failed,

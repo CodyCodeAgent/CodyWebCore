@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.0
+
+- Serialized read-timeout recovery so callers cannot re-enter a dying App Server process.
+- Added explicit recovery diagnostics and a deterministic replacement-process regression test.
+- Kept automatic restart limited to read-only methods and disabled while client or server requests remain pending.
+
 ## 0.13.0
 
 - Promoted protocol-order insertion, outbox/optimistic convergence and replay de-duplication into the shared conversation core.
