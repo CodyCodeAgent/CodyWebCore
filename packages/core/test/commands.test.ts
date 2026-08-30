@@ -40,6 +40,45 @@ describe('CodexThreadCommands', () => {
     await expect(commands.interruptTurn('thread-1', ' ')).rejects.toThrow('turnId is required')
   })
 
+  it('recovers a stale App Server thread exactly once before retrying turn/start', async () => {
+    let turnStarts = 0
+    const call = vi.fn(async (method: string): Promise<unknown> => {
+      if (method === 'turn/start') {
+        turnStarts += 1
+        if (turnStarts === 1) throw new Error('thread not found: thread-1')
+        return { turn: { id: 'turn-recovered' } }
+      }
+      if (method === 'thread/resume') return { thread: { id: 'thread-1' } }
+      return {}
+    })
+    const commands = new CodexThreadCommands({ call })
+
+    await expect(commands.startTurnWithResumeRecovery(' thread-1 ', {
+      input: [{ type: 'text', text: 'Continue', text_elements: [] }],
+    })).resolves.toBe('turn-recovered')
+
+    expect(call).toHaveBeenNthCalledWith(1, 'turn/start', {
+      threadId: 'thread-1', input: [{ type: 'text', text: 'Continue', text_elements: [] }],
+    }, undefined)
+    expect(call).toHaveBeenNthCalledWith(2, 'thread/resume', { threadId: 'thread-1' }, undefined)
+    expect(call).toHaveBeenNthCalledWith(3, 'turn/start', {
+      threadId: 'thread-1', input: [{ type: 'text', text: 'Continue', text_elements: [] }],
+    }, undefined)
+  })
+
+  it('does not retry uncertain turn/start failures', async () => {
+    const call = vi.fn(async (method: string): Promise<unknown> => {
+      if (method === 'turn/start') throw new Error('request timed out')
+      return {}
+    })
+    const commands = new CodexThreadCommands({ call })
+
+    await expect(commands.startTurnWithResumeRecovery('thread-1', {
+      input: [{ type: 'text', text: 'Do not duplicate', text_elements: [] }],
+    })).rejects.toThrow('request timed out')
+    expect(call).toHaveBeenCalledTimes(1)
+  })
+
   it('rejects malformed successful responses', async () => {
     const commands = new CodexThreadCommands({ call: vi.fn(async () => ({ thread: { id: '' } })) })
     await expect(commands.startThread()).rejects.toThrow('result thread id')

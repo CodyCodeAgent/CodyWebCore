@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.33.9
+
+- Added a schema-bound, exactly-once recovery path for a `turn/start` request whose App Server explicitly reports `thread not found`: resume the durable native thread once, then retry only that request. Transport and timeout errors are never retried.
+
 ## 0.33.6
 
 - Added a product-neutral raw-turn recovery monitor so gateway-dispatched turns receive the same bounded upstream retry and inactivity handling as managed sessions.

@@ -1,5 +1,14 @@
 import { createTypedCodexClient } from '../protocol/methods.js';
 import { asRecord } from '../protocol/index.js';
+/**
+ * A thread may be present in durable history while a freshly started App
+ * Server has not materialized it yet.  Only this explicit error is safe to
+ * retry: any other turn/start failure may have reached the server already.
+ */
+export function isThreadNotFoundError(error) {
+    const message = error instanceof Error ? error.message : String(error ?? '');
+    return /\bthread\s+(?:was\s+)?not\s+found\b/i.test(message);
+}
 function requiredId(value, label) {
     if (typeof value !== 'string')
         throw new Error(`${label} must be a string`);
@@ -50,6 +59,25 @@ export class CodexThreadCommands {
     async startTurn(threadId, input) {
         const result = await this.client.call('turn/start', { ...input, threadId: requiredId(threadId, 'threadId') });
         return responseId(result, 'turn', 'turn/start result turn id');
+    }
+    /**
+     * Starts a turn and self-heals one stale App Server materialization.
+     *
+     * `thread/resume` is deliberately attempted only after the server has
+     * explicitly said that the thread is missing.  Retrying on transport,
+     * timeout, or generic RPC failures could duplicate a mutating turn.
+     */
+    async startTurnWithResumeRecovery(threadId, input, resumeOverrides = {}) {
+        const normalizedThreadId = requiredId(threadId, 'threadId');
+        try {
+            return await this.startTurn(normalizedThreadId, input);
+        }
+        catch (error) {
+            if (!isThreadNotFoundError(error))
+                throw error;
+            await this.resumeThread(normalizedThreadId, resumeOverrides);
+            return this.startTurn(normalizedThreadId, input);
+        }
     }
     async steerTurn(threadId, expectedTurnId, input) {
         await this.client.call('turn/steer', {
