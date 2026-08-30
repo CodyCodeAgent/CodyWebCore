@@ -6,6 +6,7 @@ export * from './token-usage.js';
 export * from './turn-input.js';
 export * from './catalog.js';
 export * from './commands.js';
+export * from './turn-recovery.js';
 export { conversationToolFromItem, normalizeCodexNotification, normalizeThreadHistory, readCodexStatus, } from './normalization.js';
 const DEFAULT_TURN_INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000;
 const DEFAULT_MAX_UPSTREAM_RETRY_ATTEMPTS = 5;

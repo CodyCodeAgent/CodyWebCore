@@ -27,6 +27,7 @@ export * from './token-usage.js'
 export * from './turn-input.js'
 export * from './catalog.js'
 export * from './commands.js'
+export * from './turn-recovery.js'
 export {
   conversationToolFromItem,
   normalizeCodexNotification,

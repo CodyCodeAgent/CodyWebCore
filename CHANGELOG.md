@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.33.6
+
+- Added a product-neutral raw-turn recovery monitor so gateway-dispatched turns receive the same bounded upstream retry and inactivity handling as managed sessions.
+- Prevented a synthetic terminal recovery failure from being followed by its stale retry notification.
+
 ## 0.33.5
 
 - Treat a reported bounded reconnect count as terminal even when a legacy App Server also reports `willRetry: true`.

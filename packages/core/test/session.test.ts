@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AppServerDiagnostics, AppServerHost, RuntimeNotification, RuntimeNotificationListener, ServerRequestReply } from '../src/runtime/index.js'
-import { buildTurnUserInput, codexTokenUsageFromPayload, CodexSessionManager, conversationToolFromItem, normalizeCodexNotification, normalizeThreadHistory } from '../src/session/index.js'
+import { buildTurnUserInput, codexTokenUsageFromPayload, CodexSessionManager, CodexTurnRecoveryMonitor, conversationToolFromItem, normalizeCodexNotification, normalizeThreadHistory } from '../src/session/index.js'
 import { createConversationState, latestAssistantTextFromEvents, reduceConversationEvents, type CodexEvent } from '../src/conversation/index.js'
 
 class FakeHost implements AppServerHost {
@@ -222,6 +222,52 @@ describe('conversationToolFromItem', () => {
 const context = { thread: { cwd: '/repo', experimentalRawEvents: false } }
 
 afterEach(() => { vi.useRealTimers() })
+
+describe('CodexTurnRecoveryMonitor', () => {
+  it('turns a bounded retry sequence into one terminal failure without forwarding a stale retry', () => {
+    const monitor = new CodexTurnRecoveryMonitor({ maxUpstreamRetryAttempts: 3 })
+    monitor.track({ threadId: 'thread-1', turnId: 'turn-1' })
+
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      expect(monitor.observe({
+        method: 'error',
+        params: { threadId: 'thread-1', turnId: 'turn-1', willRetry: true, error: { message: 'Response stream interrupted; reconnecting.' } },
+        receivedAtIso: '2026-01-01T00:00:00.000Z',
+      })).toEqual([])
+    }
+
+    expect(monitor.observe({
+      method: 'error',
+      params: { threadId: 'thread-1', turnId: 'turn-1', willRetry: true, error: { message: 'Response stream interrupted; reconnecting.' } },
+      receivedAtIso: '2026-01-01T00:00:00.000Z',
+    })).toEqual([expect.objectContaining({
+      type: 'turn.failed',
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      data: expect.objectContaining({ cause: 'upstream_response_stream_unrecoverable', retryAttempt: 3, retryLimit: 3 }),
+    })])
+    monitor.dispose()
+  })
+
+  it('finishes a silent raw turn through the owner callback', () => {
+    vi.useFakeTimers()
+    const terminal: CodexEvent[] = []
+    const monitor = new CodexTurnRecoveryMonitor({
+      inactivityTimeoutMs: 500,
+      nowIso: () => '2026-01-01T00:00:00.000Z',
+      onTerminal: (event) => terminal.push(event),
+    })
+    monitor.track({ threadId: 'thread-1', turnId: 'turn-1' })
+    vi.advanceTimersByTime(500)
+    expect(terminal).toEqual([expect.objectContaining({
+      type: 'turn.failed',
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      data: expect.objectContaining({ cause: 'inactivity_timeout' }),
+    })])
+    monitor.dispose()
+  })
+})
 
 describe('CodexSessionManager', () => {
   it('sends current permission-profile fields without legacy readOnlyAccess', async () => {
