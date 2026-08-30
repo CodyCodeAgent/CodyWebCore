@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.33.5
+
+- Treat a reported bounded reconnect count as terminal even when a legacy App Server also reports `willRetry: true`.
+- Bound retryable response-stream errors that omit retry metadata, while leaving generic warning notifications outside the retry budget.
+
 ## 0.33.4
 
 - Reconciled terminal assistant overlays with durable history one-to-one by native identity, then turn/text occurrence, without collapsing replies across turns.

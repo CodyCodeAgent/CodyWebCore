@@ -320,7 +320,10 @@ export class CodexSessionManager {
         const attempts = Math.max((previous?.attempts ?? 0) + 1, reportedAttempt ?? 0);
         this.upstreamRetries.set(key, { attempts, limit });
         const data = { ...event.data, retryAttempt: attempts, retryLimit: limit };
-        if (event.data.willRetry === true || attempts < limit) {
+        // `willRetry` is advisory. It must not extend an explicitly configured
+        // retry budget indefinitely: some App Server versions keep reporting it
+        // as true after their response stream has already become unrecoverable.
+        if (attempts < limit && event.data.willRetry !== false) {
             Object.assign(event.data, data);
             return null;
         }
@@ -382,7 +385,10 @@ export class CodexSessionManager {
         for (const event of events) {
             if (event.type === 'turn.started' && event.turnId)
                 session.activeTurnId = event.turnId;
-            const upstreamRetryFailure = this.trackUpstreamRetry(event);
+            // Only App Server `error` notifications represent a concrete response
+            // stream retry attempt. Generic warnings are activity updates and must
+            // not consume the retry budget.
+            const upstreamRetryFailure = notification.method === 'error' ? this.trackUpstreamRetry(event) : null;
             if (upstreamRetryFailure) {
                 this.emit(upstreamRetryFailure);
                 continue;

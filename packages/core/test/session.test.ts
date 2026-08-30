@@ -368,6 +368,26 @@ describe('CodexSessionManager', () => {
     await manager.dispose()
   })
 
+  it('honors a bounded reconnect count even when legacy App Server marks it retryable', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host })
+    await manager.create('conversation-1', context)
+    const handle = await manager.send('conversation-1', { input: [{ type: 'text', text: 'hello', text_elements: [] }] })
+
+    host.emit('error', {
+      threadId: 'thread-1',
+      turnId: handle.turnId,
+      willRetry: true,
+      error: { message: 'Reconnecting... 5/5' },
+    })
+
+    await expect(manager.waitForTurn(handle)).resolves.toMatchObject({
+      type: 'turn.failed',
+      data: expect.objectContaining({ retryAttempt: 5, retryLimit: 5, cause: 'upstream_response_stream_unrecoverable' }),
+    })
+    await manager.dispose()
+  })
+
   it('bounds legacy upstream retries even when no retry metadata is supplied', async () => {
     const host = new FakeHost()
     const manager = new CodexSessionManager({ host, maxUpstreamRetryAttempts: 3 })
@@ -386,6 +406,31 @@ describe('CodexSessionManager', () => {
     })
     expect(events.filter((event) => event.type === 'turn.retrying')).toHaveLength(2)
     expect(events.filter((event) => event.type === 'turn.failed')).toHaveLength(1)
+    await manager.dispose()
+  })
+
+  it('bounds retryable stream errors that never report a reconnect counter', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host, maxUpstreamRetryAttempts: 3 })
+    await manager.create('conversation-1', context)
+    const events: CodexEvent[] = []
+    manager.subscribe((event) => events.push(event))
+    const handle = await manager.send('conversation-1', { input: [{ type: 'text', text: 'hello', text_elements: [] }] })
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      host.emit('error', {
+        threadId: 'thread-1',
+        turnId: handle.turnId,
+        willRetry: true,
+        error: { message: 'Falling back from WebSockets to HTTPS transport. request timed out' },
+      })
+    }
+
+    await expect(manager.waitForTurn(handle)).resolves.toMatchObject({
+      type: 'turn.failed',
+      data: expect.objectContaining({ retryAttempt: 3, retryLimit: 3, cause: 'upstream_response_stream_unrecoverable' }),
+    })
+    expect(events.filter((event) => event.type === 'turn.retrying')).toHaveLength(2)
     await manager.dispose()
   })
 

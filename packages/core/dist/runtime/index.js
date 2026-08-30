@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { READ_RECOVERY_METHODS, isNotification, isServerRequest, normalizeRpcResponse, } from '../protocol/index.js';
-export const CODY_WEB_CORE_VERSION = '0.33.4';
+export const CODY_WEB_CORE_VERSION = '0.33.5';
 const DEFAULT_TIMEOUT_MS = 20_000;
 const DEFAULT_RESTART_COOLDOWN_MS = 1_750;
 const MAX_LOGS = 80;

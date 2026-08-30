@@ -27,10 +27,10 @@ function upstreamRetryState(params) {
     const willRetry = optionalBoolean(params.willRetry ?? params.will_retry);
     const terminalError = Boolean(errorInfo && (Object.hasOwn(errorInfo, 'responseTooManyFailedAttempts') || Object.hasOwn(errorInfo, 'response_too_many_failed_attempts')))
         || /\b(responseTooManyFailedAttempts|retry(?:ing)?\s+(?:has\s+)?(?:been\s+)?exhausted)\b/iu.test(message);
-    // `willRetry` is authoritative when supplied. Older App Server builds omit
-    // it, but their "Reconnecting… 5/5" diagnostics still provide a bounded,
-    // terminal retry signal.
-    const exhausted = terminalError || willRetry === false || (willRetry === undefined && retry !== null && retry.attempt >= retry.limit);
+    // A reported bounded attempt is a terminal signal even when an older App
+    // Server incorrectly leaves `willRetry: true` in the same payload. Without
+    // this precedence a turn can remain "recovering" forever after 5/5.
+    const exhausted = terminalError || willRetry === false || (retry !== null && retry.attempt >= retry.limit);
     return { willRetry, attempt: retry?.attempt ?? null, limit: retry?.limit ?? null, exhausted };
 }
 function readDelta(params) {
