@@ -7,6 +7,7 @@ import {
   latestTerminalTurnEvent,
   conversationStateFromRegistry,
   conversationTranscriptFromState,
+  compactConversationMessages,
   createConversationState,
   dataAuthorityFor,
   hiddenMessageCount,
@@ -16,6 +17,7 @@ import {
   reduceConversationEvents,
   reduceConversationRegistryEvents,
   pruneConversationStateRegistry,
+  removeRedundantLiveAssistantMessages,
   restoredConversationScrollTop,
   shouldPreserveConversationViewport,
   upsertLiveDelta,
@@ -46,6 +48,15 @@ describe('conversation core', () => {
       { preserveMissing: true },
     )
     expect(output).toEqual([{ id: 'item-1', turnId: 'turn-1', role: 'assistant', text: 'Hello world' }])
+  })
+
+  it('replaces a legacy terminal overlay whose id lost the agent prefix', () => {
+    const output = mergeMessages(
+      [{ id: 'item-1', turnId: 'turn-1', role: 'assistant' as const, text: 'Done', messageType: 'agentMessage' }],
+      [{ id: 'agent:item-1', turnId: 'turn-1', role: 'assistant' as const, text: 'Done' }],
+      { preserveMissing: true },
+    )
+    expect(output).toEqual([{ id: 'agent:item-1', turnId: 'turn-1', role: 'assistant', text: 'Done' }])
   })
 
   it('keeps historical protocol order while preserving a live suffix', () => {
@@ -260,6 +271,35 @@ describe('conversation core', () => {
     expect(conversationOverlayMessagesFromState(completed)).toEqual([
       expect.objectContaining({ id: 'agent-1', text: 'Done', messageType: 'agentMessage' }),
     ])
+  })
+
+  it('reconciles a completed assistant overlay with its durable transcript row', () => {
+    const base = { threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:00.000Z' }
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { ...base, id: 'start', type: 'turn.started', data: {} },
+      { ...base, id: 'answer', itemId: 'agent-1', type: 'assistant.completed', data: { text: 'Same answer' } },
+      { ...base, id: 'done', type: 'turn.completed', atIso: '2026-01-01T00:00:02.000Z', data: {} },
+    ])
+    const persisted = conversationTranscriptFromState(state)
+    const overlay = conversationOverlayMessagesFromState(state)
+    const displayed = compactConversationMessages([
+      ...persisted,
+      ...removeRedundantLiveAssistantMessages(overlay, persisted),
+    ])
+
+    expect(displayed.filter((message) => message.role === 'assistant')).toEqual([
+      expect.objectContaining({ id: 'agent:agent-1', turnId: 'turn-1', text: 'Same answer' }),
+    ])
+    expect(displayed.filter((message) => message.messageType === 'worked')).toHaveLength(1)
+  })
+
+  it('preserves identical assistant text when it belongs to different turns', () => {
+    const persisted = [{ id: 'agent:old', turnId: 'turn-old', role: 'assistant' as const, text: 'Same answer' }]
+    const overlay = [{
+      id: 'live:new', turnId: 'turn-new', role: 'assistant' as const, text: 'Same answer', messageType: 'agentMessage.live',
+    }]
+
+    expect(removeRedundantLiveAssistantMessages(overlay, persisted)).toEqual(overlay)
   })
 
   it('selects one protocol-ordered feed for every renderer', () => {

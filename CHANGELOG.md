@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.33.3
+
+- Preserve canonical assistant item identities across realtime overlays and durable thread history.
+- Reconcile terminal assistant overlays without collapsing identical replies from different turns.
+
 ## 0.33.2
 
 - Keep Enter available for multiline composer input and submit only with Control/Command Enter in the shared Vue composer.
