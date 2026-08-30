@@ -48,6 +48,55 @@ describe('shared conversation components', () => {
     expect(withSkill.emitted('send')).toEqual([[]])
   })
 
+  it('selects multiple Skills through inline dollar references instead of a dropdown', async () => {
+    const wrapper = mount(CodyComposer, {
+      props: {
+        draft: '',
+        skills: [
+          { value: 'review', label: 'Review', description: 'Review the current change' },
+          { value: 'testing', label: 'Testing', description: 'Run the relevant checks' },
+        ],
+        selectedSkills: [],
+      },
+    })
+    const textarea = wrapper.find('textarea')
+
+    await textarea.setValue('请执行 $rev')
+    expect(wrapper.find('.cody-composer-skill-control').exists()).toBe(false)
+    expect(wrapper.find('.cody-composer-skill-menu').exists()).toBe(true)
+    expect(wrapper.findAll('.cody-composer-skill-option')).toHaveLength(1)
+    expect(wrapper.find('.cody-composer-skill-option-name').text()).toBe('$Review')
+
+    await wrapper.find('.cody-composer-skill-option').trigger('mousedown')
+    expect(wrapper.emitted('update:selected-skills')?.at(-1)).toEqual([['review']])
+    expect(wrapper.emitted('update:draft')?.at(-1)).toEqual(['请执行 '])
+
+    await wrapper.setProps({ draft: '再加 $test', selectedSkills: ['review'] })
+    await textarea.trigger('click')
+    await wrapper.find('.cody-composer-skill-option').trigger('mousedown')
+    expect(wrapper.emitted('update:selected-skills')?.at(-1)).toEqual([['review', 'testing']])
+  })
+
+  it('supports keyboard navigation in the inline Skill menu', async () => {
+    const wrapper = mount(CodyComposer, {
+      props: {
+        draft: '',
+        skills: [
+          { value: 'review', label: 'Review' },
+          { value: 'testing', label: 'Testing' },
+        ],
+        selectedSkills: [],
+      },
+    })
+    const textarea = wrapper.find('textarea')
+    await textarea.setValue('$')
+    await textarea.trigger('keydown', { key: 'ArrowDown' })
+    await textarea.trigger('keydown', { key: 'Enter' })
+
+    expect(wrapper.emitted('update:selected-skills')?.at(-1)).toEqual([['testing']])
+    expect(wrapper.emitted('send')).toBeUndefined()
+  })
+
   it('keeps Enter for newlines and submits with Control or Command Enter', async () => {
     const wrapper = mount(CodyComposer, { props: { draft: '继续' } })
     const textarea = wrapper.find('textarea')

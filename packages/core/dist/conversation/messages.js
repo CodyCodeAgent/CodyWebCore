@@ -64,16 +64,45 @@ function assistantTextIdentity(message) {
     const text = normalizeMessageText(message.text);
     return text ? `${message.turnId}\u0000${text}` : '';
 }
-function reconcilesLiveAssistant(live, persisted) {
-    if (!isLiveAssistant(live) || persisted.role !== 'assistant')
-        return false;
-    if (!live.turnId || live.turnId !== persisted.turnId)
-        return false;
-    const liveText = normalizeMessageText(live.text);
-    const persistedText = normalizeMessageText(persisted.text);
-    if (!liveText || !persistedText)
-        return false;
-    return liveText === persistedText || persistedText.startsWith(liveText);
+function assistantOverlayMatchIndex(overlay, persisted, consumed) {
+    if (!isAssistantOverlay(overlay))
+        return -1;
+    const available = (matches) => persisted.findIndex((candidate, index) => !consumed.has(index) && matches(candidate));
+    const exactId = available(candidate => candidate.role === 'assistant' && candidate.id === overlay.id);
+    if (exactId >= 0)
+        return exactId;
+    const overlayItemIdentity = assistantItemIdentity(overlay);
+    if (overlayItemIdentity) {
+        const sameItem = available(candidate => assistantItemIdentity(candidate) === overlayItemIdentity);
+        if (sameItem >= 0)
+            return sameItem;
+    }
+    const overlayTextIdentity = assistantTextIdentity(overlay);
+    if (overlayTextIdentity) {
+        const sameTurnText = available(candidate => assistantTextIdentity(candidate) === overlayTextIdentity);
+        if (sameTurnText >= 0)
+            return sameTurnText;
+    }
+    const overlayText = normalizeMessageText(overlay.text);
+    if (!overlayText)
+        return -1;
+    if (!overlay.turnId) {
+        // Legacy records without a native turn ID may only reconcile with another
+        // unscoped record. Never deduplicate matching text across known turns.
+        const sameUnscopedText = available(candidate => candidate.role === 'assistant' && !candidate.turnId && normalizeMessageText(candidate.text) === overlayText);
+        if (sameUnscopedText >= 0)
+            return sameUnscopedText;
+    }
+    if (isLiveAssistant(overlay) && overlay.turnId) {
+        // A live delta may be a prefix of the durable completed item. Terminal
+        // overlays deliberately require exact normalized text above.
+        const matchingCompletedText = available(candidate => candidate.role === 'assistant'
+            && candidate.turnId === overlay.turnId
+            && normalizeMessageText(candidate.text).startsWith(overlayText));
+        if (matchingCompletedText >= 0)
+            return matchingCompletedText;
+    }
+    return -1;
 }
 function isSameUserMessage(first, second) {
     return first.role === 'user' && second.role === 'user' && userIdentity(first) === userIdentity(second);
@@ -198,12 +227,11 @@ export function mergeMessages(previous, incoming, options = {}) {
                 return persisted;
             }
         }
-        const assistantIdentity = isAssistantOverlay(oldMessage) ? assistantItemIdentity(oldMessage) : '';
-        if (assistantIdentity) {
-            const persisted = stableIncoming.find((message) => (!consumed.has(message.id)
-                && !isLiveAssistant(message)
-                && assistantItemIdentity(message) === assistantIdentity));
-            if (persisted) {
+        if (isAssistantOverlay(oldMessage)) {
+            const candidates = stableIncoming.filter(message => !consumed.has(message.id) && !isLiveAssistant(message));
+            const match = assistantOverlayMatchIndex(oldMessage, candidates, new Set());
+            if (match >= 0) {
+                const persisted = candidates[match];
                 consumed.add(persisted.id);
                 return persisted;
             }
@@ -214,13 +242,6 @@ export function mergeMessages(previous, incoming, options = {}) {
         if (replay) {
             consumed.add(replay.id);
             return replay;
-        }
-        if (isLiveAssistant(oldMessage)) {
-            const persisted = stableIncoming.find((message) => !consumed.has(message.id) && reconcilesLiveAssistant(oldMessage, message));
-            if (persisted) {
-                consumed.add(persisted.id);
-                return persisted;
-            }
         }
         return oldMessage;
     });
@@ -261,30 +282,17 @@ export function upsertLiveDelta(messages, input) {
 }
 export function removeRedundantLiveAssistantMessages(messages, persisted) {
     const persistedAssistants = persisted.filter((message) => message.role === 'assistant');
-    const persistedIds = new Set(persistedAssistants.map((message) => message.id));
-    const persistedItemIdentities = new Set(persistedAssistants.map(assistantItemIdentity).filter(Boolean));
-    const persistedTextIdentities = new Set(persistedAssistants.map(assistantTextIdentity).filter(Boolean));
-    const persistedTexts = new Set(persistedAssistants.map((message) => normalizeMessageText(message.text)).filter(Boolean));
-    const persistedUnscopedTexts = new Set(persistedAssistants
-        .filter((message) => !message.turnId)
-        .map((message) => normalizeMessageText(message.text))
-        .filter(Boolean));
-    if (!persistedIds.size && !persistedItemIdentities.size && !persistedTexts.size)
+    if (!persistedAssistants.length)
         return messages;
+    const consumed = new Set();
     const next = messages.filter((message) => {
         if (!isAssistantOverlay(message))
             return true;
-        const itemIdentity = assistantItemIdentity(message);
-        const textIdentity = assistantTextIdentity(message);
-        const text = normalizeMessageText(message.text);
-        const hasLiveTextMatch = isLiveAssistant(message) && Boolean(text) && (message.turnId
-            ? persistedTextIdentities.has(textIdentity) || persistedUnscopedTexts.has(text)
-            : persistedTexts.has(text));
-        const hasLegacyTerminalTextMatch = message.messageType === 'agentMessage' && Boolean(text) && (message.turnId ? persistedUnscopedTexts.has(text) : persistedTexts.has(text));
-        return !persistedIds.has(message.id)
-            && (!itemIdentity || !persistedItemIdentities.has(itemIdentity))
-            && !hasLiveTextMatch
-            && !hasLegacyTerminalTextMatch;
+        const match = assistantOverlayMatchIndex(message, persistedAssistants, consumed);
+        if (match < 0)
+            return true;
+        consumed.add(match);
+        return false;
     });
     return next.length === messages.length ? messages : next;
 }

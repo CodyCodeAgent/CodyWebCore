@@ -79,6 +79,8 @@ export type CodexSessionManagerOptions = {
   nowIso?: () => string
   /** Maximum silence between events for an active turn. Progress resets this watchdog. */
   turnInactivityTimeoutMs?: number
+  /** Fallback ceiling for legacy upstream response-stream errors that omit retry metadata. */
+  maxUpstreamRetryAttempts?: number
   onDiagnostic?: (diagnostic: CodexSessionDiagnostic) => void
 }
 
@@ -101,7 +103,13 @@ type TurnWatchdog = {
   inactivityTimeoutMs: number
 }
 
+type UpstreamRetry = {
+  attempts: number
+  limit: number
+}
+
 const DEFAULT_TURN_INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000
+const DEFAULT_MAX_UPSTREAM_RETRY_ATTEMPTS = 5
 
 export class CodexSessionManager {
   private readonly sessions = new Map<string, AttachedSession>()
@@ -109,6 +117,7 @@ export class CodexSessionManager {
   private readonly listeners = new Set<(event: CodexEvent) => void>()
   private readonly waiters = new Map<string, TurnWaiter[]>()
   private readonly turnWatchdogs = new Map<string, TurnWatchdog>()
+  private readonly upstreamRetries = new Map<string, UpstreamRetry>()
   private readonly terminalEvents = new Map<string, CodexEvent>()
   private readonly pendingRequests = new Map<string, { request: ServerRequest; bindingId: string; kind: 'approval' | 'question'; event?: CodexEvent }>()
   private readonly commands: CodexThreadCommands
@@ -272,6 +281,7 @@ export class CodexSessionManager {
     this.unlisten = null
     for (const watchdog of this.turnWatchdogs.values()) clearTimeout(watchdog.timer)
     this.turnWatchdogs.clear()
+    this.upstreamRetries.clear()
     for (const rows of this.waiters.values()) for (const waiter of rows) waiter.reject(new Error('Codex session manager disposed'))
     this.waiters.clear()
     this.sessions.clear()
@@ -337,6 +347,7 @@ export class CodexSessionManager {
     const key = this.turnKey(event.threadId, event.turnId)
     if (this.terminalEvents.has(key)) return
     this.terminalEvents.set(key, event)
+    this.upstreamRetries.delete(key)
     const bindingId = this.sessionIdByThreadId.get(event.threadId)
     const session = bindingId ? this.sessions.get(bindingId) : undefined
     if (session?.activeTurnId === event.turnId) session.activeTurnId = ''
@@ -397,6 +408,33 @@ export class CodexSessionManager {
     this.turnWatchdogs.delete(key)
   }
 
+  private trackUpstreamRetry(event: CodexEvent): CodexEvent | null {
+    if (event.type !== 'turn.retrying' || !event.turnId) return null
+    const key = this.turnKey(event.threadId, event.turnId)
+    const previous = this.upstreamRetries.get(key)
+    const reportedAttempt = nonNegativeInteger(event.data.retryAttempt)
+    const reportedLimit = positiveInteger(event.data.retryLimit)
+    const defaultLimit = positiveInteger(this.options.maxUpstreamRetryAttempts) ?? DEFAULT_MAX_UPSTREAM_RETRY_ATTEMPTS
+    const limit = reportedLimit ?? previous?.limit ?? defaultLimit
+    const attempts = Math.max((previous?.attempts ?? 0) + 1, reportedAttempt ?? 0)
+    this.upstreamRetries.set(key, { attempts, limit })
+    const data = { ...event.data, retryAttempt: attempts, retryLimit: limit }
+    if (event.data.willRetry === true || attempts < limit) {
+      Object.assign(event.data, data)
+      return null
+    }
+    return {
+      ...event,
+      id: this.eventId('turn.failed:upstream-retries', event.threadId, event.turnId),
+      type: 'turn.failed',
+      data: {
+        ...data,
+        cause: 'upstream_response_stream_unrecoverable',
+        error: `Codex 上游响应流恢复失败，未自动重发。${textFromError(event.data.error) || '重试次数已耗尽。'}`,
+      },
+    }
+  }
+
   private turnKey(threadId: string, turnId: string): string { return `${threadId}\u0000${turnId}` }
 
   private async handleNotification(notification: RuntimeNotification): Promise<void> {
@@ -417,6 +455,7 @@ export class CodexSessionManager {
         if (session.activeTurnId) {
           const key = this.turnKey(session.binding.threadId, session.activeTurnId)
           this.clearTurnWatchdog(key)
+          this.upstreamRetries.delete(key)
           for (const waiter of this.waiters.get(key) ?? []) waiter.reject(new Error(error))
           this.waiters.delete(key)
         }
@@ -440,6 +479,12 @@ export class CodexSessionManager {
     })
     for (const event of events) {
       if (event.type === 'turn.started' && event.turnId) session.activeTurnId = event.turnId
+      const upstreamRetryFailure = this.trackUpstreamRetry(event)
+      if (upstreamRetryFailure) {
+        this.emit(upstreamRetryFailure)
+        continue
+      }
+      if (event.turnId && event.type !== 'turn.retrying') this.upstreamRetries.delete(this.turnKey(event.threadId, event.turnId))
       this.emit(event)
     }
   }
@@ -492,4 +537,12 @@ export class CodexSessionManager {
 
 function contentFromInputs(input: UserInput[]): ReturnType<typeof contentFromUserItem> {
   return contentFromUserItem({ content: input })
+}
+
+function nonNegativeInteger(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null
+}
+
+function positiveInteger(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : null
 }

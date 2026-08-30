@@ -8,6 +8,31 @@ export function textFromError(value) {
         return '';
     return readString(record.message) || textFromError(record.error) || readString(record.additionalDetails);
 }
+function optionalBoolean(value) {
+    return typeof value === 'boolean' ? value : undefined;
+}
+function retryAttemptFromText(text) {
+    const match = /(?:reconnect(?:ing)?|retry(?:ing)?)\D{0,32}(\d+)\s*\/\s*(\d+)/iu.exec(text);
+    if (!match)
+        return null;
+    const attempt = Number(match[1]);
+    const limit = Number(match[2]);
+    return Number.isFinite(attempt) && Number.isFinite(limit) && attempt >= 0 && limit > 0 ? { attempt, limit } : null;
+}
+function upstreamRetryState(params) {
+    const error = asRecord(params.error);
+    const errorInfo = asRecord(error?.codexErrorInfo ?? error?.codex_error_info);
+    const message = textFromError(params.error ?? params);
+    const retry = retryAttemptFromText(message);
+    const willRetry = optionalBoolean(params.willRetry ?? params.will_retry);
+    const terminalError = Boolean(errorInfo && (Object.hasOwn(errorInfo, 'responseTooManyFailedAttempts') || Object.hasOwn(errorInfo, 'response_too_many_failed_attempts')))
+        || /\b(responseTooManyFailedAttempts|retry(?:ing)?\s+(?:has\s+)?(?:been\s+)?exhausted)\b/iu.test(message);
+    // `willRetry` is authoritative when supplied. Older App Server builds omit
+    // it, but their "Reconnecting… 5/5" diagnostics still provide a bounded,
+    // terminal retry signal.
+    const exhausted = terminalError || willRetry === false || (willRetry === undefined && retry !== null && retry.attempt >= retry.limit);
+    return { willRetry, attempt: retry?.attempt ?? null, limit: retry?.limit ?? null, exhausted };
+}
 function readDelta(params) {
     return readString(params.delta) || readString(params.textDelta) || readString(params.text_delta)
         || readString(params.content) || readString(params.text);
@@ -328,16 +353,22 @@ export function normalizeCodexNotification(notification, options = {}) {
             }];
     }
     if (notification.method === 'error') {
-        // App Server emits turn-scoped `error` notifications while the upstream
-        // response stream is reconnecting. `willRetry` has not been present in
-        // every supported build, so absence of that hint is not terminal
-        // authority. A Turn only ends through turn/completed, turn/failed or
-        // turn/interrupted.
-        return [{ id: id('retrying'), type: 'turn.retrying', ...common, data: {
-                    error: textFromError(params.error ?? params),
-                    willRetry: params.willRetry === true || params.will_retry === true,
-                    raw: params,
-                } }];
+        const error = textFromError(params.error ?? params) || 'Codex response stream failed.';
+        const retry = upstreamRetryState(params);
+        const retryData = {
+            ...(retry.willRetry !== undefined ? { willRetry: retry.willRetry } : {}),
+            ...(retry.attempt !== null ? { retryAttempt: retry.attempt } : {}),
+            ...(retry.limit !== null ? { retryLimit: retry.limit } : {}),
+            raw: params,
+        };
+        if (retry.exhausted) {
+            return [{ id: id('terminal'), type: 'turn.failed', ...common, data: {
+                        error: `Codex 上游响应流恢复失败，未自动重发。${error}`,
+                        cause: 'upstream_response_stream_unrecoverable',
+                        ...retryData,
+                    } }];
+        }
+        return [{ id: id('retrying'), type: 'turn.retrying', ...common, data: { error, ...retryData } }];
     }
     if (notification.method === 'warning' && turnId) {
         return [{ id: id('retrying'), type: 'turn.retrying', ...common, data: {

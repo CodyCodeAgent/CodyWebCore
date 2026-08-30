@@ -174,6 +174,24 @@ describe('normalizeCodexNotification', () => {
       expect.objectContaining({ type: 'provider.extension', data: { method: 'vendor/custom', params: { threadId: 'thread-1' } } }),
     ])
   })
+
+  it('normalizes an exhausted upstream error as a terminal failure', () => {
+    expect(normalizeCodexNotification({
+      method: 'error',
+      params: {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        error: {
+          message: 'request timed out',
+          codexErrorInfo: { responseTooManyFailedAttempts: { httpStatusCode: null } },
+        },
+      },
+      atIso: '2026-01-01T00:00:00.000Z',
+    }, options)).toEqual([expect.objectContaining({
+      type: 'turn.failed',
+      data: expect.objectContaining({ cause: 'upstream_response_stream_unrecoverable', error: expect.stringContaining('未自动重发') }),
+    })])
+  })
 })
 
 describe('conversationToolFromItem', () => {
@@ -255,7 +273,7 @@ describe('CodexSessionManager', () => {
     const handle = await manager.send('conversation-1', { input: [{ type: 'text', text: 'hello', text_elements: [] }] })
     host.emit('turn/started', { threadId: 'thread-1', turn: { id: handle.turnId } })
     host.emit('warning', { threadId: 'thread-1', turnId: handle.turnId, message: 'Response stream interrupted; reconnecting.' })
-    for (let attempt = 1; attempt <= 5; attempt += 1) {
+    for (let attempt = 1; attempt <= 4; attempt += 1) {
       host.emit('error', {
         threadId: 'thread-1',
         turnId: handle.turnId,
@@ -266,7 +284,7 @@ describe('CodexSessionManager', () => {
     host.emit('turn/completed', { threadId: 'thread-1', turn: { id: handle.turnId, status: 'completed', items: [], error: null } })
     host.emit('turn/completed', { threadId: 'thread-1', turn: { id: handle.turnId, status: 'completed', items: [], error: null } })
     await expect(manager.waitForTurn(handle)).resolves.toMatchObject({ type: 'turn.completed' })
-    expect(events.filter((event) => event.type === 'turn.retrying')).toHaveLength(6)
+    expect(events.filter((event) => event.type === 'turn.retrying')).toHaveLength(5)
     expect(events.find((event) => event.type === 'turn.retrying')?.data.error).toContain('reconnecting')
     expect(events.filter((event) => event.type === 'turn.failed')).toHaveLength(0)
     expect(events.filter((event) => event.type === 'turn.completed')).toHaveLength(1)
@@ -286,7 +304,7 @@ describe('CodexSessionManager', () => {
     host.emit('error', {
       threadId: 'thread-1',
       turnId: handle.turnId,
-      error: { message: 'Reconnecting... 5/5' },
+      error: { message: 'Reconnecting... 2/5' },
     })
     expect(events.at(-1)).toMatchObject({ type: 'turn.retrying', turnId: handle.turnId })
     expect(events.some((event) => event.type === 'turn.failed')).toBe(false)
@@ -299,6 +317,74 @@ describe('CodexSessionManager', () => {
       type: 'turn.failed',
       data: expect.objectContaining({ error: 'request timed out' }),
     })
+    expect(events.filter((event) => event.type === 'turn.failed')).toHaveLength(1)
+    await manager.dispose()
+  })
+
+  it('fails an upstream response stream when App Server explicitly will not retry', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host })
+    await manager.create('conversation-1', context)
+    const events: CodexEvent[] = []
+    manager.subscribe((event) => events.push(event))
+    const handle = await manager.send('conversation-1', { input: [{ type: 'text', text: 'hello', text_elements: [] }] })
+
+    host.emit('error', {
+      threadId: 'thread-1',
+      turnId: handle.turnId,
+      willRetry: false,
+      error: { message: 'response stream disconnected' },
+    })
+
+    await expect(manager.waitForTurn(handle)).resolves.toMatchObject({
+      type: 'turn.failed',
+      data: expect.objectContaining({
+        cause: 'upstream_response_stream_unrecoverable',
+        willRetry: false,
+        error: expect.stringContaining('未自动重发'),
+      }),
+    })
+    expect(events.some((event) => event.type === 'turn.retrying')).toBe(false)
+    expect(events.filter((event) => event.type === 'turn.failed')).toHaveLength(1)
+    await manager.dispose()
+  })
+
+  it('fails a legacy upstream stream when its bounded reconnect attempts are exhausted', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host })
+    await manager.create('conversation-1', context)
+    const handle = await manager.send('conversation-1', { input: [{ type: 'text', text: 'hello', text_elements: [] }] })
+
+    host.emit('error', {
+      threadId: 'thread-1',
+      turnId: handle.turnId,
+      error: { message: 'Reconnecting... 5/5' },
+    })
+
+    await expect(manager.waitForTurn(handle)).resolves.toMatchObject({
+      type: 'turn.failed',
+      data: expect.objectContaining({ retryAttempt: 5, retryLimit: 5, cause: 'upstream_response_stream_unrecoverable' }),
+    })
+    await manager.dispose()
+  })
+
+  it('bounds legacy upstream retries even when no retry metadata is supplied', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host, maxUpstreamRetryAttempts: 3 })
+    await manager.create('conversation-1', context)
+    const events: CodexEvent[] = []
+    manager.subscribe((event) => events.push(event))
+    const handle = await manager.send('conversation-1', { input: [{ type: 'text', text: 'hello', text_elements: [] }] })
+
+    host.emit('error', { threadId: 'thread-1', turnId: handle.turnId, error: { message: 'response stream disconnected' } })
+    host.emit('error', { threadId: 'thread-1', turnId: handle.turnId, error: { message: 'response stream disconnected' } })
+    host.emit('error', { threadId: 'thread-1', turnId: handle.turnId, error: { message: 'response stream disconnected' } })
+
+    await expect(manager.waitForTurn(handle)).resolves.toMatchObject({
+      type: 'turn.failed',
+      data: expect.objectContaining({ retryAttempt: 3, retryLimit: 3, cause: 'upstream_response_stream_unrecoverable' }),
+    })
+    expect(events.filter((event) => event.type === 'turn.retrying')).toHaveLength(2)
     expect(events.filter((event) => event.type === 'turn.failed')).toHaveLength(1)
     await manager.dispose()
   })

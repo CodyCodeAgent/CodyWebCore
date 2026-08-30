@@ -67,11 +67,19 @@ export function normalizeSelectedReasoningEffort(effort: string): KnownReasoning
 }
 export function mergeCollaborationModeOptions(remoteOptions: readonly ComposerCollaborationModeOption[]): ComposerCollaborationModeOption[] {
   const nextOptions: ComposerCollaborationModeOption[] = [DEFAULT_COLLABORATION_MODE]
-  const seenModes = new Set<string>([DEFAULT_COLLABORATION_MODE.mode])
-  const seenNames = new Set<string>([DEFAULT_COLLABORATION_MODE.name])
-  for (const option of remoteOptions) {
-    if (option.mode === 'default' || seenNames.has(option.name)) continue
-    seenNames.add(option.name); seenModes.add(option.mode); nextOptions.push(option)
+  const seenModes = new Set<ComposerCollaborationModeKind>([DEFAULT_COLLABORATION_MODE.mode])
+  const seenNames = new Set<string>([DEFAULT_COLLABORATION_MODE.name.toLowerCase()])
+  for (const rawOption of remoteOptions) {
+    const name = rawOption.name.trim()
+    const label = rawOption.label.trim() || name
+    const normalizedName = name.toLowerCase()
+    // The UI has exactly one option for each semantic mode. The canonical
+    // Default belongs to the shared composer, while a product may customise
+    // the first available Plan option with its own label/settings.
+    if (!name || seenModes.has(rawOption.mode) || seenNames.has(normalizedName)) continue
+    seenModes.add(rawOption.mode)
+    seenNames.add(normalizedName)
+    nextOptions.push({ ...rawOption, name, label })
   }
   if (!seenModes.has('plan')) nextOptions.push(FALLBACK_PLAN_COLLABORATION_MODE)
   return nextOptions

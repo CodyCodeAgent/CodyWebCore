@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.33.4
+
+- Reconciled terminal assistant overlays with durable history one-to-one by native identity, then turn/text occurrence, without collapsing replies across turns.
+- Made upstream Codex response-stream recovery terminal when retries are explicitly declined, exhausted, or legacy retry errors exceed a bounded limit; preserve the user message for explicit retry.
+- Unified the shared Vue composer’s multi-skill `$` references, collaboration-mode normalization, responsive control layout, and Control/Command Enter submission behavior.
+
 ## 0.33.3
 
 - Preserve canonical assistant item identities across realtime overlays and durable thread history.

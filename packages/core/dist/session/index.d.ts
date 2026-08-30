@@ -54,6 +54,8 @@ export type CodexSessionManagerOptions = {
     nowIso?: () => string;
     /** Maximum silence between events for an active turn. Progress resets this watchdog. */
     turnInactivityTimeoutMs?: number;
+    /** Fallback ceiling for legacy upstream response-stream errors that omit retry metadata. */
+    maxUpstreamRetryAttempts?: number;
     onDiagnostic?: (diagnostic: CodexSessionDiagnostic) => void;
 };
 export declare class CodexSessionManager {
@@ -63,6 +65,7 @@ export declare class CodexSessionManager {
     private readonly listeners;
     private readonly waiters;
     private readonly turnWatchdogs;
+    private readonly upstreamRetries;
     private readonly terminalEvents;
     private readonly pendingRequests;
     private readonly commands;
@@ -99,6 +102,7 @@ export declare class CodexSessionManager {
     private armTurnWatchdog;
     private refreshTurnInactivity;
     private clearTurnWatchdog;
+    private trackUpstreamRetry;
     private turnKey;
     private handleNotification;
     private handleServerRequest;

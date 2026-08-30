@@ -17,6 +17,7 @@ import {
   reduceConversationEvents,
   reduceConversationRegistryEvents,
   pruneConversationStateRegistry,
+  reconcilePersistedMessages,
   removeRedundantLiveAssistantMessages,
   restoredConversationScrollTop,
   shouldPreserveConversationViewport,
@@ -293,6 +294,28 @@ describe('conversation core', () => {
     expect(displayed.filter((message) => message.messageType === 'worked')).toHaveLength(1)
   })
 
+  it('reconciles terminal overlays with a differently named durable item in the same turn', () => {
+    const persisted = [{ id: 'msg_9', turnId: 'turn-1', role: 'assistant' as const, text: 'Same answer' }]
+    const overlay = [{ id: 'agent:item-9', turnId: 'turn-1', role: 'assistant' as const, text: 'Same answer', messageType: 'agentMessage' }]
+
+    expect(removeRedundantLiveAssistantMessages(overlay, persisted)).toEqual([])
+    expect(reconcilePersistedMessages(overlay, persisted)).toEqual(persisted)
+  })
+
+  it('reconciles repeated terminal text one-to-one within a turn', () => {
+    const persisted = [
+      { id: 'msg_1', turnId: 'turn-1', role: 'assistant' as const, text: 'Repeated answer' },
+      { id: 'msg_2', turnId: 'turn-1', role: 'assistant' as const, text: 'Repeated answer' },
+    ]
+    const overlays = [
+      { id: 'agent:item-1', turnId: 'turn-1', role: 'assistant' as const, text: 'Repeated answer', messageType: 'agentMessage' },
+      { id: 'agent:item-2', turnId: 'turn-1', role: 'assistant' as const, text: 'Repeated answer', messageType: 'agentMessage' },
+      { id: 'agent:item-3', turnId: 'turn-1', role: 'assistant' as const, text: 'Repeated answer', messageType: 'agentMessage' },
+    ]
+
+    expect(removeRedundantLiveAssistantMessages(overlays, persisted)).toEqual([overlays[2]])
+  })
+
   it('preserves identical assistant text when it belongs to different turns', () => {
     const persisted = [{ id: 'agent:old', turnId: 'turn-old', role: 'assistant' as const, text: 'Same answer' }]
     const overlay = [{
@@ -300,6 +323,29 @@ describe('conversation core', () => {
     }]
 
     expect(removeRedundantLiveAssistantMessages(overlay, persisted)).toEqual(overlay)
+  })
+
+  it('preserves a terminal overlay when only another turn has the same text', () => {
+    const persisted = [{ id: 'msg_old', turnId: 'turn-old', role: 'assistant' as const, text: 'Same answer' }]
+    const overlay = [{
+      id: 'agent:item-new', turnId: 'turn-new', role: 'assistant' as const, text: 'Same answer', messageType: 'agentMessage',
+    }]
+
+    expect(removeRedundantLiveAssistantMessages(overlay, persisted)).toEqual(overlay)
+    expect(reconcilePersistedMessages(overlay, persisted)).toEqual([...overlay, ...persisted])
+  })
+
+  it('reconciles replayed terminal overlays against a multi-turn history snapshot', () => {
+    const persisted = [
+      { id: 'msg_older', turnId: 'turn-older', role: 'assistant' as const, text: 'Repeated answer' },
+      { id: 'msg_latest', turnId: 'turn-latest', role: 'assistant' as const, text: 'Repeated answer' },
+    ]
+    const replayedOverlays = [
+      { id: 'agent:item-older', turnId: 'turn-older', role: 'assistant' as const, text: 'Repeated answer', messageType: 'agentMessage' },
+      { id: 'agent:item-latest', turnId: 'turn-latest', role: 'assistant' as const, text: 'Repeated answer', messageType: 'agentMessage' },
+    ]
+
+    expect(reconcilePersistedMessages(replayedOverlays, persisted)).toEqual(persisted)
   })
 
   it('selects one protocol-ordered feed for every renderer', () => {

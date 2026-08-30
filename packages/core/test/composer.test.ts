@@ -34,6 +34,14 @@ describe('composer core', () => {
   it('reconciles models and collaboration modes deterministically', () => {
     expect(mergeAvailableModelsWithCurrent(['gpt-5', 'gpt-5'], 'gpt-6')).toEqual(['gpt-6', 'gpt-5'])
     expect(mergeCollaborationModeOptions([])).toEqual([DEFAULT_COLLABORATION_MODE, FALLBACK_PLAN_COLLABORATION_MODE])
+    expect(mergeCollaborationModeOptions([
+      { ...DEFAULT_COLLABORATION_MODE, name: ' Default ', label: 'Remote default' },
+      { ...FALLBACK_PLAN_COLLABORATION_MODE, name: 'PLAN', label: 'Custom plan' },
+      { ...FALLBACK_PLAN_COLLABORATION_MODE, name: 'plan-alt', label: 'Duplicate plan' },
+    ])).toEqual([
+      DEFAULT_COLLABORATION_MODE,
+      { ...FALLBACK_PLAN_COLLABORATION_MODE, name: 'PLAN', label: 'Custom plan' },
+    ])
     expect(buildTurnCollaborationMode(FALLBACK_PLAN_COLLABORATION_MODE, 'gpt-6', 'high')).toEqual({ mode: 'plan', settings: { model: 'gpt-6', reasoning_effort: 'high', developer_instructions: null } })
   })
   it('validates image MIME type and size independently from upload transport', () => {
