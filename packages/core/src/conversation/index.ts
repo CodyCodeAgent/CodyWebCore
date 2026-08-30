@@ -7,6 +7,7 @@ import {
   formatTurnDuration,
   mergeMessages,
   upsertLiveDelta,
+  areUserMessagesEquivalent,
   type ConversationMessage,
   type ConversationTool,
 } from './messages.js'
@@ -479,17 +480,24 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
       })
       : []
     const messageId = `user:${event.itemId || event.id}`
+    const localOutbox = event.data.localOutbox === 'failed' ? 'failed' : event.data.localOutbox === 'queued' ? 'queued' : event.data.localOutbox === 'sending' ? 'sending' : ''
+    const optimistic = event.data.optimistic === true
+    const incomingMessage: ConversationMessage = {
+      id: messageId,
+      turnId: event.turnId,
+      role: 'user',
+      text,
+      ...(images.length ? { images } : {}),
+      ...(skills.length ? { skills } : {}),
+      ...(optimistic ? { messageType: 'userMessage.optimistic', outbox: { status: localOutbox || 'sending' } } : {}),
+      ...(localOutbox === 'failed' ? { messageType: 'userMessage.outbox.failed', outbox: { status: 'failed' as const, ...(typeof event.data.error === 'string' ? { lastError: event.data.error } : {}) } } : {}),
+    }
+    // A refresh can already contain the durable user item while an in-memory
+    // optimistic journal is replayed afterwards. Do not resurrect that row.
+    if (optimistic && state.messages.some((message) => message.role === 'user' && message.messageType?.startsWith('userMessage.') !== true && areUserMessagesEquivalent(message, incomingMessage))) return state
     return {
       ...state,
-      messages: mergeMessages(state.messages, [{
-        id: messageId,
-        turnId: event.turnId,
-        role: 'user',
-        text,
-        ...(images.length ? { images } : {}),
-        ...(skills.length ? { skills } : {}),
-        ...(event.data.optimistic === true ? { messageType: 'userMessage.optimistic' } : {}),
-      }], { preserveMissing: true }),
+      messages: mergeMessages(state.messages, [incomingMessage], { preserveMissing: true }),
       presentation: appendPresentation(state.presentation, { id: messageId, kind: 'message', turnId: event.turnId },
         (row) => row.kind === 'message' && row.turnId === event.turnId && row.id.startsWith('user:')),
     }

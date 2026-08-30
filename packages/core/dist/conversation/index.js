@@ -1,7 +1,7 @@
 /** Deterministic conversation state primitives. They deliberately contain no Vue/React state. */
 export * from './history-window.js';
 export * from './messages.js';
-import { formatTurnDuration, mergeMessages, upsertLiveDelta, } from './messages.js';
+import { formatTurnDuration, mergeMessages, upsertLiveDelta, areUserMessagesEquivalent, } from './messages.js';
 /** Assistant and plan messages that should overlay durable history. */
 export function conversationOverlayMessagesFromState(state) {
     const messages = state.messages
@@ -309,17 +309,25 @@ export function reduceConversationEvent(previous, event) {
             })
             : [];
         const messageId = `user:${event.itemId || event.id}`;
+        const localOutbox = event.data.localOutbox === 'failed' ? 'failed' : event.data.localOutbox === 'queued' ? 'queued' : event.data.localOutbox === 'sending' ? 'sending' : '';
+        const optimistic = event.data.optimistic === true;
+        const incomingMessage = {
+            id: messageId,
+            turnId: event.turnId,
+            role: 'user',
+            text,
+            ...(images.length ? { images } : {}),
+            ...(skills.length ? { skills } : {}),
+            ...(optimistic ? { messageType: 'userMessage.optimistic', outbox: { status: localOutbox || 'sending' } } : {}),
+            ...(localOutbox === 'failed' ? { messageType: 'userMessage.outbox.failed', outbox: { status: 'failed', ...(typeof event.data.error === 'string' ? { lastError: event.data.error } : {}) } } : {}),
+        };
+        // A refresh can already contain the durable user item while an in-memory
+        // optimistic journal is replayed afterwards. Do not resurrect that row.
+        if (optimistic && state.messages.some((message) => message.role === 'user' && message.messageType?.startsWith('userMessage.') !== true && areUserMessagesEquivalent(message, incomingMessage)))
+            return state;
         return {
             ...state,
-            messages: mergeMessages(state.messages, [{
-                    id: messageId,
-                    turnId: event.turnId,
-                    role: 'user',
-                    text,
-                    ...(images.length ? { images } : {}),
-                    ...(skills.length ? { skills } : {}),
-                    ...(event.data.optimistic === true ? { messageType: 'userMessage.optimistic' } : {}),
-                }], { preserveMissing: true }),
+            messages: mergeMessages(state.messages, [incomingMessage], { preserveMissing: true }),
             presentation: appendPresentation(state.presentation, { id: messageId, kind: 'message', turnId: event.turnId }, (row) => row.kind === 'message' && row.turnId === event.turnId && row.id.startsWith('user:')),
         };
     }

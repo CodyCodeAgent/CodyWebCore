@@ -131,7 +131,7 @@ function assistantOverlayMatchIndex<T extends ConversationMessage>(overlay: T, p
   return -1
 }
 
-function isSameUserMessage(first: ConversationMessage, second: ConversationMessage): boolean {
+export function areUserMessagesEquivalent(first: ConversationMessage, second: ConversationMessage): boolean {
   return first.role === 'user' && second.role === 'user' && userIdentity(first) === userIdentity(second)
 }
 
@@ -167,7 +167,7 @@ export function removeDuplicateAdjacentUserMessages<T extends ConversationMessag
   const next: T[] = []
   for (const message of messages) {
     const previous = next.at(-1)
-    if (!previous || !isSameUserMessage(previous, message)) {
+    if (!previous || !areUserMessagesEquivalent(previous, message)) {
       next.push(message)
       continue
     }
@@ -236,7 +236,7 @@ export function mergeMessages<T extends ConversationMessage>(previous: T[], inco
       return areConversationMessageFieldsEqual(oldMessage, exact) ? oldMessage : exact
     }
     if (isLocalPendingUserMessage(oldMessage)) {
-      const persisted = stableIncoming.find((message) => !consumed.has(message.id) && isPersistedUserMessage(message) && isSameUserMessage(oldMessage, message))
+      const persisted = stableIncoming.find((message) => !consumed.has(message.id) && isPersistedUserMessage(message) && areUserMessagesEquivalent(oldMessage, message))
       if (persisted) { consumed.add(persisted.id); return persisted }
     }
     if (isAssistantOverlay(oldMessage)) {
@@ -250,7 +250,7 @@ export function mergeMessages<T extends ConversationMessage>(previous: T[], inco
     }
     const key = turnUserIdentity(oldMessage)
     const replay = (key ? turnLinkedIncoming.get(key) : undefined)
-      ?.find((message) => !consumed.has(message.id) && isSameUserMessage(oldMessage, message))
+      ?.find((message) => !consumed.has(message.id) && areUserMessagesEquivalent(oldMessage, message))
     if (replay) { consumed.add(replay.id); return replay }
     return oldMessage
   })
@@ -262,7 +262,7 @@ export function mergeMessages<T extends ConversationMessage>(previous: T[], inco
   const currentTurnUsers = previous.slice(lastTurnBoundary + 1).filter(isPersistedUserMessage)
   const appended = stableIncoming.filter((message) => {
     if (consumed.has(message.id) || previousById.has(message.id)) return false
-    return !(isPersistedUserMessage(message) && currentTurnUsers.some((existing) => isSameUserMessage(existing, message)))
+    return !(isPersistedUserMessage(message) && currentTurnUsers.some((existing) => areUserMessagesEquivalent(existing, message)))
   })
   const ordered = insertAtProtocolPosition(merged, appended, stableIncoming)
   const compacted = removeDuplicateAdjacentUserMessages(removeDuplicateMessageIds(ordered))
@@ -315,9 +315,9 @@ export function compactConversationMessages<T extends ConversationMessage>(messa
       if (!consumed.has(message.id)) next.push(message)
       continue
     }
-    const replacement = persistedUsers.find((candidate) => !consumed.has(candidate.id) && isSameUserMessage(message, candidate))
+    const replacement = persistedUsers.find((candidate) => !consumed.has(candidate.id) && areUserMessagesEquivalent(message, candidate))
     if (!replacement) { next.push(message); continue }
-    if (!next.some((displayed) => isPersistedUserMessage(displayed) && isSameUserMessage(displayed, replacement))) next.push(replacement)
+    if (!next.some((displayed) => isPersistedUserMessage(displayed) && areUserMessagesEquivalent(displayed, replacement))) next.push(replacement)
     consumed.add(replacement.id)
   }
   return areConversationMessageArraysStable(messages, next) ? messages : next

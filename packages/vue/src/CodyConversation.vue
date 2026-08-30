@@ -11,6 +11,9 @@
           <ul v-if="entry.message.skills?.length" class="cody-message-skills"><li v-for="skill in entry.message.skills" :key="`${skill.name}:${skill.path}`">${{ skill.displayName || skill.name }}</li></ul>
           <div v-if="entry.message.text" class="cody-message-body"><slot name="markdown" :message="entry.message"><CodyMarkdown :text="entry.message.text" @open-file="emit('openFile', $event)" /></slot></div>
           <div v-if="entry.message.images?.length" class="cody-message-images"><img v-for="image in entry.message.images" :key="image" :src="image" alt="对话图片" loading="lazy"></div>
+          <p v-if="entry.message.outbox" :class="['cody-message-outbox', entry.message.outbox.status]" role="status">
+            {{ entry.message.outbox.status === 'failed' ? `发送失败${entry.message.outbox.lastError ? `：${entry.message.outbox.lastError}` : ''}` : entry.message.outbox.status === 'queued' ? '已加入发送队列' : '正在发送…' }}
+          </p>
           <button v-if="entry.message.text" class="cody-copy-button" type="button" @click="emit('copy', entry.message.text)">复制</button>
         </div>
       </article>

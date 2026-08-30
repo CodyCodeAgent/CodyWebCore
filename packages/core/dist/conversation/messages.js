@@ -104,7 +104,7 @@ function assistantOverlayMatchIndex(overlay, persisted, consumed) {
     }
     return -1;
 }
-function isSameUserMessage(first, second) {
+export function areUserMessagesEquivalent(first, second) {
     return first.role === 'user' && second.role === 'user' && userIdentity(first) === userIdentity(second);
 }
 function sameUnknown(first, second) {
@@ -143,7 +143,7 @@ export function removeDuplicateAdjacentUserMessages(messages) {
     const next = [];
     for (const message of messages) {
         const previous = next.at(-1);
-        if (!previous || !isSameUserMessage(previous, message)) {
+        if (!previous || !areUserMessagesEquivalent(previous, message)) {
             next.push(message);
             continue;
         }
@@ -221,7 +221,7 @@ export function mergeMessages(previous, incoming, options = {}) {
             return areConversationMessageFieldsEqual(oldMessage, exact) ? oldMessage : exact;
         }
         if (isLocalPendingUserMessage(oldMessage)) {
-            const persisted = stableIncoming.find((message) => !consumed.has(message.id) && isPersistedUserMessage(message) && isSameUserMessage(oldMessage, message));
+            const persisted = stableIncoming.find((message) => !consumed.has(message.id) && isPersistedUserMessage(message) && areUserMessagesEquivalent(oldMessage, message));
             if (persisted) {
                 consumed.add(persisted.id);
                 return persisted;
@@ -238,7 +238,7 @@ export function mergeMessages(previous, incoming, options = {}) {
         }
         const key = turnUserIdentity(oldMessage);
         const replay = (key ? turnLinkedIncoming.get(key) : undefined)
-            ?.find((message) => !consumed.has(message.id) && isSameUserMessage(oldMessage, message));
+            ?.find((message) => !consumed.has(message.id) && areUserMessagesEquivalent(oldMessage, message));
         if (replay) {
             consumed.add(replay.id);
             return replay;
@@ -256,7 +256,7 @@ export function mergeMessages(previous, incoming, options = {}) {
     const appended = stableIncoming.filter((message) => {
         if (consumed.has(message.id) || previousById.has(message.id))
             return false;
-        return !(isPersistedUserMessage(message) && currentTurnUsers.some((existing) => isSameUserMessage(existing, message)));
+        return !(isPersistedUserMessage(message) && currentTurnUsers.some((existing) => areUserMessagesEquivalent(existing, message)));
     });
     const ordered = insertAtProtocolPosition(merged, appended, stableIncoming);
     const compacted = removeDuplicateAdjacentUserMessages(removeDuplicateMessageIds(ordered));
@@ -306,12 +306,12 @@ export function compactConversationMessages(messages) {
                 next.push(message);
             continue;
         }
-        const replacement = persistedUsers.find((candidate) => !consumed.has(candidate.id) && isSameUserMessage(message, candidate));
+        const replacement = persistedUsers.find((candidate) => !consumed.has(candidate.id) && areUserMessagesEquivalent(message, candidate));
         if (!replacement) {
             next.push(message);
             continue;
         }
-        if (!next.some((displayed) => isPersistedUserMessage(displayed) && isSameUserMessage(displayed, replacement)))
+        if (!next.some((displayed) => isPersistedUserMessage(displayed) && areUserMessagesEquivalent(displayed, replacement)))
             next.push(replacement);
         consumed.add(replacement.id);
     }

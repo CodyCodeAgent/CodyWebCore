@@ -19,6 +19,13 @@ export interface ConversationTransport {
 export type ConversationController = {
   getState(): ConversationState
   subscribe(listener: (state: ConversationState) => void): () => void
+  /**
+   * Adds a local user row before the transport has acknowledged turn/start.
+   * The row is reconciled with the native user item rather than appended again.
+   */
+  enqueueUserMessage(input: { id: string; text: string; images?: string[]; skills?: Array<{ name: string; path: string; displayName?: string }> }): void
+  bindQueuedUserMessage(id: string, turnId: string): void
+  failQueuedUserMessage(id: string, error: string): void
   start(): Promise<void>
   refresh(): Promise<void>
   dispose(): void
@@ -38,6 +45,7 @@ export function createConversationController(threadId: string, transport: Conver
   let connectionRevision = 0
   let realtimeEventRevision = 0
   let realtimeJournal: Array<{ revision: number; event: CodexEvent }> = []
+  let localOutboxJournal: CodexEvent[] = []
   const listeners = new Set<(value: ConversationState) => void>()
   const MAX_REALTIME_JOURNAL_EVENTS = 10_000
 
@@ -45,6 +53,12 @@ export function createConversationController(threadId: string, transport: Conver
     if (next === state) return
     state = next
     for (const listener of listeners) listener(state)
+  }
+
+  const queuedMessageId = (id: string): string => `user:${id}`
+  const pruneSettledOutbox = (next: ConversationState): void => {
+    const visibleIds = new Set(next.messages.map((message) => message.id))
+    localOutboxJournal = localOutboxJournal.filter((event) => visibleIds.has(queuedMessageId(event.itemId || event.id)))
   }
 
   const refresh = async (): Promise<void> => {
@@ -63,11 +77,13 @@ export function createConversationController(threadId: string, transport: Conver
           .filter((entry) => entry.revision > realtimeRevisionAtStart)
           .map((entry) => entry.event),
       )
+      const reconciled = reduceConversationEvents(snapshot, localOutboxJournal)
+      pruneSettledOutbox(reconciled)
       publish({
-        ...snapshot,
+        ...reconciled,
         connection: state.connection,
         history: {
-          ...snapshot.history,
+          ...reconciled.history,
           loading: false,
           requestRevision: revision,
           error: '',
@@ -101,7 +117,9 @@ export function createConversationController(threadId: string, transport: Conver
             ...realtimeJournal,
             { revision: realtimeEventRevision, event: value.event },
           ].slice(-MAX_REALTIME_JOURNAL_EVENTS)
-          publish(reduceConversationEvent(state, value.event))
+          const next = reduceConversationEvent(state, value.event)
+          pruneSettledOutbox(next)
+          publish(next)
           return
         }
         if (value.type === 'connected') {
@@ -131,6 +149,45 @@ export function createConversationController(threadId: string, transport: Conver
   return {
     getState: () => state,
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener) },
+    enqueueUserMessage(input) {
+      if (!input.id || !input.text.trim()) return
+      const event: CodexEvent = {
+        id: `local-outbox:${input.id}`,
+        type: 'user.completed',
+        threadId,
+        itemId: input.id,
+        atIso: new Date().toISOString(),
+        data: {
+          text: input.text,
+          ...(input.images?.length ? { images: input.images } : {}),
+          ...(input.skills?.length ? { skills: input.skills } : {}),
+          optimistic: true,
+          localOutbox: 'sending',
+        },
+      }
+      localOutboxJournal = [...localOutboxJournal.filter((row) => row.itemId !== input.id), event]
+      publish(reduceConversationEvent(state, event))
+    },
+    bindQueuedUserMessage(id, turnId) {
+      if (!id || !turnId) return
+      localOutboxJournal = localOutboxJournal.map((event) => event.itemId === id ? { ...event, turnId } : event)
+      const messageId = queuedMessageId(id)
+      const nextMessages = state.messages.map((message) => message.id === messageId ? { ...message, turnId } : message)
+      if (nextMessages.some((message, index) => message !== state.messages[index])) publish({ ...state, messages: nextMessages })
+    },
+    failQueuedUserMessage(id, error) {
+      if (!id) return
+      const current = localOutboxJournal.find((event) => event.itemId === id)
+      if (!current) return
+      const failed: CodexEvent = {
+        ...current,
+        id: `local-outbox-failed:${id}:${Date.now().toString(36)}`,
+        atIso: new Date().toISOString(),
+        data: { ...current.data, optimistic: false, localOutbox: 'failed', error },
+      }
+      localOutboxJournal = localOutboxJournal.map((event) => event.itemId === id ? failed : event)
+      publish(reduceConversationEvent(state, failed))
+    },
     start,
     refresh,
     dispose() {
@@ -139,6 +196,7 @@ export function createConversationController(threadId: string, transport: Conver
       initialReadSettled = false
       initialReadPromise = null
       realtimeJournal = []
+      localOutboxJournal = []
       realtimeEventRevision = 0
       unsubscribeTransport?.()
       unsubscribeTransport = null

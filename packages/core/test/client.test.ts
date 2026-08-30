@@ -110,4 +110,44 @@ describe('ConversationController', () => {
     expect(controller.getState().messages.map(message => message.text)).toEqual(['live still works'])
     await expect(controller.refresh()).rejects.toThrow('history unavailable')
   })
+
+  it('shows a queued user message before turn/start or history responds, then replaces it with the native item', async () => {
+    const history = deferred<CodexEvent[]>()
+    const transport: ConversationTransport = {
+      read: () => history.promise,
+      subscribe: () => () => undefined,
+    }
+    const controller = createConversationController('thread-1', transport)
+    const start = controller.start()
+
+    controller.enqueueUserMessage({ id: 'local-1', text: '先检查当前分支' })
+    expect(controller.getState().messages).toMatchObject([
+      { id: 'user:local-1', text: '先检查当前分支', messageType: 'userMessage.optimistic', outbox: { status: 'sending' } },
+    ])
+
+    history.resolve([{
+      ...event('native-user', 'user.completed', { text: '先检查当前分支' }),
+      itemId: 'native-user-1',
+    }])
+    await start
+
+    expect(controller.getState().messages).toMatchObject([
+      { id: 'user:native-user-1', text: '先检查当前分支' },
+    ])
+    expect(controller.getState().messages).toHaveLength(1)
+    expect(controller.getState().messages[0]?.outbox).toBeUndefined()
+  })
+
+  it('keeps a failed queued user message visible for an explicit retry', () => {
+    const controller = createConversationController('thread-1', {
+      read: async () => [],
+      subscribe: () => () => undefined,
+    })
+    controller.enqueueUserMessage({ id: 'local-1', text: '执行检查' })
+    controller.failQueuedUserMessage('local-1', 'request timed out')
+
+    expect(controller.getState().messages).toMatchObject([
+      { id: 'user:local-1', messageType: 'userMessage.outbox.failed', outbox: { status: 'failed', lastError: 'request timed out' } },
+    ])
+  })
 })

@@ -9,6 +9,9 @@ import {
 export interface UseConversationController {
   readonly state: ComputedRef<ConversationState>
   connect(threadId: string, transport: ConversationTransport): Promise<void>
+  enqueueUserMessage(input: { id: string; text: string; images?: string[]; skills?: Array<{ name: string; path: string; displayName?: string }> }): void
+  bindQueuedUserMessage(id: string, turnId: string): void
+  failQueuedUserMessage(id: string, error: string): void
   refresh(): Promise<void>
   reset(threadId?: string): void
   dispose(): void
@@ -49,6 +52,10 @@ export function useConversationController(): UseConversationController {
     await controller?.refresh()
   }
 
+  const enqueueUserMessage: UseConversationController['enqueueUserMessage'] = (input) => controller?.enqueueUserMessage(input)
+  const bindQueuedUserMessage: UseConversationController['bindQueuedUserMessage'] = (id, turnId) => controller?.bindQueuedUserMessage(id, turnId)
+  const failQueuedUserMessage: UseConversationController['failQueuedUserMessage'] = (id, error) => controller?.failQueuedUserMessage(id, error)
+
   const reset = (threadId = ''): void => {
     release()
     state.value = createConversationState(threadId)
@@ -63,6 +70,9 @@ export function useConversationController(): UseConversationController {
   return {
     state: computed(() => state.value),
     connect,
+    enqueueUserMessage,
+    bindQueuedUserMessage,
+    failQueuedUserMessage,
     refresh,
     reset,
     dispose,

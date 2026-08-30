@@ -32,6 +32,7 @@ export type ConversationMessage = {
 export type DataAuthority = 'overlay' | 'replace-snapshot' | 'invalidate' | 'apply-delta-then-reconcile' | 'ignore';
 export declare function dataAuthorityFor(method: string): DataAuthority;
 export declare function normalizeMessageText(value: string): string;
+export declare function areUserMessagesEquivalent(first: ConversationMessage, second: ConversationMessage): boolean;
 export declare function areConversationMessageFieldsEqual<T extends ConversationMessage>(first: T, second: T): boolean;
 export declare function areConversationMessageArraysStable<T extends ConversationMessage>(first: T[], second: T[]): boolean;
 export declare function removeDuplicateAdjacentUserMessages<T extends ConversationMessage>(messages: T[]): T[];

@@ -13,6 +13,7 @@ export function createConversationController(threadId, transport) {
     let connectionRevision = 0;
     let realtimeEventRevision = 0;
     let realtimeJournal = [];
+    let localOutboxJournal = [];
     const listeners = new Set();
     const MAX_REALTIME_JOURNAL_EVENTS = 10_000;
     const publish = (next) => {
@@ -21,6 +22,11 @@ export function createConversationController(threadId, transport) {
         state = next;
         for (const listener of listeners)
             listener(state);
+    };
+    const queuedMessageId = (id) => `user:${id}`;
+    const pruneSettledOutbox = (next) => {
+        const visibleIds = new Set(next.messages.map((message) => message.id));
+        localOutboxJournal = localOutboxJournal.filter((event) => visibleIds.has(queuedMessageId(event.itemId || event.id)));
     };
     const refresh = async () => {
         const revision = ++readRevision;
@@ -36,11 +42,13 @@ export function createConversationController(threadId, transport) {
             const snapshot = reduceConversationEvents(reduceConversationEvents(createConversationState(threadId), events), realtimeJournal
                 .filter((entry) => entry.revision > realtimeRevisionAtStart)
                 .map((entry) => entry.event));
+            const reconciled = reduceConversationEvents(snapshot, localOutboxJournal);
+            pruneSettledOutbox(reconciled);
             publish({
-                ...snapshot,
+                ...reconciled,
                 connection: state.connection,
                 history: {
-                    ...snapshot.history,
+                    ...reconciled.history,
                     loading: false,
                     requestRevision: revision,
                     error: '',
@@ -77,7 +85,9 @@ export function createConversationController(threadId, transport) {
                         ...realtimeJournal,
                         { revision: realtimeEventRevision, event: value.event },
                     ].slice(-MAX_REALTIME_JOURNAL_EVENTS);
-                    publish(reduceConversationEvent(state, value.event));
+                    const next = reduceConversationEvent(state, value.event);
+                    pruneSettledOutbox(next);
+                    publish(next);
                     return;
                 }
                 if (value.type === 'connected') {
@@ -107,6 +117,50 @@ export function createConversationController(threadId, transport) {
     return {
         getState: () => state,
         subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
+        enqueueUserMessage(input) {
+            if (!input.id || !input.text.trim())
+                return;
+            const event = {
+                id: `local-outbox:${input.id}`,
+                type: 'user.completed',
+                threadId,
+                itemId: input.id,
+                atIso: new Date().toISOString(),
+                data: {
+                    text: input.text,
+                    ...(input.images?.length ? { images: input.images } : {}),
+                    ...(input.skills?.length ? { skills: input.skills } : {}),
+                    optimistic: true,
+                    localOutbox: 'sending',
+                },
+            };
+            localOutboxJournal = [...localOutboxJournal.filter((row) => row.itemId !== input.id), event];
+            publish(reduceConversationEvent(state, event));
+        },
+        bindQueuedUserMessage(id, turnId) {
+            if (!id || !turnId)
+                return;
+            localOutboxJournal = localOutboxJournal.map((event) => event.itemId === id ? { ...event, turnId } : event);
+            const messageId = queuedMessageId(id);
+            const nextMessages = state.messages.map((message) => message.id === messageId ? { ...message, turnId } : message);
+            if (nextMessages.some((message, index) => message !== state.messages[index]))
+                publish({ ...state, messages: nextMessages });
+        },
+        failQueuedUserMessage(id, error) {
+            if (!id)
+                return;
+            const current = localOutboxJournal.find((event) => event.itemId === id);
+            if (!current)
+                return;
+            const failed = {
+                ...current,
+                id: `local-outbox-failed:${id}:${Date.now().toString(36)}`,
+                atIso: new Date().toISOString(),
+                data: { ...current.data, optimistic: false, localOutbox: 'failed', error },
+            };
+            localOutboxJournal = localOutboxJournal.map((event) => event.itemId === id ? failed : event);
+            publish(reduceConversationEvent(state, failed));
+        },
         start,
         refresh,
         dispose() {
@@ -115,6 +169,7 @@ export function createConversationController(threadId, transport) {
             initialReadSettled = false;
             initialReadPromise = null;
             realtimeJournal = [];
+            localOutboxJournal = [];
             realtimeEventRevision = 0;
             unsubscribeTransport?.();
             unsubscribeTransport = null;
