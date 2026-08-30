@@ -75,6 +75,25 @@ function isLiveAssistant(message: ConversationMessage): boolean {
     && (message.messageType === 'agentMessage.live' || message.messageType === 'plan.live')
 }
 
+function isAssistantOverlay(message: ConversationMessage): boolean {
+  return message.role === 'assistant'
+    && (message.messageType === 'agentMessage.live'
+      || message.messageType === 'agentMessage'
+      || message.messageType === 'plan.live')
+}
+
+function assistantItemIdentity(message: ConversationMessage): string {
+  if (message.role !== 'assistant' || !message.turnId || !message.id) return ''
+  const itemId = message.id.replace(/^(?:live|agent):/u, '')
+  return itemId ? `${message.turnId}\u0000${itemId}` : ''
+}
+
+function assistantTextIdentity(message: ConversationMessage): string {
+  if (message.role !== 'assistant' || !message.turnId) return ''
+  const text = normalizeMessageText(message.text)
+  return text ? `${message.turnId}\u0000${text}` : ''
+}
+
 function reconcilesLiveAssistant(live: ConversationMessage, persisted: ConversationMessage): boolean {
   if (!isLiveAssistant(live) || persisted.role !== 'assistant') return false
   if (!live.turnId || live.turnId !== persisted.turnId) return false
@@ -192,6 +211,15 @@ export function mergeMessages<T extends ConversationMessage>(previous: T[], inco
       const persisted = stableIncoming.find((message) => !consumed.has(message.id) && isPersistedUserMessage(message) && isSameUserMessage(oldMessage, message))
       if (persisted) { consumed.add(persisted.id); return persisted }
     }
+    const assistantIdentity = isAssistantOverlay(oldMessage) ? assistantItemIdentity(oldMessage) : ''
+    if (assistantIdentity) {
+      const persisted = stableIncoming.find((message) => (
+        !consumed.has(message.id)
+        && !isLiveAssistant(message)
+        && assistantItemIdentity(message) === assistantIdentity
+      ))
+      if (persisted) { consumed.add(persisted.id); return persisted }
+    }
     const key = turnUserIdentity(oldMessage)
     const replay = (key ? turnLinkedIncoming.get(key) : undefined)
       ?.find((message) => !consumed.has(message.id) && isSameUserMessage(oldMessage, message))
@@ -241,12 +269,33 @@ export function upsertLiveDelta<T extends ConversationMessage>(messages: T[], in
 }
 
 export function removeRedundantLiveAssistantMessages<T extends ConversationMessage>(messages: T[], persisted: T[]): T[] {
-  const persistedIds = new Set(persisted.filter((message) => message.role === 'assistant').map((message) => message.id))
-  const persistedTexts = new Set(persisted.filter((message) => message.role === 'assistant').map((message) => normalizeMessageText(message.text)).filter(Boolean))
-  if (!persistedIds.size && !persistedTexts.size) return messages
+  const persistedAssistants = persisted.filter((message) => message.role === 'assistant')
+  const persistedIds = new Set(persistedAssistants.map((message) => message.id))
+  const persistedItemIdentities = new Set(persistedAssistants.map(assistantItemIdentity).filter(Boolean))
+  const persistedTextIdentities = new Set(persistedAssistants.map(assistantTextIdentity).filter(Boolean))
+  const persistedTexts = new Set(persistedAssistants.map((message) => normalizeMessageText(message.text)).filter(Boolean))
+  const persistedUnscopedTexts = new Set(persistedAssistants
+    .filter((message) => !message.turnId)
+    .map((message) => normalizeMessageText(message.text))
+    .filter(Boolean))
+  if (!persistedIds.size && !persistedItemIdentities.size && !persistedTexts.size) return messages
   const next = messages.filter((message) => {
-    if (message.messageType !== 'agentMessage.live' && message.messageType !== 'plan.live') return true
-    return !persistedIds.has(message.id) && !persistedTexts.has(normalizeMessageText(message.text))
+    if (!isAssistantOverlay(message)) return true
+    const itemIdentity = assistantItemIdentity(message)
+    const textIdentity = assistantTextIdentity(message)
+    const text = normalizeMessageText(message.text)
+    const hasLiveTextMatch = isLiveAssistant(message) && Boolean(text) && (
+      message.turnId
+        ? persistedTextIdentities.has(textIdentity) || persistedUnscopedTexts.has(text)
+        : persistedTexts.has(text)
+    )
+    const hasLegacyTerminalTextMatch = message.messageType === 'agentMessage' && Boolean(text) && (
+      message.turnId ? persistedUnscopedTexts.has(text) : persistedTexts.has(text)
+    )
+    return !persistedIds.has(message.id)
+      && (!itemIdentity || !persistedItemIdentities.has(itemIdentity))
+      && !hasLiveTextMatch
+      && !hasLegacyTerminalTextMatch
   })
   return next.length === messages.length ? messages : next
 }

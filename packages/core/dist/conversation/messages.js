@@ -46,6 +46,24 @@ function isLiveAssistant(message) {
     return message.role === 'assistant'
         && (message.messageType === 'agentMessage.live' || message.messageType === 'plan.live');
 }
+function isAssistantOverlay(message) {
+    return message.role === 'assistant'
+        && (message.messageType === 'agentMessage.live'
+            || message.messageType === 'agentMessage'
+            || message.messageType === 'plan.live');
+}
+function assistantItemIdentity(message) {
+    if (message.role !== 'assistant' || !message.turnId || !message.id)
+        return '';
+    const itemId = message.id.replace(/^(?:live|agent):/u, '');
+    return itemId ? `${message.turnId}\u0000${itemId}` : '';
+}
+function assistantTextIdentity(message) {
+    if (message.role !== 'assistant' || !message.turnId)
+        return '';
+    const text = normalizeMessageText(message.text);
+    return text ? `${message.turnId}\u0000${text}` : '';
+}
 function reconcilesLiveAssistant(live, persisted) {
     if (!isLiveAssistant(live) || persisted.role !== 'assistant')
         return false;
@@ -180,6 +198,16 @@ export function mergeMessages(previous, incoming, options = {}) {
                 return persisted;
             }
         }
+        const assistantIdentity = isAssistantOverlay(oldMessage) ? assistantItemIdentity(oldMessage) : '';
+        if (assistantIdentity) {
+            const persisted = stableIncoming.find((message) => (!consumed.has(message.id)
+                && !isLiveAssistant(message)
+                && assistantItemIdentity(message) === assistantIdentity));
+            if (persisted) {
+                consumed.add(persisted.id);
+                return persisted;
+            }
+        }
         const key = turnUserIdentity(oldMessage);
         const replay = (key ? turnLinkedIncoming.get(key) : undefined)
             ?.find((message) => !consumed.has(message.id) && isSameUserMessage(oldMessage, message));
@@ -232,14 +260,31 @@ export function upsertLiveDelta(messages, input) {
         }];
 }
 export function removeRedundantLiveAssistantMessages(messages, persisted) {
-    const persistedIds = new Set(persisted.filter((message) => message.role === 'assistant').map((message) => message.id));
-    const persistedTexts = new Set(persisted.filter((message) => message.role === 'assistant').map((message) => normalizeMessageText(message.text)).filter(Boolean));
-    if (!persistedIds.size && !persistedTexts.size)
+    const persistedAssistants = persisted.filter((message) => message.role === 'assistant');
+    const persistedIds = new Set(persistedAssistants.map((message) => message.id));
+    const persistedItemIdentities = new Set(persistedAssistants.map(assistantItemIdentity).filter(Boolean));
+    const persistedTextIdentities = new Set(persistedAssistants.map(assistantTextIdentity).filter(Boolean));
+    const persistedTexts = new Set(persistedAssistants.map((message) => normalizeMessageText(message.text)).filter(Boolean));
+    const persistedUnscopedTexts = new Set(persistedAssistants
+        .filter((message) => !message.turnId)
+        .map((message) => normalizeMessageText(message.text))
+        .filter(Boolean));
+    if (!persistedIds.size && !persistedItemIdentities.size && !persistedTexts.size)
         return messages;
     const next = messages.filter((message) => {
-        if (message.messageType !== 'agentMessage.live' && message.messageType !== 'plan.live')
+        if (!isAssistantOverlay(message))
             return true;
-        return !persistedIds.has(message.id) && !persistedTexts.has(normalizeMessageText(message.text));
+        const itemIdentity = assistantItemIdentity(message);
+        const textIdentity = assistantTextIdentity(message);
+        const text = normalizeMessageText(message.text);
+        const hasLiveTextMatch = isLiveAssistant(message) && Boolean(text) && (message.turnId
+            ? persistedTextIdentities.has(textIdentity) || persistedUnscopedTexts.has(text)
+            : persistedTexts.has(text));
+        const hasLegacyTerminalTextMatch = message.messageType === 'agentMessage' && Boolean(text) && (message.turnId ? persistedUnscopedTexts.has(text) : persistedTexts.has(text));
+        return !persistedIds.has(message.id)
+            && (!itemIdentity || !persistedItemIdentities.has(itemIdentity))
+            && !hasLiveTextMatch
+            && !hasLegacyTerminalTextMatch;
     });
     return next.length === messages.length ? messages : next;
 }
