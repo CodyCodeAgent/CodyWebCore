@@ -21,6 +21,7 @@ Framework-neutral Codex App Server primitives shared by CodyWebUI and CodyWork.
 
 | Core | Codex App Server boundary | Product migration |
 | --- | --- | --- |
+| 0.37.3 | Race-free owner admission and ordered multi-tab queue replay | Recommended; consumers must not persist a second browser message queue |
 | 0.37.2 | Session-owned admission/attach recovery, pre-admission-only browser outbox and multi-tab idempotency | Recommended corrective release for all 0.37 consumers |
 | 0.37.1 | Reattach-safe queue barriers, thread-scoped idempotency, first-terminal authority and background-tab-safe reconnect | Superseded by 0.37.2 |
 | 0.37.0 | Single process owner, idempotent client commands, heartbeat-aware browser transport, Turn-contiguous feed and native-history authority | CodyWebUI and CodyWork use Core as their only conversation/Turn projection and do not restart App Server after runtime failure |

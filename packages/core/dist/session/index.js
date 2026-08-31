@@ -167,12 +167,6 @@ export class CodexSessionManager {
             return existingSubmission.submission;
         }
         const content = contentFromInputs(input.input);
-        this.emit({
-            type: 'command.queued',
-            threadId: session.binding.threadId,
-            itemId: commandId,
-            data: { ...content, clientCommandId: commandId },
-        });
         let resolveStarted;
         let rejectStarted;
         const started = new Promise((resolve, reject) => { resolveStarted = resolve; rejectStarted = reject; });
@@ -194,6 +188,15 @@ export class CodexSessionManager {
             state: 'queued',
         };
         this.submissions.set(submissionKey, record);
+        // Publish only after the owner record exists. A second browser can attach
+        // synchronously from an event listener; emitting first creates a gap where
+        // that tab sees neither the realtime event nor the attachment replay.
+        this.emit({
+            type: 'command.queued',
+            threadId: session.binding.threadId,
+            itemId: commandId,
+            data: { ...content, clientCommandId: commandId },
+        });
         // Bound memory without sacrificing idempotency for any realistic active
         // browser outbox. The oldest command is the least useful replay.
         if (this.submissions.size > 10_000) {

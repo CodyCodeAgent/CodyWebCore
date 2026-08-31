@@ -288,6 +288,64 @@ describe('CodexSessionManager', () => {
     await manager.dispose()
   })
 
+  it('replays one active command followed by queued commands in owner order to every tab', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host })
+    await manager.create('conversation-1', context)
+    const first = manager.submit(
+      'conversation-1',
+      { input: [{ type: 'text', text: 'first command', text_elements: [] }] },
+      'queue',
+      'command-a',
+    )
+    const firstHandle = await first.started
+    const second = manager.submit(
+      'conversation-1',
+      { input: [{ type: 'text', text: 'second command', text_elements: [] }] },
+      'queue',
+      'command-b',
+    )
+    await Promise.resolve()
+
+    const attachment = manager.listAttachmentEvents('conversation-1')
+    expect(attachment.map((event) => [event.type, event.itemId ?? '', event.turnId ?? ''])).toEqual([
+      ['command.queued', 'command-a', ''],
+      ['command.bound', 'command-a', firstHandle.turnId],
+      ['command.queued', 'command-b', ''],
+      ['turn.started', '', firstHandle.turnId],
+    ])
+    expect(host.calls.filter((call) => call.method === 'turn/start')).toHaveLength(1)
+
+    host.emit('turn/completed', { threadId: 'thread-1', turn: { id: firstHandle.turnId, status: 'completed' } })
+    const secondHandle = await second.started
+    expect(manager.listAttachmentEvents('conversation-1')).toEqual([
+      expect.objectContaining({ type: 'command.queued', itemId: 'command-b' }),
+      expect.objectContaining({ type: 'command.bound', itemId: 'command-b', turnId: secondHandle.turnId }),
+      expect.objectContaining({ type: 'turn.started', turnId: secondHandle.turnId }),
+    ])
+    await manager.dispose()
+  })
+
+  it('makes a newly admitted command visible to an attachment triggered by its queued event', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host })
+    await manager.create('conversation-1', context)
+    let attachment: CodexEvent[] = []
+    manager.subscribe((event) => {
+      if (event.type === 'command.queued') attachment = manager.listAttachmentEvents('conversation-1')
+    })
+
+    manager.submit(
+      'conversation-1',
+      { input: [{ type: 'text', text: 'race-free command', text_elements: [] }] },
+      'queue',
+      'command-race',
+    )
+
+    expect(attachment).toContainEqual(expect.objectContaining({ type: 'command.queued', itemId: 'command-race' }))
+    await manager.dispose()
+  })
+
   it('treats repeated client command ids as one idempotent submission', async () => {
     const host = new FakeHost()
     const manager = new CodexSessionManager({ host })

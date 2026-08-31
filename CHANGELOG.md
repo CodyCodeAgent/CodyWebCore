@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.37.3
+
+- Registered owner submissions before broadcasting `command.queued`, closing the attach/realtime race between browser tabs.
+- Locked queue replay to owner insertion order and covered active-plus-queued multi-tab attachment with deterministic tests.
+- Removed the need for a persistent browser outbox; Core attachment state is the only post-admission authority.
+
 ## 0.37.2
 
 - Made the service-side session manager the sole owner of admitted and active commands, and replayed that volatile state when a browser tab attaches or refreshes.
