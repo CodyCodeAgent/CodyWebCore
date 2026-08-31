@@ -172,6 +172,23 @@ function removeDuplicateMessageIds<T extends ConversationMessage>(messages: T[])
   return next.length === messages.length ? messages : next
 }
 
+const TURN_TERMINAL_MESSAGE_TYPES = new Set(['worked', 'turn.failed', 'turn.interrupted'])
+
+function removeDuplicateTurnTerminalMessages<T extends ConversationMessage>(messages: T[]): T[] {
+  const seen = new Set<string>()
+  const next: T[] = []
+  for (const message of messages) {
+    const messageType = message.messageType ?? ''
+    const identity = message.turnId && TURN_TERMINAL_MESSAGE_TYPES.has(messageType)
+      ? `${message.turnId}\u0000${messageType}`
+      : ''
+    if (identity && seen.has(identity)) continue
+    if (identity) seen.add(identity)
+    next.push(message)
+  }
+  return next.length === messages.length ? messages : next
+}
+
 export function removeDuplicateAdjacentUserMessages<T extends ConversationMessage>(messages: T[]): T[] {
   const next: T[] = []
   for (const message of messages) {
@@ -346,11 +363,11 @@ export function conversationTurnBucketsFromMessages<T extends ConversationMessag
   terminalMessages: T[] = [],
 ): ConversationTurnBucket<T>[] {
   const overlays = removeRedundantLiveAssistantMessages(overlayMessages, persistedMessages)
-  const combined = compactConversationMessages([
+  const combined = removeDuplicateTurnTerminalMessages(compactConversationMessages([
     ...persistedMessages,
     ...overlays,
     ...terminalMessages,
-  ])
+  ]))
   const buckets: ConversationTurnBucket<T>[] = []
   const turnBucketById = new Map<string, Extract<ConversationTurnBucket<T>, { kind: 'turn' }>>()
   const pending: T[] = []

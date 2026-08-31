@@ -133,6 +133,31 @@ describe('conversation core', () => {
     ])
   })
 
+  it('renders one terminal receipt per Turn when durable history and realtime completion overlap', () => {
+    const user = { id: 'user-a', turnId: 'turn-a', role: 'user' as const, text: 'First question' }
+    const answer = { id: 'answer-a', turnId: 'turn-a', role: 'assistant' as const, text: 'First answer' }
+    const durableReceipt = {
+      id: 'worked:turn-a', turnId: 'turn-a', role: 'system' as const, text: 'Worked for 1m 6s', messageType: 'worked',
+    }
+    const realtimeReceipt = {
+      id: 'turn-summary:turn-a', turnId: 'turn-a', role: 'system' as const, text: 'Worked for 1m 6s', messageType: 'worked',
+    }
+    const nextTurnReceipt = {
+      id: 'worked:turn-b', turnId: 'turn-b', role: 'system' as const, text: 'Worked for 2s', messageType: 'worked',
+    }
+
+    const output = orderConversationMessagesByTurn(
+      [user, answer, durableReceipt, nextTurnReceipt],
+      [],
+      [realtimeReceipt],
+    )
+
+    expect(output.filter((message) => message.turnId === 'turn-a' && message.messageType === 'worked'))
+      .toEqual([durableReceipt])
+    expect(output.filter((message) => message.messageType === 'worked').map((message) => message.id))
+      .toEqual(['worked:turn-a', 'worked:turn-b'])
+  })
+
   it('reconciles outbox users and normalized local-image identities', () => {
     const output = mergeMessages(
       [{

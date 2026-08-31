@@ -142,6 +142,23 @@ function removeDuplicateMessageIds(messages) {
     }
     return next.length === messages.length ? messages : next;
 }
+const TURN_TERMINAL_MESSAGE_TYPES = new Set(['worked', 'turn.failed', 'turn.interrupted']);
+function removeDuplicateTurnTerminalMessages(messages) {
+    const seen = new Set();
+    const next = [];
+    for (const message of messages) {
+        const messageType = message.messageType ?? '';
+        const identity = message.turnId && TURN_TERMINAL_MESSAGE_TYPES.has(messageType)
+            ? `${message.turnId}\u0000${messageType}`
+            : '';
+        if (identity && seen.has(identity))
+            continue;
+        if (identity)
+            seen.add(identity);
+        next.push(message);
+    }
+    return next.length === messages.length ? messages : next;
+}
 export function removeDuplicateAdjacentUserMessages(messages) {
     const next = [];
     for (const message of messages) {
@@ -330,11 +347,11 @@ export function compactConversationMessages(messages) {
  */
 export function conversationTurnBucketsFromMessages(persistedMessages, overlayMessages = [], terminalMessages = []) {
     const overlays = removeRedundantLiveAssistantMessages(overlayMessages, persistedMessages);
-    const combined = compactConversationMessages([
+    const combined = removeDuplicateTurnTerminalMessages(compactConversationMessages([
         ...persistedMessages,
         ...overlays,
         ...terminalMessages,
-    ]);
+    ]));
     const buckets = [];
     const turnBucketById = new Map();
     const pending = [];
