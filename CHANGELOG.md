@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.36.1
+
+- Made runtime disconnection authoritative for interactive state: active approvals and questions are cleared without fabricating terminal transcript rows.
+- Prevented a native history refresh from resurrecting stale approval controls while the owner transport remains disconnected.
+
 ## 0.36.0
 
 - Added a Core-owned client command lifecycle so optimistic outbox entries are accepted immediately and later bound to native Turn ids without product-generated fake Turn ids.

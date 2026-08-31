@@ -210,7 +210,16 @@ export function reduceConversationEvent(previous, event) {
         return { ...state, connection: { status: 'connected', message: '', updatedAtIso: event.atIso } };
     }
     if (event.type === 'runtime.disconnected') {
-        return { ...state, activeTurnId: '', activity: null, connection: { status: 'disconnected', message: eventText(event.data), updatedAtIso: event.atIso } };
+        const disconnected = state.activeTurnId
+            ? updateTurn(state, { ...event, turnId: state.activeTurnId }, 'disconnected')
+            : state;
+        return {
+            ...disconnected,
+            activeTurnId: '',
+            activity: null,
+            pendingRequests: [],
+            connection: { status: 'disconnected', message: eventText(event.data), updatedAtIso: event.atIso },
+        };
     }
     if (event.type === 'thread.context.updated') {
         return {

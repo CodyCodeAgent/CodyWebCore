@@ -263,6 +263,19 @@ describe('conversation core', () => {
     expect(state.pendingRequests).toEqual([])
   })
 
+  it('clears interactive requests without fabricating a terminal receipt when runtime disconnects', () => {
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { id: 'start', type: 'turn.started', threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:00.000Z', data: {} },
+      { id: 'approval', type: 'approval.requested', threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:00.500Z', data: { requestId: 'approval-1' } },
+      { id: 'disconnect', type: 'runtime.disconnected', threadId: 'thread-1', atIso: '2026-01-01T00:00:01.000Z', data: { error: 'owner unavailable' } },
+    ])
+
+    expect(state.turns['turn-1']).toMatchObject({ lifecycle: 'disconnected' })
+    expect(state.pendingRequests).toEqual([])
+    expect(state.activeTurnId).toBe('')
+    expect(state.presentation).not.toContainEqual(expect.objectContaining({ kind: 'failure' }))
+  })
+
   it('keeps an empty interrupted Turn diagnostic out of the visible transcript', () => {
     const state = reduceConversationEvents(createConversationState('thread-1'), [
       { id: 'start', type: 'turn.started', threadId: 'thread-1', turnId: 'empty-turn', atIso: '2026-01-01T00:00:00.000Z', data: {} },

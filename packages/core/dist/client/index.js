@@ -44,11 +44,18 @@ export function createConversationController(threadId, transport) {
                 .map((entry) => entry.event));
             const reconciled = reduceConversationEvents(snapshot, localOutboxJournal);
             pruneSettledOutbox(reconciled);
+            // A native snapshot can still contain the last in-flight approval after
+            // the transport has disconnected. Connection state is newer authority
+            // for interactive requests: do not resurrect controls that cannot be
+            // resolved until the owner reconnects and performs another native read.
+            const connectionReconciled = state.connection.status === 'disconnected'
+                ? { ...reconciled, activeTurnId: '', activity: null, pendingRequests: [] }
+                : reconciled;
             publish({
-                ...reconciled,
+                ...connectionReconciled,
                 connection: state.connection,
                 history: {
-                    ...reconciled.history,
+                    ...connectionReconciled.history,
                     loading: false,
                     requestRevision: revision,
                     error: '',

@@ -83,6 +83,30 @@ describe('ConversationController', () => {
     expect(controller.getState().pendingRequests).toEqual([])
   })
 
+  it('does not resurrect stale approvals while the owner transport is disconnected', async () => {
+    let listener: ((value: ConversationSubscriptionEvent) => void) | undefined
+    const snapshot = [
+      event('turn', 'turn.started'),
+      event('approval', 'approval.requested', { requestId: 'approval-1', method: 'item/commandExecution/requestApproval' }),
+    ]
+    const transport: ConversationTransport = {
+      read: async () => snapshot,
+      subscribe: (_threadId, next) => { listener = next; return () => undefined },
+    }
+    const controller = createConversationController('thread-1', transport)
+    await controller.start()
+    expect(controller.getState().pendingRequests).toHaveLength(1)
+
+    listener?.({ type: 'disconnected', error: 'owner unavailable' })
+    expect(controller.getState().pendingRequests).toEqual([])
+    expect(controller.getState().turns['turn-1']).toMatchObject({ lifecycle: 'disconnected' })
+
+    await controller.refresh()
+    expect(controller.getState().pendingRequests).toEqual([])
+    expect(controller.getState().activeTurnId).toBe('')
+    expect(controller.getState().presentation).not.toContainEqual(expect.objectContaining({ kind: 'failure' }))
+  })
+
   it('coalesces the initial socket connection with the initial native read', async () => {
     let readCount = 0
     const transport: ConversationTransport = {
