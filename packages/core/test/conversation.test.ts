@@ -263,6 +263,39 @@ describe('conversation core', () => {
     expect(state.pendingRequests).toEqual([])
   })
 
+  it('keeps an empty interrupted Turn diagnostic out of the visible transcript', () => {
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { id: 'start', type: 'turn.started', threadId: 'thread-1', turnId: 'empty-turn', atIso: '2026-01-01T00:00:00.000Z', data: {} },
+      { id: 'interrupt', type: 'turn.interrupted', threadId: 'thread-1', turnId: 'empty-turn', atIso: '2026-01-01T00:00:01.000Z', data: {} },
+    ])
+
+    expect(state.turns['empty-turn']).toMatchObject({ lifecycle: 'interrupted' })
+    expect(conversationFeedFromState(state)).not.toContainEqual(expect.objectContaining({
+      kind: 'turn',
+      turnId: 'empty-turn',
+      status: 'interrupted',
+    }))
+    expect(conversationTranscriptFromState(state)).not.toContainEqual(expect.objectContaining({
+      messageType: 'turn.interrupted',
+      turnId: 'empty-turn',
+    }))
+  })
+
+  it('renders one Stopped receipt when a visible interrupted Turn is followed by an empty one', () => {
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { id: 'first-start', type: 'turn.started', threadId: 'thread-1', turnId: 'visible-turn', atIso: '2026-01-01T00:00:00.000Z', data: {} },
+      { id: 'first-user', type: 'user.completed', threadId: 'thread-1', turnId: 'visible-turn', itemId: 'user-1', atIso: '2026-01-01T00:00:00.100Z', data: { text: 'Continue' } },
+      { id: 'first-answer', type: 'assistant.completed', threadId: 'thread-1', turnId: 'visible-turn', itemId: 'answer-1', atIso: '2026-01-01T00:00:00.200Z', data: { text: 'Working on it' } },
+      { id: 'first-interrupt', type: 'turn.interrupted', threadId: 'thread-1', turnId: 'visible-turn', atIso: '2026-01-01T00:00:01.000Z', data: {} },
+      { id: 'empty-start', type: 'turn.started', threadId: 'thread-1', turnId: 'empty-turn', atIso: '2026-01-01T00:00:02.000Z', data: {} },
+      { id: 'empty-interrupt', type: 'turn.interrupted', threadId: 'thread-1', turnId: 'empty-turn', atIso: '2026-01-01T00:00:03.000Z', data: {} },
+    ])
+
+    const stopped = conversationTranscriptFromState(state).filter((message) => message.messageType === 'turn.interrupted')
+    expect(stopped).toEqual([expect.objectContaining({ turnId: 'visible-turn', text: 'Stopped' })])
+    expect(state.turns['empty-turn']).toMatchObject({ lifecycle: 'interrupted' })
+  })
+
   it('does not clear a newer active turn when an older turn finishes late', () => {
     const state = reduceConversationEvents(createConversationState('thread-1'), [
       { id: 'old-start', type: 'turn.started', threadId: 'thread-1', turnId: 'old-turn', atIso: '2026-01-01T00:00:00.000Z', data: {} },

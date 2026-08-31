@@ -504,9 +504,19 @@ export function conversationFeedFromState(state) {
     const seen = new Set();
     const messages = new Map(state.messages.map((message) => [message.id, message]));
     const timeline = new Map(state.timeline.map((entry) => [entry.id, entry]));
+    const turnHasVisibleContent = (turnId) => (state.messages.some((message) => message.turnId === turnId)
+        || state.timeline.some((entry) => entry.turnId === turnId)
+        || Boolean(state.plan?.turnId === turnId && state.plan.text.trim())
+        || state.pendingRequests.some((request) => request.turnId === turnId));
     const appendTurn = (id, turnId, status) => {
         const turn = state.turns[turnId];
         if (!turn)
+            return;
+        // Codex can acknowledge a Turn and then abort before materializing any
+        // user, assistant, plan, request, reasoning, or tool item. Keep that Turn
+        // in reducer state for diagnostics, but do not render an orphaned
+        // "Stopped" receipt in the conversation transcript.
+        if (status === 'interrupted' && !turnHasVisibleContent(turnId))
             return;
         const durationMs = turn.durationMs ?? (turn.startedAtIso && turn.completedAtIso
             ? Math.max(Date.parse(turn.completedAtIso) - Date.parse(turn.startedAtIso), 0)
