@@ -272,6 +272,21 @@ export function reduceConversationEvent(previous, event) {
         return updateTurn(state, event, 'running');
     if (event.type === 'turn.retrying')
         return updateTurn(state, event, 'retrying');
+    if (event.type === 'turn.disconnected') {
+        const updated = updateTurn(state, event, 'disconnected');
+        const turnId = event.turnId || state.activeTurnId;
+        if (!turnId)
+            return { ...updated, activity: null };
+        return {
+            ...updated,
+            activeTurnId: updated.activeTurnId === turnId ? '' : updated.activeTurnId,
+            timeline: terminalizeTurnTools(updated.timeline, turnId, 'failed'),
+            pendingRequests: updated.pendingRequests.filter((request) => request.turnId !== turnId),
+            reasoningText: '',
+            activity: null,
+            plan: endConversationPlan(updated.plan, turnId),
+        };
+    }
     if (event.type === 'turn.completed') {
         const updated = updateTurn(state, event, 'completed');
         const turnId = event.turnId || state.activeTurnId;
@@ -296,6 +311,54 @@ export function reduceConversationEvent(previous, event) {
         return turnId
             ? { ...updated, timeline: terminalizeTurnTools(updated.timeline, turnId, 'cancelled'), presentation: appendPresentation(updated.presentation, { id: `interrupted:${turnId}`, kind: 'interrupted', turnId }), pendingRequests: updated.pendingRequests.filter((request) => request.turnId !== turnId), reasoningText: '', activity: null, plan: endConversationPlan(updated.plan, turnId) }
             : { ...updated, activity: null };
+    }
+    if (event.type === 'command.queued') {
+        const commandId = event.itemId || event.id;
+        const text = eventText(event.data);
+        const images = Array.isArray(event.data.images) ? event.data.images.filter((value) => typeof value === 'string') : [];
+        const skills = Array.isArray(event.data.skills)
+            ? event.data.skills.filter((value) => {
+                if (!value || typeof value !== 'object')
+                    return false;
+                const row = value;
+                return typeof row.name === 'string' && typeof row.path === 'string';
+            })
+            : [];
+        const message = {
+            id: `user:${commandId}`,
+            role: 'user',
+            text,
+            ...(images.length ? { images } : {}),
+            ...(skills.length ? { skills } : {}),
+            messageType: 'userMessage.optimistic',
+            outbox: { status: 'queued' },
+        };
+        return {
+            ...state,
+            messages: mergeMessages(state.messages, [message], { preserveMissing: true }),
+            presentation: appendPresentation(state.presentation, { id: message.id, kind: 'message' }),
+        };
+    }
+    if (event.type === 'command.bound') {
+        const commandId = event.itemId || '';
+        if (!commandId || !event.turnId)
+            return state;
+        const messageId = `user:${commandId}`;
+        const messages = state.messages.map((message) => message.id === messageId
+            ? { ...message, turnId: event.turnId, outbox: { status: 'sending' } }
+            : message);
+        return messages.some((message, index) => message !== state.messages[index]) ? { ...state, messages } : state;
+    }
+    if (event.type === 'command.failed') {
+        const commandId = event.itemId || '';
+        if (!commandId)
+            return state;
+        const messageId = `user:${commandId}`;
+        const error = eventText(event.data, 'Codex failed to start this command.');
+        const messages = state.messages.map((message) => message.id === messageId
+            ? { ...message, messageType: 'userMessage.outbox.failed', outbox: { status: 'failed', lastError: error } }
+            : message);
+        return messages.some((message, index) => message !== state.messages[index]) ? { ...state, messages } : state;
     }
     if (event.type === 'user.completed') {
         const text = eventText(event.data);

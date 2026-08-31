@@ -21,6 +21,14 @@ export type TurnOutcome = {
     handle: TurnHandle;
     terminalEvent: CodexEvent;
 };
+export type TurnSubmission = {
+    /** Product-generated id for the local outbox row. It never masquerades as a native Turn id. */
+    clientCommandId: string;
+    /** Resolves only after App Server acknowledges turn/start (or turn/steer). */
+    started: Promise<TurnHandle>;
+    /** Resolves with the one authoritative terminal event for the native Turn. */
+    completed: Promise<TurnOutcome>;
+};
 export type ProtectedOperation = {
     requestId: number;
     method: string;
@@ -68,11 +76,13 @@ export declare class CodexSessionManager {
     private readonly turnWatchdogs;
     private readonly upstreamRetries;
     private readonly terminalEvents;
+    private readonly operationalFailures;
     private readonly pendingRequests;
     private readonly commands;
     private readonly catalog;
     private readonly nowIso;
     private eventSequence;
+    private commandSequence;
     private unlisten;
     constructor(options: CodexSessionManagerOptions);
     subscribe(listener: (event: CodexEvent) => void): () => void;
@@ -84,8 +94,9 @@ export declare class CodexSessionManager {
     /** Updates product policy/settings for future turns without rebinding the native thread. */
     setContext(bindingId: string, context: ExecutionContext): void;
     read(bindingId: string): Promise<CodexEvent[]>;
-    send(bindingId: string, input: TurnInput, mode?: 'queue' | 'steer'): Promise<TurnHandle>;
-    run(bindingId: string, input: TurnInput, mode?: 'queue' | 'steer'): Promise<TurnOutcome>;
+    submit(bindingId: string, input: TurnInput, mode?: 'queue' | 'steer', clientCommandId?: string): TurnSubmission;
+    send(bindingId: string, input: TurnInput, mode?: 'queue' | 'steer', clientCommandId?: string): Promise<TurnHandle>;
+    run(bindingId: string, input: TurnInput, mode?: 'queue' | 'steer', clientCommandId?: string): Promise<TurnOutcome>;
     interrupt(bindingId: string): Promise<boolean>;
     waitForTurn(handle: TurnHandle): Promise<CodexEvent>;
     respondApproval(bindingId: string, requestId: string, decision: 'accept' | 'acceptForSession' | 'decline' | 'cancel'): Promise<void>;
@@ -93,12 +104,14 @@ export declare class CodexSessionManager {
     dispose(): Promise<void>;
     private attachLocal;
     private require;
+    private steerSubmission;
     private ensureSessionReady;
     private forgetTerminalEvents;
     private requirePending;
     private eventId;
     private emit;
     private finishTurn;
+    private finishOperationalFailure;
     private ensureTurnWatchdog;
     private armTurnWatchdog;
     private refreshTurnInactivity;

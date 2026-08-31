@@ -48,6 +48,14 @@ export type ThreadBinding = {
 
 export type TurnHandle = { threadId: string; turnId: string }
 export type TurnOutcome = { handle: TurnHandle; terminalEvent: CodexEvent }
+export type TurnSubmission = {
+  /** Product-generated id for the local outbox row. It never masquerades as a native Turn id. */
+  clientCommandId: string
+  /** Resolves only after App Server acknowledges turn/start (or turn/steer). */
+  started: Promise<TurnHandle>
+  /** Resolves with the one authoritative terminal event for the native Turn. */
+  completed: Promise<TurnOutcome>
+}
 
 export type ProtectedOperation = {
   requestId: number
@@ -120,11 +128,13 @@ export class CodexSessionManager {
   private readonly turnWatchdogs = new Map<string, TurnWatchdog>()
   private readonly upstreamRetries = new Map<string, UpstreamRetry>()
   private readonly terminalEvents = new Map<string, CodexEvent>()
+  private readonly operationalFailures = new Map<string, CodexEvent>()
   private readonly pendingRequests = new Map<string, { request: ServerRequest; bindingId: string; kind: 'approval' | 'question'; event?: CodexEvent }>()
   private readonly commands: CodexThreadCommands
   private readonly catalog: CodexSessionCatalog
   private readonly nowIso: () => string
   private eventSequence = 0
+  private commandSequence = 0
   private unlisten: (() => void) | null = null
 
   constructor(private readonly options: CodexSessionManagerOptions) {
@@ -184,49 +194,81 @@ export class CodexSessionManager {
     return this.catalog.readThread(session.binding.threadId)
   }
 
-  async send(bindingId: string, input: TurnInput, mode: 'queue' | 'steer' = 'queue'): Promise<TurnHandle> {
+  submit(bindingId: string, input: TurnInput, mode: 'queue' | 'steer' = 'queue', clientCommandId?: string): TurnSubmission {
     const session = this.require(bindingId)
-    await this.ensureSessionReady(session)
-    if (mode === 'steer') {
-      if (!session.activeTurnId) throw new Error('turn/steer requires an active turn')
-      await this.commands.steerTurn(session.binding.threadId, session.activeTurnId, input.input)
-      return { threadId: session.binding.threadId, turnId: session.activeTurnId }
-    }
+    const commandId = clientCommandId?.trim() || `command:${bindingId}:${String(++this.commandSequence)}`
+    const content = contentFromInputs(input.input)
+    this.emit({
+      type: 'command.queued',
+      threadId: session.binding.threadId,
+      itemId: commandId,
+      data: { ...content, clientCommandId: commandId },
+    })
     let resolveStarted!: (handle: TurnHandle) => void
     let rejectStarted!: (error: unknown) => void
     const started = new Promise<TurnHandle>((resolve, reject) => { resolveStarted = resolve; rejectStarted = reject })
+    let resolveCompleted!: (outcome: TurnOutcome) => void
+    let rejectCompleted!: (error: unknown) => void
+    const completed = new Promise<TurnOutcome>((resolve, reject) => { resolveCompleted = resolve; rejectCompleted = reject })
+    // A product may only need the immediate command id. Keep background failures
+    // observable through events without producing an unhandled rejection.
+    void started.catch(() => undefined)
+    void completed.catch(() => undefined)
     const execute = async (): Promise<void> => {
+      let handle: TurnHandle | null = null
       try {
-        const turnId = await this.commands.startTurn(session.binding.threadId, {
-          ...(session.context.turn ?? {}),
-          input: input.input,
-          ...(input.model !== undefined ? { model: input.model } : {}),
-          ...(input.effort !== undefined ? { effort: input.effort } : {}),
-          ...(input.collaborationMode !== undefined ? { collaborationMode: input.collaborationMode } : {}),
-          ...(input.approvalPolicy !== undefined ? { approvalPolicy: input.approvalPolicy } : {}),
-          ...(input.approvalsReviewer !== undefined ? { approvalsReviewer: input.approvalsReviewer } : {}),
-          ...(input.permissions !== undefined ? { permissions: input.permissions } : {}),
-          ...(input.runtimeWorkspaceRoots !== undefined ? { runtimeWorkspaceRoots: input.runtimeWorkspaceRoots } : {}),
-          ...(input.sandboxPolicy !== undefined ? { sandboxPolicy: input.sandboxPolicy } : {}),
-        })
-        const handle = { threadId: session.binding.threadId, turnId }
+        await this.ensureSessionReady(session)
+        const turnId = mode === 'steer'
+          ? await this.steerSubmission(session, input)
+          : await this.commands.startTurn(session.binding.threadId, {
+            ...(session.context.turn ?? {}),
+            input: input.input,
+            ...(input.model !== undefined ? { model: input.model } : {}),
+            ...(input.effort !== undefined ? { effort: input.effort } : {}),
+            ...(input.collaborationMode !== undefined ? { collaborationMode: input.collaborationMode } : {}),
+            ...(input.approvalPolicy !== undefined ? { approvalPolicy: input.approvalPolicy } : {}),
+            ...(input.approvalsReviewer !== undefined ? { approvalsReviewer: input.approvalsReviewer } : {}),
+            ...(input.permissions !== undefined ? { permissions: input.permissions } : {}),
+            ...(input.runtimeWorkspaceRoots !== undefined ? { runtimeWorkspaceRoots: input.runtimeWorkspaceRoots } : {}),
+            ...(input.sandboxPolicy !== undefined ? { sandboxPolicy: input.sandboxPolicy } : {}),
+          })
+        handle = { threadId: session.binding.threadId, turnId }
         session.activeTurnId = handle.turnId
-        this.emit({ type: 'user.completed', threadId: handle.threadId, turnId: handle.turnId, data: { ...contentFromInputs(input.input), optimistic: true } })
+        this.emit({
+          type: 'command.bound',
+          threadId: handle.threadId,
+          turnId: handle.turnId,
+          itemId: commandId,
+          data: { clientCommandId: commandId },
+        })
         resolveStarted(handle)
-        await this.waitForTurn(handle)
+        const terminalEvent = await this.waitForTurn(handle)
+        resolveCompleted({ handle, terminalEvent })
       } catch (error) {
+        if (!handle) {
+          this.emit({
+            type: 'command.failed',
+            threadId: session.binding.threadId,
+            itemId: commandId,
+            data: { clientCommandId: commandId, error: textFromError(error) || 'Codex failed to start this command.' },
+          })
+        }
         rejectStarted(error)
+        rejectCompleted(error)
         throw error
       }
     }
     const scheduled = session.queueTail.catch(() => undefined).then(execute)
     session.queueTail = scheduled.catch(() => undefined)
-    return started
+    return { clientCommandId: commandId, started, completed }
   }
 
-  async run(bindingId: string, input: TurnInput, mode: 'queue' | 'steer' = 'queue'): Promise<TurnOutcome> {
-    const handle = await this.send(bindingId, input, mode)
-    return { handle, terminalEvent: await this.waitForTurn(handle) }
+  async send(bindingId: string, input: TurnInput, mode: 'queue' | 'steer' = 'queue', clientCommandId?: string): Promise<TurnHandle> {
+    return this.submit(bindingId, input, mode, clientCommandId).started
+  }
+
+  async run(bindingId: string, input: TurnInput, mode: 'queue' | 'steer' = 'queue', clientCommandId?: string): Promise<TurnOutcome> {
+    return this.submit(bindingId, input, mode, clientCommandId).completed
   }
 
   async interrupt(bindingId: string): Promise<boolean> {
@@ -241,6 +283,8 @@ export class CodexSessionManager {
     const key = this.turnKey(handle.threadId, handle.turnId)
     const terminal = this.terminalEvents.get(key)
     if (terminal) return Promise.resolve(terminal)
+    const operationalFailure = this.operationalFailures.get(key)
+    if (operationalFailure) return Promise.resolve(operationalFailure)
     this.ensureTurnWatchdog(handle)
     return new Promise<CodexEvent>((resolve, reject) => {
       const rows = this.waiters.get(key) ?? []
@@ -283,6 +327,7 @@ export class CodexSessionManager {
     for (const watchdog of this.turnWatchdogs.values()) clearTimeout(watchdog.timer)
     this.turnWatchdogs.clear()
     this.upstreamRetries.clear()
+    this.operationalFailures.clear()
     for (const rows of this.waiters.values()) for (const waiter of rows) waiter.reject(new Error('Codex session manager disposed'))
     this.waiters.clear()
     this.sessions.clear()
@@ -302,6 +347,12 @@ export class CodexSessionManager {
     return session
   }
 
+  private async steerSubmission(session: AttachedSession, input: TurnInput): Promise<string> {
+    if (!session.activeTurnId) throw new Error('turn/steer requires an active turn')
+    await this.commands.steerTurn(session.binding.threadId, session.activeTurnId, input.input)
+    return session.activeTurnId
+  }
+
   private async ensureSessionReady(session: AttachedSession): Promise<void> {
     if (session.attached) return
     await this.options.host.ensureInitialized()
@@ -314,6 +365,7 @@ export class CodexSessionManager {
   private forgetTerminalEvents(threadId: string): void {
     const prefix = `${threadId}\u0000`
     for (const key of this.terminalEvents.keys()) if (key.startsWith(prefix)) this.terminalEvents.delete(key)
+    for (const key of this.operationalFailures.keys()) if (key.startsWith(prefix)) this.operationalFailures.delete(key)
   }
 
   private requirePending(bindingId: string, requestId: string, kind: 'approval' | 'question') {
@@ -339,6 +391,7 @@ export class CodexSessionManager {
     }
     if (event.turnId && event.type !== 'turn.completed' && event.type !== 'turn.failed' && event.type !== 'turn.interrupted') this.refreshTurnInactivity(event.threadId, event.turnId)
     if (event.type === 'turn.completed' || event.type === 'turn.failed' || event.type === 'turn.interrupted') this.finishTurn(event)
+    if (event.type === 'turn.disconnected') this.finishOperationalFailure(event)
     for (const listener of this.listeners) listener(event)
     return event
   }
@@ -348,6 +401,7 @@ export class CodexSessionManager {
     const key = this.turnKey(event.threadId, event.turnId)
     if (this.terminalEvents.has(key)) return
     this.terminalEvents.set(key, event)
+    this.operationalFailures.delete(key)
     this.upstreamRetries.delete(key)
     const bindingId = this.sessionIdByThreadId.get(event.threadId)
     const session = bindingId ? this.sessions.get(bindingId) : undefined
@@ -357,6 +411,21 @@ export class CodexSessionManager {
         this.pendingRequests.delete(requestId)
       }
     }
+    const rows = this.waiters.get(key) ?? []
+    this.waiters.delete(key)
+    this.clearTurnWatchdog(key)
+    for (const waiter of rows) waiter.resolve(event)
+  }
+
+  private finishOperationalFailure(event: CodexEvent): void {
+    if (!event.turnId) return
+    const key = this.turnKey(event.threadId, event.turnId)
+    if (this.terminalEvents.has(key) || this.operationalFailures.has(key)) return
+    this.operationalFailures.set(key, event)
+    this.upstreamRetries.delete(key)
+    const bindingId = this.sessionIdByThreadId.get(event.threadId)
+    const session = bindingId ? this.sessions.get(bindingId) : undefined
+    if (session?.activeTurnId === event.turnId) session.activeTurnId = ''
     const rows = this.waiters.get(key) ?? []
     this.waiters.delete(key)
     this.clearTurnWatchdog(key)
@@ -388,7 +457,7 @@ export class CodexSessionManager {
         })
       })
       this.emit({
-        type: 'turn.failed',
+        type: 'turn.disconnected',
         threadId: watchdog.handle.threadId,
         turnId: watchdog.handle.turnId,
         data: { error: `Codex turn ${watchdog.handle.turnId} had no progress for ${String(watchdog.inactivityTimeoutMs)}ms`, cause: 'inactivity_timeout' },
@@ -429,8 +498,8 @@ export class CodexSessionManager {
     }
     return {
       ...event,
-      id: this.eventId('turn.failed:upstream-retries', event.threadId, event.turnId),
-      type: 'turn.failed',
+      id: this.eventId('turn.disconnected:upstream-retries', event.threadId, event.turnId),
+      type: 'turn.disconnected',
       data: {
         ...data,
         cause: 'upstream_response_stream_unrecoverable',
@@ -483,6 +552,10 @@ export class CodexSessionManager {
     })
     for (const event of events) {
       if (event.type === 'turn.started' && event.turnId) session.activeTurnId = event.turnId
+      if (notification.method === 'error' && event.type === 'turn.failed' && event.data.cause === 'upstream_response_stream_unrecoverable') {
+        this.emit({ ...event, type: 'turn.disconnected' })
+        continue
+      }
       // Only App Server `error` notifications represent a concrete response
       // stream retry attempt. Generic warnings are activity updates and must
       // not consume the retry budget.

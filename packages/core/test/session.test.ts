@@ -9,6 +9,7 @@ class FakeHost implements AppServerHost {
   readonly replies: Array<{ id: number; reply: ServerRequestReply }> = []
   nextTurn = 1
   initialized = 0
+  failTurnStart = ''
 
   async ensureInitialized(): Promise<void> { this.initialized += 1 }
   async call<T>(method: string, params?: unknown): Promise<T> {
@@ -22,7 +23,10 @@ class FakeHost implements AppServerHost {
       path: null, cwd: '/repo', cliVersion: 'test', source: 'appServer', canAcceptDirectInput: true,
       threadSource: null, agentNickname: null, agentRole: null, gitInfo: null, name: null, turns: [],
     } } as T
-    if (method === 'turn/start') return { turn: { id: `turn-${String(this.nextTurn++)}`, items: [], status: 'inProgress', error: null } } as T
+    if (method === 'turn/start') {
+      if (this.failTurnStart) throw new Error(this.failTurnStart)
+      return { turn: { id: `turn-${String(this.nextTurn++)}`, items: [], status: 'inProgress', error: null } } as T
+    }
     return {} as T
   }
   subscribe(listener: RuntimeNotificationListener): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener) }
@@ -270,6 +274,52 @@ describe('CodexTurnRecoveryMonitor', () => {
 })
 
 describe('CodexSessionManager', () => {
+  it('accepts a client command immediately and binds it to the native turn without inventing a turn id', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host })
+    await manager.create('conversation-1', context)
+    const events: CodexEvent[] = []
+    manager.subscribe((event) => events.push(event))
+
+    const submission = manager.submit(
+      'conversation-1',
+      { input: [{ type: 'text', text: 'inspect branch', text_elements: [] }] },
+      'queue',
+      'client-command-1',
+    )
+
+    expect(submission.clientCommandId).toBe('client-command-1')
+    expect(events).toContainEqual(expect.objectContaining({ type: 'command.queued', itemId: 'client-command-1' }))
+    expect(events.find((event) => event.type === 'command.queued')).not.toHaveProperty('turnId')
+    const handle = await submission.started
+    expect(handle.turnId).toBe('turn-1')
+    expect(events).toContainEqual(expect.objectContaining({ type: 'command.bound', itemId: 'client-command-1', turnId: 'turn-1' }))
+
+    host.emit('turn/completed', { threadId: 'thread-1', turn: { id: handle.turnId, status: 'completed' } })
+    await expect(submission.completed).resolves.toMatchObject({ handle, terminalEvent: { type: 'turn.completed' } })
+    await manager.dispose()
+  })
+
+  it('fails the outbox command without fabricating a terminal turn when turn/start is rejected', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host })
+    await manager.create('conversation-1', context)
+    const events: CodexEvent[] = []
+    manager.subscribe((event) => events.push(event))
+    host.failTurnStart = 'turn start rejected'
+
+    const submission = manager.submit(
+      'conversation-1',
+      { input: [{ type: 'text', text: 'inspect branch', text_elements: [] }] },
+      'queue',
+      'client-command-2',
+    )
+    await expect(submission.started).rejects.toThrow('turn start rejected')
+    expect(events).toContainEqual(expect.objectContaining({ type: 'command.failed', itemId: 'client-command-2' }))
+    expect(events.some((event) => event.type === 'turn.failed' || event.type === 'turn.interrupted' || event.type === 'turn.completed')).toBe(false)
+    await manager.dispose()
+  })
+
   it('sends current permission-profile fields without legacy readOnlyAccess', async () => {
     const host = new FakeHost()
     const manager = new CodexSessionManager({ host })
@@ -383,7 +433,7 @@ describe('CodexSessionManager', () => {
     })
 
     await expect(manager.waitForTurn(handle)).resolves.toMatchObject({
-      type: 'turn.failed',
+      type: 'turn.disconnected',
       data: expect.objectContaining({
         cause: 'upstream_response_stream_unrecoverable',
         willRetry: false,
@@ -391,7 +441,7 @@ describe('CodexSessionManager', () => {
       }),
     })
     expect(events.some((event) => event.type === 'turn.retrying')).toBe(false)
-    expect(events.filter((event) => event.type === 'turn.failed')).toHaveLength(1)
+    expect(events.filter((event) => event.type === 'turn.disconnected')).toHaveLength(1)
     await manager.dispose()
   })
 
@@ -408,7 +458,7 @@ describe('CodexSessionManager', () => {
     })
 
     await expect(manager.waitForTurn(handle)).resolves.toMatchObject({
-      type: 'turn.failed',
+      type: 'turn.disconnected',
       data: expect.objectContaining({ retryAttempt: 5, retryLimit: 5, cause: 'upstream_response_stream_unrecoverable' }),
     })
     await manager.dispose()
@@ -428,7 +478,7 @@ describe('CodexSessionManager', () => {
     })
 
     await expect(manager.waitForTurn(handle)).resolves.toMatchObject({
-      type: 'turn.failed',
+      type: 'turn.disconnected',
       data: expect.objectContaining({ retryAttempt: 5, retryLimit: 5, cause: 'upstream_response_stream_unrecoverable' }),
     })
     await manager.dispose()
@@ -447,11 +497,11 @@ describe('CodexSessionManager', () => {
     host.emit('error', { threadId: 'thread-1', turnId: handle.turnId, error: { message: 'response stream disconnected' } })
 
     await expect(manager.waitForTurn(handle)).resolves.toMatchObject({
-      type: 'turn.failed',
+      type: 'turn.disconnected',
       data: expect.objectContaining({ retryAttempt: 3, retryLimit: 3, cause: 'upstream_response_stream_unrecoverable' }),
     })
     expect(events.filter((event) => event.type === 'turn.retrying')).toHaveLength(2)
-    expect(events.filter((event) => event.type === 'turn.failed')).toHaveLength(1)
+    expect(events.filter((event) => event.type === 'turn.disconnected')).toHaveLength(1)
     await manager.dispose()
   })
 
@@ -473,7 +523,7 @@ describe('CodexSessionManager', () => {
     }
 
     await expect(manager.waitForTurn(handle)).resolves.toMatchObject({
-      type: 'turn.failed',
+      type: 'turn.disconnected',
       data: expect.objectContaining({ retryAttempt: 3, retryLimit: 3, cause: 'upstream_response_stream_unrecoverable' }),
     })
     expect(events.filter((event) => event.type === 'turn.retrying')).toHaveLength(2)
@@ -594,7 +644,7 @@ describe('CodexSessionManager', () => {
 
     await vi.advanceTimersByTimeAsync(1_001)
     await expect(terminal).resolves.toMatchObject({
-      type: 'turn.failed',
+      type: 'turn.disconnected',
       data: expect.objectContaining({ cause: 'inactivity_timeout', error: expect.stringContaining('had no progress') }),
     })
     expect(host.calls.filter((call) => call.method === 'turn/interrupt')).toEqual([
@@ -604,8 +654,9 @@ describe('CodexSessionManager', () => {
 
     host.emit('turn/completed', { threadId: 'thread-1', turn: { id: handle.turnId, status: 'completed' } })
     await vi.advanceTimersByTimeAsync(2_000)
-    expect(events.filter((event) => event.type === 'turn.failed' || event.type === 'turn.completed')).toHaveLength(1)
-    expect(events.filter((event) => event.type === 'turn.failed')).toHaveLength(1)
+    expect(events.filter((event) => event.type === 'turn.disconnected' || event.type === 'turn.completed')).toHaveLength(2)
+    expect(events.filter((event) => event.type === 'turn.disconnected')).toHaveLength(1)
+    expect(events.filter((event) => event.type === 'turn.completed')).toHaveLength(1)
     await manager.dispose()
   })
 

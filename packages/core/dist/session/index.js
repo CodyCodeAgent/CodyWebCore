@@ -19,11 +19,13 @@ export class CodexSessionManager {
     turnWatchdogs = new Map();
     upstreamRetries = new Map();
     terminalEvents = new Map();
+    operationalFailures = new Map();
     pendingRequests = new Map();
     commands;
     catalog;
     nowIso;
     eventSequence = 0;
+    commandSequence = 0;
     unlisten = null;
     constructor(options) {
         this.options = options;
@@ -76,50 +78,80 @@ export class CodexSessionManager {
         await this.ensureSessionReady(session);
         return this.catalog.readThread(session.binding.threadId);
     }
-    async send(bindingId, input, mode = 'queue') {
+    submit(bindingId, input, mode = 'queue', clientCommandId) {
         const session = this.require(bindingId);
-        await this.ensureSessionReady(session);
-        if (mode === 'steer') {
-            if (!session.activeTurnId)
-                throw new Error('turn/steer requires an active turn');
-            await this.commands.steerTurn(session.binding.threadId, session.activeTurnId, input.input);
-            return { threadId: session.binding.threadId, turnId: session.activeTurnId };
-        }
+        const commandId = clientCommandId?.trim() || `command:${bindingId}:${String(++this.commandSequence)}`;
+        const content = contentFromInputs(input.input);
+        this.emit({
+            type: 'command.queued',
+            threadId: session.binding.threadId,
+            itemId: commandId,
+            data: { ...content, clientCommandId: commandId },
+        });
         let resolveStarted;
         let rejectStarted;
         const started = new Promise((resolve, reject) => { resolveStarted = resolve; rejectStarted = reject; });
+        let resolveCompleted;
+        let rejectCompleted;
+        const completed = new Promise((resolve, reject) => { resolveCompleted = resolve; rejectCompleted = reject; });
+        // A product may only need the immediate command id. Keep background failures
+        // observable through events without producing an unhandled rejection.
+        void started.catch(() => undefined);
+        void completed.catch(() => undefined);
         const execute = async () => {
+            let handle = null;
             try {
-                const turnId = await this.commands.startTurn(session.binding.threadId, {
-                    ...(session.context.turn ?? {}),
-                    input: input.input,
-                    ...(input.model !== undefined ? { model: input.model } : {}),
-                    ...(input.effort !== undefined ? { effort: input.effort } : {}),
-                    ...(input.collaborationMode !== undefined ? { collaborationMode: input.collaborationMode } : {}),
-                    ...(input.approvalPolicy !== undefined ? { approvalPolicy: input.approvalPolicy } : {}),
-                    ...(input.approvalsReviewer !== undefined ? { approvalsReviewer: input.approvalsReviewer } : {}),
-                    ...(input.permissions !== undefined ? { permissions: input.permissions } : {}),
-                    ...(input.runtimeWorkspaceRoots !== undefined ? { runtimeWorkspaceRoots: input.runtimeWorkspaceRoots } : {}),
-                    ...(input.sandboxPolicy !== undefined ? { sandboxPolicy: input.sandboxPolicy } : {}),
-                });
-                const handle = { threadId: session.binding.threadId, turnId };
+                await this.ensureSessionReady(session);
+                const turnId = mode === 'steer'
+                    ? await this.steerSubmission(session, input)
+                    : await this.commands.startTurn(session.binding.threadId, {
+                        ...(session.context.turn ?? {}),
+                        input: input.input,
+                        ...(input.model !== undefined ? { model: input.model } : {}),
+                        ...(input.effort !== undefined ? { effort: input.effort } : {}),
+                        ...(input.collaborationMode !== undefined ? { collaborationMode: input.collaborationMode } : {}),
+                        ...(input.approvalPolicy !== undefined ? { approvalPolicy: input.approvalPolicy } : {}),
+                        ...(input.approvalsReviewer !== undefined ? { approvalsReviewer: input.approvalsReviewer } : {}),
+                        ...(input.permissions !== undefined ? { permissions: input.permissions } : {}),
+                        ...(input.runtimeWorkspaceRoots !== undefined ? { runtimeWorkspaceRoots: input.runtimeWorkspaceRoots } : {}),
+                        ...(input.sandboxPolicy !== undefined ? { sandboxPolicy: input.sandboxPolicy } : {}),
+                    });
+                handle = { threadId: session.binding.threadId, turnId };
                 session.activeTurnId = handle.turnId;
-                this.emit({ type: 'user.completed', threadId: handle.threadId, turnId: handle.turnId, data: { ...contentFromInputs(input.input), optimistic: true } });
+                this.emit({
+                    type: 'command.bound',
+                    threadId: handle.threadId,
+                    turnId: handle.turnId,
+                    itemId: commandId,
+                    data: { clientCommandId: commandId },
+                });
                 resolveStarted(handle);
-                await this.waitForTurn(handle);
+                const terminalEvent = await this.waitForTurn(handle);
+                resolveCompleted({ handle, terminalEvent });
             }
             catch (error) {
+                if (!handle) {
+                    this.emit({
+                        type: 'command.failed',
+                        threadId: session.binding.threadId,
+                        itemId: commandId,
+                        data: { clientCommandId: commandId, error: textFromError(error) || 'Codex failed to start this command.' },
+                    });
+                }
                 rejectStarted(error);
+                rejectCompleted(error);
                 throw error;
             }
         };
         const scheduled = session.queueTail.catch(() => undefined).then(execute);
         session.queueTail = scheduled.catch(() => undefined);
-        return started;
+        return { clientCommandId: commandId, started, completed };
     }
-    async run(bindingId, input, mode = 'queue') {
-        const handle = await this.send(bindingId, input, mode);
-        return { handle, terminalEvent: await this.waitForTurn(handle) };
+    async send(bindingId, input, mode = 'queue', clientCommandId) {
+        return this.submit(bindingId, input, mode, clientCommandId).started;
+    }
+    async run(bindingId, input, mode = 'queue', clientCommandId) {
+        return this.submit(bindingId, input, mode, clientCommandId).completed;
     }
     async interrupt(bindingId) {
         const session = this.require(bindingId);
@@ -134,6 +166,9 @@ export class CodexSessionManager {
         const terminal = this.terminalEvents.get(key);
         if (terminal)
             return Promise.resolve(terminal);
+        const operationalFailure = this.operationalFailures.get(key);
+        if (operationalFailure)
+            return Promise.resolve(operationalFailure);
         this.ensureTurnWatchdog(handle);
         return new Promise((resolve, reject) => {
             const rows = this.waiters.get(key) ?? [];
@@ -176,6 +211,7 @@ export class CodexSessionManager {
             clearTimeout(watchdog.timer);
         this.turnWatchdogs.clear();
         this.upstreamRetries.clear();
+        this.operationalFailures.clear();
         for (const rows of this.waiters.values())
             for (const waiter of rows)
                 waiter.reject(new Error('Codex session manager disposed'));
@@ -196,6 +232,12 @@ export class CodexSessionManager {
             throw new Error(`Codex thread binding ${bindingId} is not attached`);
         return session;
     }
+    async steerSubmission(session, input) {
+        if (!session.activeTurnId)
+            throw new Error('turn/steer requires an active turn');
+        await this.commands.steerTurn(session.binding.threadId, session.activeTurnId, input.input);
+        return session.activeTurnId;
+    }
     async ensureSessionReady(session) {
         if (session.attached)
             return;
@@ -210,6 +252,9 @@ export class CodexSessionManager {
         for (const key of this.terminalEvents.keys())
             if (key.startsWith(prefix))
                 this.terminalEvents.delete(key);
+        for (const key of this.operationalFailures.keys())
+            if (key.startsWith(prefix))
+                this.operationalFailures.delete(key);
     }
     requirePending(bindingId, requestId, kind) {
         const pending = this.pendingRequests.get(requestId);
@@ -236,6 +281,8 @@ export class CodexSessionManager {
             this.refreshTurnInactivity(event.threadId, event.turnId);
         if (event.type === 'turn.completed' || event.type === 'turn.failed' || event.type === 'turn.interrupted')
             this.finishTurn(event);
+        if (event.type === 'turn.disconnected')
+            this.finishOperationalFailure(event);
         for (const listener of this.listeners)
             listener(event);
         return event;
@@ -247,6 +294,7 @@ export class CodexSessionManager {
         if (this.terminalEvents.has(key))
             return;
         this.terminalEvents.set(key, event);
+        this.operationalFailures.delete(key);
         this.upstreamRetries.delete(key);
         const bindingId = this.sessionIdByThreadId.get(event.threadId);
         const session = bindingId ? this.sessions.get(bindingId) : undefined;
@@ -257,6 +305,24 @@ export class CodexSessionManager {
                 this.pendingRequests.delete(requestId);
             }
         }
+        const rows = this.waiters.get(key) ?? [];
+        this.waiters.delete(key);
+        this.clearTurnWatchdog(key);
+        for (const waiter of rows)
+            waiter.resolve(event);
+    }
+    finishOperationalFailure(event) {
+        if (!event.turnId)
+            return;
+        const key = this.turnKey(event.threadId, event.turnId);
+        if (this.terminalEvents.has(key) || this.operationalFailures.has(key))
+            return;
+        this.operationalFailures.set(key, event);
+        this.upstreamRetries.delete(key);
+        const bindingId = this.sessionIdByThreadId.get(event.threadId);
+        const session = bindingId ? this.sessions.get(bindingId) : undefined;
+        if (session?.activeTurnId === event.turnId)
+            session.activeTurnId = '';
         const rows = this.waiters.get(key) ?? [];
         this.waiters.delete(key);
         this.clearTurnWatchdog(key);
@@ -289,7 +355,7 @@ export class CodexSessionManager {
                 });
             });
             this.emit({
-                type: 'turn.failed',
+                type: 'turn.disconnected',
                 threadId: watchdog.handle.threadId,
                 turnId: watchdog.handle.turnId,
                 data: { error: `Codex turn ${watchdog.handle.turnId} had no progress for ${String(watchdog.inactivityTimeoutMs)}ms`, cause: 'inactivity_timeout' },
@@ -330,8 +396,8 @@ export class CodexSessionManager {
         }
         return {
             ...event,
-            id: this.eventId('turn.failed:upstream-retries', event.threadId, event.turnId),
-            type: 'turn.failed',
+            id: this.eventId('turn.disconnected:upstream-retries', event.threadId, event.turnId),
+            type: 'turn.disconnected',
             data: {
                 ...data,
                 cause: 'upstream_response_stream_unrecoverable',
@@ -386,6 +452,10 @@ export class CodexSessionManager {
         for (const event of events) {
             if (event.type === 'turn.started' && event.turnId)
                 session.activeTurnId = event.turnId;
+            if (notification.method === 'error' && event.type === 'turn.failed' && event.data.cause === 'upstream_response_stream_unrecoverable') {
+                this.emit({ ...event, type: 'turn.disconnected' });
+                continue;
+            }
             // Only App Server `error` notifications represent a concrete response
             // stream retry attempt. Generic warnings are activity updates and must
             // not consume the retry budget.

@@ -138,6 +138,30 @@ describe('ConversationController', () => {
     expect(controller.getState().messages[0]?.outbox).toBeUndefined()
   })
 
+  it('keeps one user row while a client command is queued, bound, and replaced by native history', async () => {
+    let listener: ((value: ConversationSubscriptionEvent) => void) | undefined
+    let snapshot: CodexEvent[] = []
+    const transport: ConversationTransport = {
+      read: async () => snapshot,
+      subscribe: (_threadId, next) => { listener = next; return () => undefined },
+    }
+    const controller = createConversationController('thread-1', transport)
+    await controller.start()
+    controller.enqueueUserMessage({ id: 'command-1', text: '检查分支' })
+    listener?.({ type: 'event', event: { ...event('queued', 'command.queued', { text: '检查分支' }), itemId: 'command-1', turnId: undefined } })
+    listener?.({ type: 'event', event: { ...event('bound', 'command.bound'), itemId: 'command-1', turnId: 'turn-1' } })
+
+    expect(controller.getState().messages).toMatchObject([
+      { id: 'user:command-1', text: '检查分支', turnId: 'turn-1' },
+    ])
+
+    snapshot = [{ ...event('native-user', 'user.completed', { text: '检查分支' }), itemId: 'native-user-1' }]
+    listener?.({ type: 'connected' })
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(controller.getState().messages).toMatchObject([{ id: 'user:native-user-1', text: '检查分支' }])
+    expect(controller.getState().messages).toHaveLength(1)
+  })
+
   it('keeps a failed queued user message visible for an explicit retry', () => {
     const controller = createConversationController('thread-1', {
       read: async () => [],

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.36.0
+
+- Added a Core-owned client command lifecycle so optimistic outbox entries are accepted immediately and later bound to native Turn ids without product-generated fake Turn ids.
+- Separated upstream response-stream exhaustion from native terminal history through `turn.disconnected`, allowing a later native terminal event to remain authoritative.
+- Added deterministic command queue, binding, failure, reconnect, and native-history reconciliation coverage.
+
 ## 0.35.1
 
 - Deduplicated terminal receipts by native Turn identity so durable history and realtime overlays cannot render duplicate completion markers.
