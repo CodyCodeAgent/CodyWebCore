@@ -134,11 +134,22 @@ export function createConversationController(threadId: string, transport: Conver
     try {
       const events = await transport.read(threadId)
       if (revision !== readRevision) return
+      // Native history is durable, but it can lag the process owner while a
+      // command is queued or a Turn is still running. Re-read the owner's
+      // volatile attachment snapshot for every reconciliation instead of
+      // assuming that an earlier attachment has already reached thread/read.
+      // This keeps refresh/reconnect and multi-tab projections on the same
+      // authoritative command order without a browser-side durable outbox.
+      const attachment = transport.attach ? await transport.attach(threadId) : undefined
+      if (revision !== readRevision) return
       // Native history is authoritative, but events arriving after this read
       // started may not have reached its snapshot yet. Replay only that suffix;
       // older live overlays are intentionally replaced by native history.
       const snapshot = reduceConversationEvents(
-        reduceConversationEvents(createConversationState(threadId), events),
+        reduceConversationEvents(
+          reduceConversationEvents(createConversationState(threadId), events),
+          attachment?.events ?? [],
+        ),
         realtimeJournal
           .filter((entry) => entry.revision > realtimeRevisionAtStart)
           .map((entry) => entry.event),
@@ -221,12 +232,7 @@ export function createConversationController(threadId: string, transport: Conver
     // Subsequent refreshes still use a current revision baseline and therefore
     // replace old overlays with native history as intended.
     const initialRealtimeBaseline = 0
-    initialReadPromise = (transport.attach
-      ? transport.attach(threadId).then((attachment) => {
-          for (const event of attachment?.events ?? []) applyRealtimeEvent(event)
-          return refresh(initialRealtimeBaseline)
-        })
-      : refresh(initialRealtimeBaseline))
+    initialReadPromise = refresh(initialRealtimeBaseline)
       .catch((error) => {
         if (!state.history.error) {
           publish({
@@ -418,17 +424,21 @@ export function createReconnectingConversationSocket(options: ReconnectingSocket
     socket = createSocket(typeof options.url === 'function' ? options.url() : options.url)
     const current = socket
     current.addEventListener('open', () => {
+      if (closed || socket !== current) return
       openedAt = Date.now()
       lastActivityAt = openedAt
       startHeartbeat(current)
       options.listener({ type: 'connected', atIso: new Date().toISOString() })
     })
     current.addEventListener('message', (event) => {
+      if (closed || socket !== current) return
       lastActivityAt = Date.now()
       const parsed = options.parse(event.data)
       if (parsed) options.listener(parsed)
     })
-    current.addEventListener('error', () => current.close())
+    current.addEventListener('error', () => {
+      if (!closed && socket === current) current.close()
+    })
     current.addEventListener('close', (event) => {
       if (socket !== current) return
       clearHeartbeat()

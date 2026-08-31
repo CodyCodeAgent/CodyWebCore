@@ -38,6 +38,7 @@ export type CodexSessionSnapshot = {
     pendingRequestCount: number;
     attached: boolean;
     runtimeAvailable: boolean;
+    quarantinedReason: string;
 };
 export type ProtectedOperation = {
     requestId: number;
@@ -75,6 +76,10 @@ export type CodexSessionManagerOptions = {
     turnInactivityTimeoutMs?: number;
     /** Fallback ceiling for legacy upstream response-stream errors that omit retry metadata. */
     maxUpstreamRetryAttempts?: number;
+    /** Number of native thread/read checks after requesting a Turn stop. */
+    turnStopReconcileAttempts?: number;
+    /** Delay between native stop reconciliation reads. */
+    turnStopReconcileDelayMs?: number;
     onDiagnostic?: (diagnostic: CodexSessionDiagnostic) => void;
 };
 export declare class CodexSessionManager {
@@ -85,6 +90,7 @@ export declare class CodexSessionManager {
     private readonly waiters;
     private readonly turnWatchdogs;
     private readonly upstreamRetries;
+    private readonly operationalStops;
     private readonly terminalEvents;
     private readonly operationalFailures;
     private readonly submissions;
@@ -134,6 +140,9 @@ export declare class CodexSessionManager {
     private emit;
     private finishTurn;
     private finishOperationalFailure;
+    private stopOperationallyFailedTurn;
+    private requestNativeStop;
+    private reconcileStoppedTurn;
     private ensureTurnWatchdog;
     private armTurnWatchdog;
     private refreshTurnInactivity;

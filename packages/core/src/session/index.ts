@@ -66,6 +66,7 @@ export type CodexSessionSnapshot = {
   pendingRequestCount: number
   attached: boolean
   runtimeAvailable: boolean
+  quarantinedReason: string
 }
 
 export type ProtectedOperation = {
@@ -101,6 +102,10 @@ export type CodexSessionManagerOptions = {
   turnInactivityTimeoutMs?: number
   /** Fallback ceiling for legacy upstream response-stream errors that omit retry metadata. */
   maxUpstreamRetryAttempts?: number
+  /** Number of native thread/read checks after requesting a Turn stop. */
+  turnStopReconcileAttempts?: number
+  /** Delay between native stop reconciliation reads. */
+  turnStopReconcileDelayMs?: number
   onDiagnostic?: (diagnostic: CodexSessionDiagnostic) => void
 }
 
@@ -110,6 +115,7 @@ type AttachedSession = {
   activeTurnId: string
   queueTail: Promise<void>
   attached: boolean
+  quarantinedReason: string
 }
 
 type TurnWaiter = {
@@ -141,6 +147,8 @@ type SubmissionRecord = {
 
 const DEFAULT_TURN_INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000
 const DEFAULT_MAX_UPSTREAM_RETRY_ATTEMPTS = 5
+const DEFAULT_TURN_STOP_RECONCILE_ATTEMPTS = 5
+const DEFAULT_TURN_STOP_RECONCILE_DELAY_MS = 1_000
 
 export class CodexSessionManager {
   private readonly sessions = new Map<string, AttachedSession>()
@@ -149,6 +157,7 @@ export class CodexSessionManager {
   private readonly waiters = new Map<string, TurnWaiter[]>()
   private readonly turnWatchdogs = new Map<string, TurnWatchdog>()
   private readonly upstreamRetries = new Map<string, UpstreamRetry>()
+  private readonly operationalStops = new Map<string, Promise<void>>()
   private readonly terminalEvents = new Map<string, CodexEvent>()
   private readonly operationalFailures = new Map<string, CodexEvent>()
   private readonly submissions = new Map<string, SubmissionRecord>()
@@ -241,6 +250,7 @@ export class CodexSessionManager {
       pendingRequestCount,
       attached: session.attached,
       runtimeAvailable: !this.runtimeUnavailable && !this.disposed,
+      quarantinedReason: session.quarantinedReason,
     }
   }
 
@@ -414,7 +424,10 @@ export class CodexSessionManager {
     const session = this.require(bindingId)
     await this.ensureSessionReady(session)
     if (!session.activeTurnId) return false
-    await this.commands.interruptTurn(session.binding.threadId, session.activeTurnId)
+    void this.requestNativeStop(
+      { threadId: session.binding.threadId, turnId: session.activeTurnId },
+      'Codex Turn interruption could not be confirmed.',
+    )
     return true
   }
 
@@ -468,6 +481,7 @@ export class CodexSessionManager {
     for (const watchdog of this.turnWatchdogs.values()) clearTimeout(watchdog.timer)
     this.turnWatchdogs.clear()
     this.upstreamRetries.clear()
+    this.operationalStops.clear()
     this.operationalFailures.clear()
     this.submissions.clear()
     for (const rows of this.waiters.values()) for (const waiter of rows) waiter.reject(new Error('Codex session manager disposed'))
@@ -492,7 +506,7 @@ export class CodexSessionManager {
     if (previous && previous.binding.threadId !== binding.threadId) {
       this.sessionIdByThreadId.delete(previous.binding.threadId)
     }
-    const session: AttachedSession = { binding, context, activeTurnId: '', queueTail: Promise.resolve(), attached: true }
+    const session: AttachedSession = { binding, context, activeTurnId: '', queueTail: Promise.resolve(), attached: true, quarantinedReason: '' }
     this.sessions.set(binding.id, session)
     this.sessionIdByThreadId.set(binding.threadId, binding.id)
     return session
@@ -516,6 +530,7 @@ export class CodexSessionManager {
   }
 
   private async ensureSessionReady(session: AttachedSession): Promise<void> {
+    if (session.quarantinedReason) throw new Error(session.quarantinedReason)
     if (session.attached) return
     if (this.runtimeUnavailable) throw new Error('Codex App Server is unavailable. Restart the product service to create a new owner process.')
     throw new Error(`Codex thread binding ${session.binding.id} is detached`)
@@ -567,6 +582,10 @@ export class CodexSessionManager {
       const existing = this.terminalEvents.get(this.turnKey(input.threadId, input.turnId))
       if (existing) return existing
     }
+    if (input.type === 'turn.disconnected' && input.turnId) {
+      const existing = this.operationalFailures.get(this.turnKey(input.threadId, input.turnId))
+      if (existing) return existing
+    }
     const event: CodexEvent = {
       ...input,
       id: input.id ?? this.eventId(input.type, input.threadId, input.turnId, input.itemId),
@@ -588,7 +607,10 @@ export class CodexSessionManager {
     this.upstreamRetries.delete(key)
     const bindingId = this.sessionIdByThreadId.get(event.threadId)
     const session = bindingId ? this.sessions.get(bindingId) : undefined
-    if (session?.activeTurnId === event.turnId) session.activeTurnId = ''
+    if (session?.activeTurnId === event.turnId) {
+      session.activeTurnId = ''
+      session.quarantinedReason = ''
+    }
     for (const record of this.submissions.values()) {
       if (record.threadId === event.threadId && record.turnId === event.turnId) record.state = 'terminal'
     }
@@ -609,11 +631,80 @@ export class CodexSessionManager {
     if (this.terminalEvents.has(key) || this.operationalFailures.has(key)) return
     this.operationalFailures.set(key, event)
     this.upstreamRetries.delete(key)
-    // An upstream transport failure is not a native terminal. Keep the active
-    // Turn and its queue barrier until App Server later emits completed,
-    // failed, or interrupted. Releasing here can overlap two native Turns and
-    // is the source of phantom Stopped/Worked receipts.
+    // App Server versions do not consistently follow a response-stream
+    // failure with a native terminal notification. Request one stop, then use
+    // native thread/read as the only fallback terminal authority. If native
+    // state cannot prove that the Turn stopped, quarantine this conversation
+    // instead of releasing its queue into a potentially overlapping Turn.
+    void this.stopOperationallyFailedTurn(event)
+  }
+
+  private async stopOperationallyFailedTurn(event: CodexEvent): Promise<void> {
+    if (!event.turnId) return
+    return this.requestNativeStop(
+      { threadId: event.threadId, turnId: event.turnId },
+      textFromError(event.data.error) || 'Codex upstream response stream failed.',
+    )
+  }
+
+  private requestNativeStop(handle: TurnHandle, reason: string): Promise<void> {
+    const key = this.turnKey(handle.threadId, handle.turnId)
+    if (this.terminalEvents.has(key)) return Promise.resolve()
+    const existing = this.operationalStops.get(key)
+    if (existing) return existing
+    const operation = this.reconcileStoppedTurn(handle, reason).finally(() => {
+      if (this.operationalStops.get(key) === operation) this.operationalStops.delete(key)
+    })
+    this.operationalStops.set(key, operation)
+    return operation
+  }
+
+  private async reconcileStoppedTurn(handle: TurnHandle, reason: string): Promise<void> {
+    const key = this.turnKey(handle.threadId, handle.turnId)
+    let interruptError = ''
+    try {
+      await this.commands.interruptTurn(handle.threadId, handle.turnId)
+    } catch (error) {
+      interruptError = textFromError(error) || 'unknown error'
+      this.options.onDiagnostic?.({ level: 'warning', message: `Failed to request Codex Turn interruption: ${interruptError}`, method: 'turn/interrupt' })
+    }
+    const attempts = Math.max(1, this.options.turnStopReconcileAttempts ?? DEFAULT_TURN_STOP_RECONCILE_ATTEMPTS)
+    const delayMs = Math.max(0, this.options.turnStopReconcileDelayMs ?? DEFAULT_TURN_STOP_RECONCILE_DELAY_MS)
+    let readError = ''
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      if (this.disposed || this.runtimeUnavailable || this.terminalEvents.has(key)) return
+      try {
+        const events = await this.catalog.readThread(handle.threadId)
+        const terminal = [...events].reverse().find((candidate) => candidate.turnId === handle.turnId && (
+          candidate.type === 'turn.completed' || candidate.type === 'turn.failed' || candidate.type === 'turn.interrupted'
+        ))
+        if (terminal) {
+          this.emit(terminal)
+          return
+        }
+      } catch (error) {
+        readError = textFromError(error) || 'unknown error'
+      }
+      if (attempt + 1 < attempts && delayMs > 0) await new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, delayMs)
+        timer.unref?.()
+      })
+    }
+    if (this.disposed || this.runtimeUnavailable || this.terminalEvents.has(key)) return
+    const bindingId = this.sessionIdByThreadId.get(handle.threadId)
+    const session = bindingId ? this.sessions.get(bindingId) : undefined
+    const detail = [interruptError && `interrupt: ${interruptError}`, readError && `thread/read: ${readError}`].filter(Boolean).join('; ')
+    const quarantineReason = `Codex Turn ${handle.turnId} could not be confirmed stopped. This conversation is quarantined; restart the product service before sending another command.${detail ? ` ${detail}` : ''}`
+    if (session) session.quarantinedReason = quarantineReason
     this.clearTurnWatchdog(key)
+    for (const waiter of this.waiters.get(key) ?? []) waiter.reject(new Error(quarantineReason))
+    this.waiters.delete(key)
+    const existingFailure = this.operationalFailures.get(key)
+    if (existingFailure) {
+      this.operationalFailures.set(key, { ...existingFailure, data: { ...existingFailure.data, error: reason, quarantined: true, quarantineReason } })
+    } else {
+      this.emit({ type: 'turn.disconnected', threadId: handle.threadId, turnId: handle.turnId, data: { error: reason, cause: 'stop_confirmation_timeout', quarantined: true, quarantineReason } })
+    }
   }
 
   private ensureTurnWatchdog(handle: TurnHandle): void {
@@ -633,13 +724,6 @@ export class CodexSessionManager {
     watchdog.timer = setTimeout(() => {
       const key = this.turnKey(watchdog.handle.threadId, watchdog.handle.turnId)
       if (this.turnWatchdogs.get(key) !== watchdog) return
-      void this.commands.interruptTurn(watchdog.handle.threadId, watchdog.handle.turnId).catch((error: unknown) => {
-        this.options.onDiagnostic?.({
-          level: 'warning',
-          message: `Failed to interrupt inactive Codex turn: ${textFromError(error) || 'unknown error'}`,
-          method: 'turn/interrupt',
-        })
-      })
       this.emit({
         type: 'turn.disconnected',
         threadId: watchdog.handle.threadId,

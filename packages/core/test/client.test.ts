@@ -16,7 +16,7 @@ function deferred<T>() {
 afterEach(() => vi.useRealTimers())
 
 describe('ConversationController', () => {
-  it('attaches once before the initial native read', async () => {
+  it('reads native history then overlays one current owner attachment snapshot', async () => {
     const calls: string[] = []
     const controller = createConversationController('thread-1', {
       attach: async () => { calls.push('attach') },
@@ -25,7 +25,7 @@ describe('ConversationController', () => {
     })
 
     await Promise.all([controller.start(), controller.start()])
-    expect(calls).toEqual(['attach', 'read'])
+    expect(calls).toEqual(['read', 'attach'])
   })
 
   it('projects volatile owner state returned by attach before native history catches up', async () => {
@@ -44,6 +44,35 @@ describe('ConversationController', () => {
 
     expect(controller.getState().activeTurnId).toBe('turn-live')
     expect(controller.getState().turns['turn-live']?.lifecycle).toBe('running')
+  })
+
+  it('re-applies the current owner command snapshot after every reconnect refresh', async () => {
+    let listener: ((value: ConversationSubscriptionEvent) => void) | undefined
+    let attachCount = 0
+    const attachmentEvents: CodexEvent[] = [
+      { ...event('owner-queued', 'command.queued', { text: '跨标签消息', clientCommandId: 'command-1', attachment: true }), itemId: 'command-1', turnId: undefined },
+      { ...event('owner-bound', 'command.bound', { clientCommandId: 'command-1', attachment: true }), itemId: 'command-1' },
+      { ...event('owner-running', 'turn.started', { attachment: true }) },
+    ]
+    const controller = createConversationController('thread-1', {
+      attach: async () => { attachCount += 1; return { events: attachmentEvents } },
+      // Deliberately stale: native thread/read has not caught up to the owner.
+      read: async () => [],
+      subscribe: (_threadId, next) => { listener = next; return () => undefined },
+    })
+
+    await controller.start()
+    expect(controller.getState().messages).toMatchObject([
+      { id: 'user:command-1', text: '跨标签消息', turnId: 'turn-1', outbox: { status: 'sending' } },
+    ])
+
+    listener?.({ type: 'connected' })
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(attachCount).toBe(2)
+    expect(controller.getState().messages).toMatchObject([
+      { id: 'user:command-1', text: '跨标签消息', turnId: 'turn-1', outbox: { status: 'sending' } },
+    ])
   })
 
   it('keeps the realtime subscription alive and exposes owner attach failures', async () => {
@@ -455,5 +484,33 @@ describe('ReconnectingConversationSocket', () => {
     vi.advanceTimersByTime(60_000)
     expect(socket.sent).toEqual([])
     transport.close()
+  })
+
+  it('ignores late messages from a socket generation after it is closed', () => {
+    class FakeSocket {
+      readonly listeners = new Map<string, Array<(event: any) => void>>()
+      readyState = 1
+      addEventListener(type: string, listener: (event: any) => void) {
+        this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener])
+      }
+      send() {}
+      close(code = 1000, reason = '') { this.emit('close', { code, reason }) }
+      emit(type: string, event: any = {}) { for (const listener of this.listeners.get(type) ?? []) listener(event) }
+    }
+    const socket = new FakeSocket()
+    const events: ConversationSubscriptionEvent[] = []
+    const transport = createReconnectingConversationSocket({
+      url: 'ws://example.test',
+      createSocket: () => socket as unknown as WebSocket,
+      parse: () => ({ type: 'connected', atIso: 'late-message' }),
+      listener: (event) => events.push(event),
+    })
+    socket.emit('open')
+    transport.close()
+    socket.emit('message', { data: '{}' })
+    socket.emit('open')
+
+    expect(events).toHaveLength(1)
+    expect(events[0]?.type).toBe('connected')
   })
 })

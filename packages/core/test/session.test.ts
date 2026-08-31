@@ -603,6 +603,7 @@ describe('CodexSessionManager', () => {
     const events: CodexEvent[] = []
     manager.subscribe((event) => events.push(event))
     const handle = await manager.send('conversation-1', { input: [{ type: 'text', text: 'hello', text_elements: [] }] })
+    host.threadReadTurns = [{ id: handle.turnId, status: 'failed', items: [], error: { message: 'response stream disconnected' } }]
 
     host.emit('error', {
       threadId: 'thread-1',
@@ -615,11 +616,16 @@ describe('CodexSessionManager', () => {
       type: 'turn.disconnected',
       data: expect.objectContaining({ cause: 'upstream_response_stream_unrecoverable', willRetry: false }),
     }))
-    const terminal = manager.waitForTurn(handle)
+    await expect(manager.waitForTurn(handle)).resolves.toMatchObject({ type: 'turn.failed' })
+    expect(host.calls.filter((call) => call.method === 'turn/interrupt')).toEqual([
+      { method: 'turn/interrupt', params: handle },
+    ])
+    // A late native terminal belongs to the same Turn and cannot create a
+    // second receipt or replace the owner's already-published outcome.
     host.emit('turn/failed', { threadId: 'thread-1', turnId: handle.turnId, error: { message: 'response stream disconnected' } })
-    await expect(terminal).resolves.toMatchObject({ type: 'turn.failed' })
     expect(events.some((event) => event.type === 'turn.retrying')).toBe(false)
     expect(events.filter((event) => event.type === 'turn.disconnected')).toHaveLength(1)
+    expect(events.filter((event) => event.type === 'turn.failed')).toHaveLength(1)
     await manager.dispose()
   })
 
@@ -825,6 +831,7 @@ describe('CodexSessionManager', () => {
     manager.subscribe((event) => events.push(event))
     const handle = await manager.send('conversation-1', { input: [{ type: 'text', text: 'silent task', text_elements: [] }] })
     const terminal = manager.waitForTurn(handle)
+    host.threadReadTurns = [{ id: handle.turnId, status: 'failed', items: [], error: { message: 'inactive turn interrupted' } }]
 
     await vi.advanceTimersByTimeAsync(1_001)
     expect(events).toContainEqual(expect.objectContaining({
@@ -834,14 +841,35 @@ describe('CodexSessionManager', () => {
     expect(host.calls.filter((call) => call.method === 'turn/interrupt')).toEqual([
       { method: 'turn/interrupt', params: handle },
     ])
-    expect(await manager.interrupt('conversation-1')).toBe(true)
+    expect(await manager.interrupt('conversation-1')).toBe(false)
 
     host.emit('turn/completed', { threadId: 'thread-1', turn: { id: handle.turnId, status: 'completed' } })
-    await expect(terminal).resolves.toMatchObject({ type: 'turn.completed' })
+    await expect(terminal).resolves.toMatchObject({ type: 'turn.failed' })
     await vi.advanceTimersByTimeAsync(2_000)
-    expect(events.filter((event) => event.type === 'turn.disconnected' || event.type === 'turn.completed')).toHaveLength(2)
+    expect(events.filter((event) => event.type === 'turn.disconnected' || event.type === 'turn.failed')).toHaveLength(2)
     expect(events.filter((event) => event.type === 'turn.disconnected')).toHaveLength(1)
-    expect(events.filter((event) => event.type === 'turn.completed')).toHaveLength(1)
+    expect(events.filter((event) => event.type === 'turn.failed')).toHaveLength(1)
+    expect(events.filter((event) => event.type === 'turn.completed')).toHaveLength(0)
+    await manager.dispose()
+  })
+
+  it('quarantines a session instead of starting another native Turn when stop cannot be confirmed', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host, turnStopReconcileAttempts: 1, turnStopReconcileDelayMs: 0 })
+    await manager.create('conversation-1', context)
+    const first = manager.submit('conversation-1', { input: [{ type: 'text', text: 'first', text_elements: [] }] })
+    const handle = await first.started
+
+    host.emit('error', {
+      threadId: 'thread-1', turnId: handle.turnId, willRetry: false,
+      error: { message: 'response stream disconnected' },
+    })
+
+    await expect(first.completed).rejects.toThrow('could not be confirmed stopped')
+    expect(manager.snapshot('conversation-1')?.quarantinedReason).toContain('quarantined')
+    await expect(manager.send('conversation-1', { input: [{ type: 'text', text: 'second', text_elements: [] }] })).rejects.toThrow('quarantined')
+    expect(host.calls.filter((call) => call.method === 'turn/start')).toHaveLength(1)
+    expect(host.calls.filter((call) => call.method === 'turn/interrupt')).toHaveLength(1)
     await manager.dispose()
   })
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.37.4
+
+- Re-applied the current process-owner attachment snapshot after every native history refresh so queued and active commands remain visible across browser tabs and reconnects.
+- Reconciled exhausted or inactive Turns against native `thread/read` after one deduplicated interrupt request; an unconfirmed stop quarantines the session instead of starting an overlapping Turn.
+- Kept upstream-failed user commands retryable while preserving native terminal authority and first-terminal deduplication.
+- Ignored late events from closed WebSocket generations and added deterministic reconnect, dual-source reconciliation, stop-confirmation and quarantine coverage.
+
 ## 0.37.3
 
 - Registered owner submissions before broadcasting `command.queued`, closing the attach/realtime race between browser tabs.
