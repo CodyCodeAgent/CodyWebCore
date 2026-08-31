@@ -29,6 +29,21 @@ export type ConversationMessage = {
     rawPayload?: unknown;
     isUnhandled?: boolean;
 };
+export type ConversationTurnBucket<T extends ConversationMessage = ConversationMessage> = {
+    key: string;
+    kind: 'turn';
+    turnId: string;
+    messages: T[];
+} | {
+    key: string;
+    kind: 'pending-turn';
+    clientMessageId: string;
+    messages: T[];
+} | {
+    key: string;
+    kind: 'unscoped';
+    messages: T[];
+};
 export type DataAuthority = 'overlay' | 'replace-snapshot' | 'invalidate' | 'apply-delta-then-reconcile' | 'ignore';
 export declare function dataAuthorityFor(method: string): DataAuthority;
 export declare function normalizeMessageText(value: string): string;
@@ -47,6 +62,17 @@ export declare function upsertLiveDelta<T extends ConversationMessage>(messages:
 }): T[];
 export declare function removeRedundantLiveAssistantMessages<T extends ConversationMessage>(messages: T[], persisted: T[]): T[];
 export declare function compactConversationMessages<T extends ConversationMessage>(messages: T[]): T[];
+/**
+ * Builds the canonical visual conversation structure.
+ *
+ * Durable history establishes Turn order. Realtime overlays join their Turn
+ * instead of being appended after the whole history array. Local outbox rows
+ * without a native Turn are future Turns, so they remain visible immediately
+ * but always render after every accepted/native Turn.
+ */
+export declare function conversationTurnBucketsFromMessages<T extends ConversationMessage>(persistedMessages: T[], overlayMessages?: T[], terminalMessages?: T[]): ConversationTurnBucket<T>[];
+export declare function conversationMessagesFromTurnBuckets<T extends ConversationMessage>(buckets: ConversationTurnBucket<T>[]): T[];
+export declare function orderConversationMessagesByTurn<T extends ConversationMessage>(persistedMessages: T[], overlayMessages?: T[], terminalMessages?: T[]): T[];
 export declare function reconcilePersistedMessages<T extends ConversationMessage>(messages: T[], persisted: T[]): T[];
 export declare function toolStatusTone(status: string): 'neutral' | 'running' | 'success' | 'danger';
 export declare function previewToolOutput(output: string, maxLines?: number, maxChars?: number): {

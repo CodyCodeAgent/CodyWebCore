@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.34.0
+
+- Added a canonical Turn-bucket conversation feed so realtime replies, terminal receipts, and optimistic future prompts retain causal order across multiple queued Turns.
+- Added deterministic pending-to-accepted Turn promotion for optimistic user messages without relying on renderer-specific array concatenation.
+
 ## 0.33.9
 
 - Added a schema-bound, exactly-once recovery path for a `turn/start` request whose App Server explicitly reports `thread not found`: resume the durable native thread once, then retry only that request. Transport and timeout errors are never retried.

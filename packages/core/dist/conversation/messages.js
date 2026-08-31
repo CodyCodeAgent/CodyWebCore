@@ -42,6 +42,9 @@ function isLocalPendingUserMessage(message) {
 function isPersistedUserMessage(message) {
     return message.role === 'user' && !isLocalPendingUserMessage(message);
 }
+function isUnboundPendingUserMessage(message) {
+    return isLocalPendingUserMessage(message) && !message.turnId;
+}
 function isLiveAssistant(message) {
     return message.role === 'assistant'
         && (message.messageType === 'agentMessage.live' || message.messageType === 'plan.live');
@@ -316,6 +319,59 @@ export function compactConversationMessages(messages) {
         consumed.add(replacement.id);
     }
     return areConversationMessageArraysStable(messages, next) ? messages : next;
+}
+/**
+ * Builds the canonical visual conversation structure.
+ *
+ * Durable history establishes Turn order. Realtime overlays join their Turn
+ * instead of being appended after the whole history array. Local outbox rows
+ * without a native Turn are future Turns, so they remain visible immediately
+ * but always render after every accepted/native Turn.
+ */
+export function conversationTurnBucketsFromMessages(persistedMessages, overlayMessages = [], terminalMessages = []) {
+    const overlays = removeRedundantLiveAssistantMessages(overlayMessages, persistedMessages);
+    const combined = compactConversationMessages([
+        ...persistedMessages,
+        ...overlays,
+        ...terminalMessages,
+    ]);
+    const buckets = [];
+    const turnBucketById = new Map();
+    const pending = [];
+    let unscopedSequence = 0;
+    for (const message of combined) {
+        if (isUnboundPendingUserMessage(message)) {
+            pending.push(message);
+            continue;
+        }
+        if (message.turnId) {
+            let bucket = turnBucketById.get(message.turnId);
+            if (!bucket) {
+                bucket = { key: `turn:${message.turnId}`, kind: 'turn', turnId: message.turnId, messages: [] };
+                turnBucketById.set(message.turnId, bucket);
+                buckets.push(bucket);
+            }
+            bucket.messages.push(message);
+            continue;
+        }
+        unscopedSequence += 1;
+        buckets.push({ key: `unscoped:${String(unscopedSequence)}:${message.id}`, kind: 'unscoped', messages: [message] });
+    }
+    for (const message of pending) {
+        buckets.push({
+            key: `pending:${message.id}`,
+            kind: 'pending-turn',
+            clientMessageId: message.id,
+            messages: [message],
+        });
+    }
+    return buckets;
+}
+export function conversationMessagesFromTurnBuckets(buckets) {
+    return buckets.flatMap((bucket) => bucket.messages);
+}
+export function orderConversationMessagesByTurn(persistedMessages, overlayMessages = [], terminalMessages = []) {
+    return conversationMessagesFromTurnBuckets(conversationTurnBucketsFromMessages(persistedMessages, overlayMessages, terminalMessages));
 }
 export function reconcilePersistedMessages(messages, persisted) {
     return mergeMessages(removeRedundantLiveAssistantMessages(messages, persisted), persisted, { preserveMissing: true });

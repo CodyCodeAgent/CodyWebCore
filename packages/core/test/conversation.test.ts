@@ -13,6 +13,7 @@ import {
   hiddenMessageCount,
   mergeMessages,
   nextVisibleMessageCount,
+  orderConversationMessagesByTurn,
   previewToolOutput,
   reduceConversationEvents,
   reduceConversationRegistryEvents,
@@ -74,6 +75,62 @@ describe('conversation core', () => {
     )
 
     expect(output.map((message) => message.id)).toEqual(['old-user', 'old-answer', 'worked:old', 'current-user', 'live:current'])
+  })
+
+  it('keeps the active Turn response ahead of future optimistic Turns', () => {
+    const activeUser = { id: 'user-a', turnId: 'turn-a', role: 'user' as const, text: 'First question' }
+    const pendingB = { id: 'pending-b', role: 'user' as const, text: 'Second question', messageType: 'userMessage.optimistic' }
+    const pendingC = { id: 'pending-c', role: 'user' as const, text: 'Third question', messageType: 'userMessage.optimistic' }
+    const liveAnswer = { id: 'live:answer-a', turnId: 'turn-a', role: 'assistant' as const, text: 'First answer', messageType: 'agentMessage.live' }
+
+    expect(orderConversationMessagesByTurn(
+      [activeUser, pendingB, pendingC],
+      [liveAnswer],
+    ).map((message) => message.id)).toEqual([
+      'user-a',
+      'live:answer-a',
+      'pending-b',
+      'pending-c',
+    ])
+  })
+
+  it('upgrades a bound optimistic user into its accepted Turn', () => {
+    const previousUser = { id: 'user-a', turnId: 'turn-a', role: 'user' as const, text: 'First question' }
+    const previousAnswer = { id: 'answer-a', turnId: 'turn-a', role: 'assistant' as const, text: 'First answer' }
+    const acceptedUser = {
+      id: 'pending-b', turnId: 'turn-b', role: 'user' as const, text: 'Second question', messageType: 'userMessage.optimistic',
+    }
+    const acceptedAnswer = {
+      id: 'live:answer-b', turnId: 'turn-b', role: 'assistant' as const, text: 'Second answer', messageType: 'agentMessage.live',
+    }
+
+    expect(orderConversationMessagesByTurn(
+      [previousUser, previousAnswer, acceptedUser],
+      [acceptedAnswer],
+    ).map((message) => message.id)).toEqual([
+      'user-a',
+      'answer-a',
+      'pending-b',
+      'live:answer-b',
+    ])
+  })
+
+  it('places a Turn receipt inside its Turn before future queued prompts', () => {
+    const user = { id: 'user-a', turnId: 'turn-a', role: 'user' as const, text: 'First question' }
+    const answer = { id: 'answer-a', turnId: 'turn-a', role: 'assistant' as const, text: 'First answer' }
+    const pending = { id: 'pending-b', role: 'user' as const, text: 'Second question', messageType: 'userMessage.optimistic' }
+    const receipt = { id: 'worked:turn-a', turnId: 'turn-a', role: 'system' as const, text: 'Worked for 1s', messageType: 'worked' }
+
+    expect(orderConversationMessagesByTurn(
+      [user, answer, pending],
+      [],
+      [receipt],
+    ).map((message) => message.id)).toEqual([
+      'user-a',
+      'answer-a',
+      'worked:turn-a',
+      'pending-b',
+    ])
   })
 
   it('reconciles outbox users and normalized local-image identities', () => {

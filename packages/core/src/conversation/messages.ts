@@ -25,6 +25,11 @@ export type ConversationMessage = {
   isUnhandled?: boolean
 }
 
+export type ConversationTurnBucket<T extends ConversationMessage = ConversationMessage> =
+  | { key: string; kind: 'turn'; turnId: string; messages: T[] }
+  | { key: string; kind: 'pending-turn'; clientMessageId: string; messages: T[] }
+  | { key: string; kind: 'unscoped'; messages: T[] }
+
 export type DataAuthority = 'overlay' | 'replace-snapshot' | 'invalidate' | 'apply-delta-then-reconcile' | 'ignore'
 
 export function dataAuthorityFor(method: string): DataAuthority {
@@ -68,6 +73,10 @@ function isLocalPendingUserMessage(message: ConversationMessage): boolean {
 
 function isPersistedUserMessage(message: ConversationMessage): boolean {
   return message.role === 'user' && !isLocalPendingUserMessage(message)
+}
+
+function isUnboundPendingUserMessage(message: ConversationMessage): boolean {
+  return isLocalPendingUserMessage(message) && !message.turnId
 }
 
 function isLiveAssistant(message: ConversationMessage): boolean {
@@ -321,6 +330,76 @@ export function compactConversationMessages<T extends ConversationMessage>(messa
     consumed.add(replacement.id)
   }
   return areConversationMessageArraysStable(messages, next) ? messages : next
+}
+
+/**
+ * Builds the canonical visual conversation structure.
+ *
+ * Durable history establishes Turn order. Realtime overlays join their Turn
+ * instead of being appended after the whole history array. Local outbox rows
+ * without a native Turn are future Turns, so they remain visible immediately
+ * but always render after every accepted/native Turn.
+ */
+export function conversationTurnBucketsFromMessages<T extends ConversationMessage>(
+  persistedMessages: T[],
+  overlayMessages: T[] = [],
+  terminalMessages: T[] = [],
+): ConversationTurnBucket<T>[] {
+  const overlays = removeRedundantLiveAssistantMessages(overlayMessages, persistedMessages)
+  const combined = compactConversationMessages([
+    ...persistedMessages,
+    ...overlays,
+    ...terminalMessages,
+  ])
+  const buckets: ConversationTurnBucket<T>[] = []
+  const turnBucketById = new Map<string, Extract<ConversationTurnBucket<T>, { kind: 'turn' }>>()
+  const pending: T[] = []
+  let unscopedSequence = 0
+
+  for (const message of combined) {
+    if (isUnboundPendingUserMessage(message)) {
+      pending.push(message)
+      continue
+    }
+    if (message.turnId) {
+      let bucket = turnBucketById.get(message.turnId)
+      if (!bucket) {
+        bucket = { key: `turn:${message.turnId}`, kind: 'turn', turnId: message.turnId, messages: [] }
+        turnBucketById.set(message.turnId, bucket)
+        buckets.push(bucket)
+      }
+      bucket.messages.push(message)
+      continue
+    }
+    unscopedSequence += 1
+    buckets.push({ key: `unscoped:${String(unscopedSequence)}:${message.id}`, kind: 'unscoped', messages: [message] })
+  }
+
+  for (const message of pending) {
+    buckets.push({
+      key: `pending:${message.id}`,
+      kind: 'pending-turn',
+      clientMessageId: message.id,
+      messages: [message],
+    })
+  }
+  return buckets
+}
+
+export function conversationMessagesFromTurnBuckets<T extends ConversationMessage>(
+  buckets: ConversationTurnBucket<T>[],
+): T[] {
+  return buckets.flatMap((bucket) => bucket.messages)
+}
+
+export function orderConversationMessagesByTurn<T extends ConversationMessage>(
+  persistedMessages: T[],
+  overlayMessages: T[] = [],
+  terminalMessages: T[] = [],
+): T[] {
+  return conversationMessagesFromTurnBuckets(
+    conversationTurnBucketsFromMessages(persistedMessages, overlayMessages, terminalMessages),
+  )
 }
 
 export function reconcilePersistedMessages<T extends ConversationMessage>(messages: T[], persisted: T[]): T[] {
