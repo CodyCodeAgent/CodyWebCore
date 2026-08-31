@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.0
+
+- Made the App Server process single-start for the lifetime of its owning service: RPC timeouts, initialization failures, EPIPE, and unexpected exits never trigger an automatic restart.
+- Removed implicit App Server startup from ordinary RPC calls; only explicit host initialization may perform the single process launch.
+- Added runtime lifecycle, launch count, and unavailable-reason diagnostics so products can require an explicit service restart or redeployment after process failure.
+
 ## 0.34.0
 
 - Added a canonical Turn-bucket conversation feed so realtime replies, terminal receipts, and optimistic future prompts retain causal order across multiple queued Turns.

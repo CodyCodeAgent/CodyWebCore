@@ -1,6 +1,5 @@
 export * from './methods.js';
 export * from './permission-profile.js';
-export const READ_RECOVERY_METHODS = new Set(['thread/read', 'thread/loaded/list']);
 export function asRecord(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value)
         ? value

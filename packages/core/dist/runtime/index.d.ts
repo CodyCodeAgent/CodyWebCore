@@ -1,6 +1,6 @@
 import { type ChildProcessWithoutNullStreams, type SpawnOptionsWithoutStdio } from 'node:child_process';
 import { type RuntimeNotification, type ServerRequest } from '../protocol/index.js';
-export declare const CODY_WEB_CORE_VERSION = "0.34.0";
+export declare const CODY_WEB_CORE_VERSION = "0.35.0";
 export type { RuntimeNotification, ServerRequest } from '../protocol/index.js';
 export type RpcOptions = {
     timeoutMs?: number;
@@ -44,6 +44,9 @@ export type AppServerFailureDiagnostic = Readonly<{
     message: string;
     process: Readonly<{
         status: 'running' | 'stopped';
+        lifecycle: 'not_started' | 'running' | 'unavailable' | 'disposed';
+        startCount: number;
+        unavailableReason: string | null;
         initialized: boolean;
         pid: number | null;
         startedAtIso: string | null;
@@ -66,7 +69,9 @@ export type AppServerFailureDiagnostic = Readonly<{
 }>;
 export type AppServerDiagnostics = {
     status: 'running' | 'stopped';
-    recovering: boolean;
+    lifecycle: 'not_started' | 'running' | 'unavailable' | 'disposed';
+    startCount: number;
+    unavailableReason: string | null;
     initialized: boolean;
     pid: number | null;
     startedAtIso: string | null;
@@ -91,7 +96,6 @@ export type AppServerHostOptions = {
     env?: NodeJS.ProcessEnv;
     initializeParams?: unknown;
     rpcTimeoutMs?: number;
-    restartCooldownMs?: number;
     spawn?: SpawnAppServer;
     onServerRequest?: (request: ServerRequest) => Promise<ServerRequestReply | null> | ServerRequestReply | null;
     onDisconnected?: (reason: Error) => void;

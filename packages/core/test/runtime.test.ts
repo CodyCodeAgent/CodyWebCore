@@ -84,32 +84,46 @@ describe('AppServerHost', () => {
     await running.dispose()
   })
 
-  it('replaces an App Server that hangs during initialization', async () => {
+  it('never replaces an App Server that hangs during initialization', async () => {
     let spawnCount = 0
-    const spawn: SpawnAppServer = (...args) => fakeAppServer(spawnCount++ === 0 ? 'hang-initialize' : 'normal')(...args)
-    const host = createAppServerHost({ spawn, rpcTimeoutMs: 250, restartCooldownMs: 10 })
+    const spawn: SpawnAppServer = (...args) => { spawnCount += 1; return fakeAppServer('hang-initialize')(...args) }
+    const host = createAppServerHost({ spawn, rpcTimeoutMs: 250 })
 
     await expect(host.ensureInitialized()).rejects.toThrow('initialize timed out')
-    await host.ensureInitialized()
-
-    await expect(host.call<{ initialized: number }>('stats')).resolves.toEqual({ initialized: 1 })
-    expect(spawnCount).toBe(2)
-    expect(host.diagnostics()).toMatchObject({ status: 'running', recovering: false, initialized: true })
+    await expect(host.ensureInitialized()).rejects.toThrow('initialize timed out')
+    expect(spawnCount).toBe(1)
+    expect(host.diagnostics()).toMatchObject({ status: 'running', lifecycle: 'running', startCount: 1, initialized: false })
     await host.dispose()
   })
 
-  it('waits for a timed-out read process to exit before initializing its replacement', async () => {
+  it('does not restart the App Server when a read RPC times out', async () => {
     let spawnCount = 0
-    const spawn: SpawnAppServer = (...args) => fakeAppServer(spawnCount++ === 0 ? 'hang-read' : 'normal')(...args)
-    const host = createAppServerHost({ spawn, rpcTimeoutMs: 250, restartCooldownMs: 10 })
+    const spawn: SpawnAppServer = (...args) => { spawnCount += 1; return fakeAppServer('hang-read')(...args) }
+    const host = createAppServerHost({ spawn, rpcTimeoutMs: 250 })
     await host.ensureInitialized()
     await expect(host.call('thread/read')).rejects.toThrow('thread/read timed out')
 
     await host.ensureInitialized()
     await expect(host.call<{ initialized: number }>('stats')).resolves.toEqual({ initialized: 1 })
-    expect(spawnCount).toBe(2)
-    expect(host.diagnostics()).toMatchObject({ status: 'running', recovering: false, initialized: true })
+    expect(spawnCount).toBe(1)
+    expect(host.diagnostics()).toMatchObject({ status: 'running', lifecycle: 'running', startCount: 1, initialized: true })
     await host.dispose()
+  })
+
+  it('does not implicitly start before initialization or restart after an unexpected exit', async () => {
+    let spawnCount = 0
+    const spawn: SpawnAppServer = (...args) => { spawnCount += 1; return fakeAppServer()(...args) }
+    const host = createAppServerHost({ spawn })
+
+    await expect(host.call('stats')).rejects.toThrow('has not been initialized')
+    expect(spawnCount).toBe(0)
+
+    await host.ensureInitialized()
+    await expect(host.call('exit')).rejects.toThrow('exited')
+    await expect(host.ensureInitialized()).rejects.toThrow('will not be restarted automatically')
+    await expect(host.call('stats')).rejects.toThrow('will not be restarted automatically')
+    expect(spawnCount).toBe(1)
+    expect(host.diagnostics()).toMatchObject({ status: 'stopped', lifecycle: 'unavailable', startCount: 1, initialized: false })
   })
 
   it('reports process exits with pending request timing but without payloads', async () => {
@@ -156,6 +170,8 @@ describe('AppServerHost', () => {
     expect(host.failureReport()).toEqual(expect.objectContaining({
       phase: 'transport', cause: 'stdin_error', failedMethod: 'pipe-error',
     }))
+    await expect(host.call('stats')).rejects.toThrow('will not be restarted automatically')
+    expect(host.diagnostics()).toMatchObject({ lifecycle: 'unavailable', startCount: 1 })
     await host.dispose()
   })
 
@@ -190,6 +206,6 @@ describe('AppServerHost', () => {
     await host.ensureInitialized()
     await host.dispose()
     expect(disconnected).toEqual([])
-    expect(host.diagnostics()).toEqual(expect.objectContaining({ status: 'stopped', initialized: false }))
+    expect(host.diagnostics()).toEqual(expect.objectContaining({ status: 'stopped', lifecycle: 'disposed', startCount: 1, initialized: false }))
   })
 })

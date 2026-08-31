@@ -1,8 +1,7 @@
 import { spawn } from 'node:child_process';
-import { READ_RECOVERY_METHODS, isNotification, isServerRequest, normalizeRpcResponse, } from '../protocol/index.js';
-export const CODY_WEB_CORE_VERSION = '0.34.0';
+import { isNotification, isServerRequest, normalizeRpcResponse, } from '../protocol/index.js';
+export const CODY_WEB_CORE_VERSION = '0.35.0';
 const DEFAULT_TIMEOUT_MS = 20_000;
-const DEFAULT_RESTART_COOLDOWN_MS = 1_750;
 const MAX_LOGS = 80;
 const MAX_LOG_LENGTH = 500;
 function redactDiagnosticText(raw) {
@@ -25,8 +24,8 @@ function hintsFor(cause) {
     switch (cause) {
         case 'initialize_timeout': return ['Verify the Codex App Server command starts successfully and is compatible with this Core version.', 'Initialization may be slow; inspect the redacted logs before considering a larger RPC timeout.'];
         case 'rpc_timeout': return ['Check whether the reported method is still making progress before retrying.', 'If slow requests are expected, consider a method-level timeout after ruling out a stalled App Server.'];
-        case 'process_exit': return ['Inspect the exit code, signal, and redacted stderr for a likely cause.', 'Restarting the App Server may help, but repeated exits should be investigated before automatic retries.'];
-        case 'stdin_error': return ['The App Server input pipe may have closed; check process state before retrying.', 'Recreate the host if the process is no longer accepting RPC input.'];
+        case 'process_exit': return ['Inspect the exit code, signal, and redacted stderr for a likely cause.', 'The runtime will remain unavailable until the owning service is restarted or redeployed.'];
+        case 'stdin_error': return ['The App Server input pipe may have closed; check process state before retrying.', 'The runtime will not restart the App Server automatically; restart or redeploy the owning service after investigating.'];
         case 'malformed_json': return ['Check App Server compatibility and ensure stdout contains only JSON-RPC lines.', 'Use stderr for diagnostic text; repeated malformed stdout can indicate a wrapper or protocol mismatch.'];
     }
 }
@@ -48,8 +47,9 @@ export function createAppServerHost(options = {}) {
     let buffer = '';
     let sequence = 1;
     let stopping = false;
-    let restartAt = 0;
-    let recoveryPromise = null;
+    let lifecycle = 'not_started';
+    let startCount = 0;
+    let unavailableReason = null;
     let sent = 0;
     let completed = 0;
     let failed = 0;
@@ -95,7 +95,8 @@ export function createAppServerHost(options = {}) {
             failedMethod,
             message: redactDiagnosticText(message).slice(0, MAX_LOG_LENGTH),
             process: {
-                status: process ? 'running' : 'stopped', initialized, pid: process?.pid ?? null,
+                status: process ? 'running' : 'stopped', lifecycle, startCount, unavailableReason,
+                initialized, pid: process?.pid ?? null,
                 startedAtIso, exitedAtIso, exitCode, exitSignal,
             },
             pendingClientRequests: pendingClientOverride ?? [...pending].map(([id, entry]) => clientSummary(id, entry, nowMs)),
@@ -177,12 +178,32 @@ export function createAppServerHost(options = {}) {
     const start = () => {
         if (process)
             return;
+        if (lifecycle === 'disposed')
+            throw new Error('Codex App Server host has been disposed');
+        if (startCount > 0) {
+            throw new Error(unavailableReason
+                ? `Codex App Server is unavailable and will not be restarted automatically: ${unavailableReason}`
+                : 'Codex App Server is unavailable and will not be restarted automatically');
+        }
         const [command, ...fromCommand] = splitCommand(options.command ?? 'codex app-server --stdio');
         const args = options.args ?? fromCommand;
         stopping = false;
         processGeneration += 1;
-        process = spawnAppServer(command, args, { cwd: options.cwd, env: { ...globalThis.process.env, ...options.env }, stdio: ['pipe', 'pipe', 'pipe'] });
+        startCount += 1;
+        try {
+            process = spawnAppServer(command, args, { cwd: options.cwd, env: { ...globalThis.process.env, ...options.env }, stdio: ['pipe', 'pipe', 'pipe'] });
+        }
+        catch (error) {
+            const reason = error instanceof Error ? error : new Error(String(error));
+            lifecycle = 'unavailable';
+            unavailableReason = reason.message;
+            pushLog('error', 'bridge', `App Server failed to start: ${reason.message}`);
+            captureFailure('process', 'process_exit', null, reason.message);
+            throw reason;
+        }
         const child = process;
+        lifecycle = 'running';
+        unavailableReason = null;
         startedAtIso = new Date().toISOString();
         exitedAtIso = null;
         exitCode = null;
@@ -209,8 +230,17 @@ export function createAppServerHost(options = {}) {
             rejectPending(new Error(`Codex App Server stdin failed: ${error.message}`));
             captureFailure('transport', 'stdin_error', failedMethod, 'The Codex App Server input pipe failed.', entries);
             stdinFailureGeneration = processGeneration;
+            lifecycle = 'unavailable';
+            unavailableReason = `Codex App Server stdin failed: ${error.message}`;
         });
-        child.on('error', (error) => pushLog('error', 'bridge', error.message));
+        child.on('error', (error) => {
+            const reason = new Error(`Codex App Server process error: ${error.message}`);
+            pushLog('error', 'bridge', reason.message);
+            rejectPending(reason);
+            lifecycle = 'unavailable';
+            unavailableReason = reason.message;
+            captureFailure('process', 'process_exit', null, reason.message);
+        });
         child.on('exit', (code, signal) => {
             const reason = new Error(stopping ? 'Codex App Server stopped' : `Codex App Server exited (${String(code ?? signal ?? 'unknown')})`);
             const entries = [...pending].map(([id, entry]) => clientSummary(id, entry, Date.now()));
@@ -223,6 +253,8 @@ export function createAppServerHost(options = {}) {
                 for (const request of pendingServerRequests.values())
                     emit('server/request/expired', { ...request, error: reason.message });
                 emit('runtime/disconnected', { error: reason.message });
+                lifecycle = 'unavailable';
+                unavailableReason = reason.message;
             }
             process = null;
             initialized = false;
@@ -241,21 +273,15 @@ export function createAppServerHost(options = {}) {
             throw new Error('Codex App Server is not running');
         process.stdin.write(`${JSON.stringify(payload)}\n`);
     };
-    const recover = (method) => {
-        const canRecoverTimedOutMethod = method === 'initialize' || READ_RECOVERY_METHODS.has(method);
-        if (!canRecoverTimedOutMethod || pending.size > 0 || pendingServerRequests.size > 0 || Date.now() < restartAt)
-            return;
-        restartAt = Date.now() + (options.restartCooldownMs ?? DEFAULT_RESTART_COOLDOWN_MS);
-        pushLog('warning', 'bridge', `Restarting App Server after timed out ${method}.`);
-        const recovery = stopProcess();
-        const trackedRecovery = recovery.finally(() => {
-            if (recoveryPromise === trackedRecovery)
-                recoveryPromise = null;
-        });
-        recoveryPromise = trackedRecovery;
-    };
     const call = (method, params = {}, rpcOptions = {}) => {
-        start();
+        if (!process || lifecycle !== 'running') {
+            const message = lifecycle === 'disposed'
+                ? 'Codex App Server host has been disposed'
+                : unavailableReason
+                    ? `Codex App Server is unavailable and will not be restarted automatically: ${unavailableReason}`
+                    : 'Codex App Server has not been initialized';
+            return Promise.reject(new Error(message));
+        }
         const id = sequence++;
         const timeoutMs = Math.max(250, rpcOptions.timeoutMs ?? options.rpcTimeoutMs ?? DEFAULT_TIMEOUT_MS);
         sent += 1;
@@ -269,7 +295,6 @@ export function createAppServerHost(options = {}) {
                 pushLog('error', 'bridge', error.message);
                 const nowMs = Date.now();
                 captureFailure(method === 'initialize' ? 'initialize' : 'rpc', method === 'initialize' ? 'initialize_timeout' : 'rpc_timeout', method, error.message, [clientSummary(id, timedOut, nowMs), ...[...pending].map(([pendingId, entry]) => clientSummary(pendingId, entry, nowMs))]);
-                recover(method);
                 reject(error);
             }, timeoutMs);
             timer.unref?.();
@@ -302,15 +327,13 @@ export function createAppServerHost(options = {}) {
         emit('server/request/resolved', { id, method: request.method, threadId: request.params && typeof request.params === 'object' ? request.params.threadId : undefined });
     };
     const ensureInitialized = async () => {
-        if (recoveryPromise)
-            await recoveryPromise;
         if (initialized)
             return;
         if (initializePromise)
             return initializePromise;
+        if (!process)
+            start();
         initializePromise = (async () => {
-            if (Date.now() < restartAt)
-                await new Promise((resolve) => setTimeout(resolve, restartAt - Date.now()));
             try {
                 await call('initialize', options.initializeParams ?? {
                     clientInfo: { name: 'cody-web-core', title: 'Cody Web Core', version: CODY_WEB_CORE_VERSION },
@@ -338,8 +361,7 @@ export function createAppServerHost(options = {}) {
         });
     };
     const dispose = async () => {
-        if (recoveryPromise)
-            await recoveryPromise;
+        lifecycle = 'disposed';
         await stopProcess();
     };
     return {
@@ -350,7 +372,7 @@ export function createAppServerHost(options = {}) {
         resolveServerRequest,
         diagnostics() {
             return {
-                status: process ? 'running' : 'stopped', recovering: recoveryPromise !== null, initialized, pid: process?.pid ?? null,
+                status: process ? 'running' : 'stopped', lifecycle, startCount, unavailableReason, initialized, pid: process?.pid ?? null,
                 startedAtIso, exitedAtIso, exitCode, exitSignal,
                 pendingClientRequestCount: pending.size, pendingServerRequestCount: pendingServerRequests.size,
                 sentClientRequestCount: sent, completedClientRequestCount: completed, failedClientRequestCount: failed,
