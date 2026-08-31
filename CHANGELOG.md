@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.1
+
+- Deduplicated terminal receipts by native Turn identity so durable history and realtime overlays cannot render duplicate completion markers.
+- Kept empty `started → interrupted` Turns in diagnostic state while omitting their orphaned `Stopped` receipts from the visible conversation.
+
 ## 0.35.0
 
 - Made the App Server process single-start for the lifetime of its owning service: RPC timeouts, initialization failures, EPIPE, and unexpected exits never trigger an automatic restart.
