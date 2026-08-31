@@ -245,6 +245,7 @@ describe('conversation core', () => {
     const base = { threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:00.000Z' }
     const state = reduceConversationEvents(createConversationState('thread-1'), [
       { ...base, id: 'started', type: 'turn.started', data: {} },
+      { ...base, id: 'user', itemId: 'user-1', type: 'user.completed', data: { text: 'Run the task' } },
       { ...base, id: 'retry-1', type: 'turn.retrying', data: { error: 'Reconnecting 1/5' } },
       { ...base, id: 'retry-2', type: 'turn.retrying', data: { error: 'Reconnecting 2/5' } },
       { ...base, id: 'done', type: 'turn.completed', data: {} },
@@ -282,6 +283,7 @@ describe('conversation core', () => {
   it('prefers a native turn duration over transport arrival latency', () => {
     const state = reduceConversationEvents(createConversationState('thread-1'), [
       { id: 'start', type: 'turn.started', threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:00.000Z', data: {} },
+      { id: 'user', type: 'user.completed', threadId: 'thread-1', turnId: 'turn-1', itemId: 'user-1', atIso: '2026-01-01T00:00:00.100Z', data: { text: 'Run the task' } },
       { id: 'done', type: 'turn.completed', threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:09.000Z', data: { durationMs: 1_250 } },
     ])
     expect(conversationFeedFromState(state).at(-1)).toMatchObject({ kind: 'turn', durationMs: 1_250 })
@@ -408,6 +410,21 @@ describe('conversation core', () => {
     expect(state.turns['empty-turn']).toMatchObject({ lifecycle: 'interrupted' })
   })
 
+  it('keeps orphaned maintenance terminals in diagnostics but out of the transcript', () => {
+    const base = { threadId: 'thread-1', atIso: '2026-01-01T00:00:00.000Z' }
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { ...base, id: 'completed-start', type: 'turn.started', turnId: 'completed-turn', data: {} },
+      { ...base, id: 'completed', type: 'turn.completed', turnId: 'completed-turn', atIso: '2026-01-01T00:00:01.000Z', data: { durationMs: 1_000 } },
+      { ...base, id: 'failed-start', type: 'turn.started', turnId: 'failed-turn', atIso: '2026-01-01T00:00:02.000Z', data: {} },
+      { ...base, id: 'failed', type: 'turn.failed', turnId: 'failed-turn', atIso: '2026-01-01T00:00:03.000Z', data: { error: 'maintenance failed' } },
+    ])
+
+    expect(state.turns['completed-turn']).toMatchObject({ lifecycle: 'completed' })
+    expect(state.turns['failed-turn']).toMatchObject({ lifecycle: 'failed', error: 'maintenance failed' })
+    expect(conversationTranscriptFromState(state)).not.toContainEqual(expect.objectContaining({ turnId: 'completed-turn' }))
+    expect(conversationTranscriptFromState(state)).not.toContainEqual(expect.objectContaining({ turnId: 'failed-turn' }))
+  })
+
   it('does not clear a newer active turn when an older turn finishes late', () => {
     const state = reduceConversationEvents(createConversationState('thread-1'), [
       { id: 'old-start', type: 'turn.started', threadId: 'thread-1', turnId: 'old-turn', atIso: '2026-01-01T00:00:00.000Z', data: {} },
@@ -475,7 +492,12 @@ describe('conversation core', () => {
       ...base, id: 'failed', type: 'turn.failed', atIso: '2026-01-01T00:00:02.000Z', data: { error: 'network failed' },
     }])
     expect(failed.plan).toMatchObject({ lifecycle: 'ended', possiblyStale: true })
-    expect(conversationLiveOverlayFromState(failed)).toMatchObject({ errorText: 'network failed' })
+    expect(conversationLiveOverlayFromState(failed)).toBeNull()
+    expect(conversationTranscriptFromState(failed)).toContainEqual(expect.objectContaining({
+      turnId: 'turn-1',
+      messageType: 'turn.failed',
+      text: 'network failed',
+    }))
   })
 
   it('selects assistant and plan overlays with stable native item identities', () => {

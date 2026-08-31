@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.37.5
+
+- Keep empty maintenance Turns in diagnostic state without rendering `Worked`, `Stopped`, or failure rows in the user conversation.
+- Restrict the live overlay to the active Turn so a historical terminal failure cannot render a second time as `Thinking`.
+- Cover orphaned completed, failed, and interrupted Turn projection with deterministic tests.
+
 ## 0.37.4
 
 - Re-applied the current process-owner attachment snapshot after every native history refresh so queued and active commands remain visible across browser tabs and reconnects.
