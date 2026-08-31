@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.36.2
+
+- Added explicit local-command discard support to the shared conversation controller.
+- Reconciled a native user item that arrives before the client command receives its native Turn binding, preventing a late acknowledgement from creating a duplicate user row.
+
 ## 0.36.1
 
 - Made runtime disconnection authoritative for interactive state: active approvals and questions are cleared without fabricating terminal transcript rows.

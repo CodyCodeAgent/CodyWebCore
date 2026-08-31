@@ -162,6 +162,17 @@ describe('ConversationController', () => {
     expect(controller.getState().messages[0]?.outbox).toBeUndefined()
   })
 
+  it('discards a queued command without touching native history rows', () => {
+    const controller = createConversationController('thread-1', {
+      read: async () => [],
+      subscribe: () => () => undefined,
+    })
+    controller.enqueueUserMessage({ id: 'discard-me', text: 'queued draft' })
+    controller.discardQueuedUserMessage('discard-me')
+    expect(controller.getState().messages).toEqual([])
+    expect(controller.getState().presentation).toEqual([])
+  })
+
   it('keeps one user row while a client command is queued, bound, and replaced by native history', async () => {
     let listener: ((value: ConversationSubscriptionEvent) => void) | undefined
     let snapshot: CodexEvent[] = []
@@ -183,6 +194,23 @@ describe('ConversationController', () => {
     listener?.({ type: 'connected' })
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(controller.getState().messages).toMatchObject([{ id: 'user:native-user-1', text: '检查分支' }])
+    expect(controller.getState().messages).toHaveLength(1)
+  })
+
+  it('removes a late-bound optimistic row when the native user item arrived first', async () => {
+    let listener: ((value: ConversationSubscriptionEvent) => void) | undefined
+    const controller = createConversationController('thread-1', {
+      read: async () => [],
+      subscribe: (_threadId, next) => { listener = next; return () => undefined },
+    })
+    await controller.start()
+    controller.enqueueUserMessage({ id: 'command-1', text: 'same command' })
+    listener?.({ type: 'event', event: {
+      ...event('native-user', 'user.completed', { text: 'same command' }),
+      itemId: 'native-user-1',
+    } })
+    controller.bindQueuedUserMessage('command-1', 'turn-1')
+    expect(controller.getState().messages).toMatchObject([{ id: 'user:native-user-1', text: 'same command' }])
     expect(controller.getState().messages).toHaveLength(1)
   })
 

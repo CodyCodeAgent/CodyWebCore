@@ -31,6 +31,7 @@ export type ConversationController = {
     }): void;
     bindQueuedUserMessage(id: string, turnId: string): void;
     failQueuedUserMessage(id: string, error: string): void;
+    discardQueuedUserMessage(id: string): void;
     start(): Promise<void>;
     refresh(): Promise<void>;
     dispose(): void;

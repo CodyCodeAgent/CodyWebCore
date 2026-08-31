@@ -526,6 +526,21 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
     const commandId = event.itemId || ''
     if (!commandId || !event.turnId) return state
     const messageId = `user:${commandId}`
+    const optimistic = state.messages.find((message) => message.id === messageId)
+    const native = optimistic && state.messages.find((message) => (
+      message.id !== messageId
+      && message.role === 'user'
+      && message.turnId === event.turnId
+      && message.messageType?.startsWith('userMessage.') !== true
+      && areUserMessagesEquivalent(message, optimistic)
+    ))
+    if (native) {
+      return {
+        ...state,
+        messages: state.messages.filter((message) => message.id !== messageId),
+        presentation: state.presentation.filter((row) => row.id !== messageId),
+      }
+    }
     const messages = state.messages.map((message) => message.id === messageId
       ? { ...message, turnId: event.turnId, outbox: { status: 'sending' as const } }
       : message)

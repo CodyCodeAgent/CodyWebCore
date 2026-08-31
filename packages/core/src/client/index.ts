@@ -26,6 +26,7 @@ export type ConversationController = {
   enqueueUserMessage(input: { id: string; text: string; images?: string[]; skills?: Array<{ name: string; path: string; displayName?: string }> }): void
   bindQueuedUserMessage(id: string, turnId: string): void
   failQueuedUserMessage(id: string, error: string): void
+  discardQueuedUserMessage(id: string): void
   start(): Promise<void>
   refresh(): Promise<void>
   dispose(): void
@@ -178,9 +179,15 @@ export function createConversationController(threadId: string, transport: Conver
     bindQueuedUserMessage(id, turnId) {
       if (!id || !turnId) return
       localOutboxJournal = localOutboxJournal.map((event) => event.itemId === id ? { ...event, turnId } : event)
-      const messageId = queuedMessageId(id)
-      const nextMessages = state.messages.map((message) => message.id === messageId ? { ...message, turnId } : message)
-      if (nextMessages.some((message, index) => message !== state.messages[index])) publish({ ...state, messages: nextMessages })
+      publish(reduceConversationEvent(state, {
+        id: `local-command-bound:${id}:${turnId}`,
+        type: 'command.bound',
+        threadId,
+        turnId,
+        itemId: id,
+        atIso: new Date().toISOString(),
+        data: { clientCommandId: id },
+      }))
     },
     failQueuedUserMessage(id, error) {
       if (!id) return
@@ -194,6 +201,17 @@ export function createConversationController(threadId: string, transport: Conver
       }
       localOutboxJournal = localOutboxJournal.map((event) => event.itemId === id ? failed : event)
       publish(reduceConversationEvent(state, failed))
+    },
+    discardQueuedUserMessage(id) {
+      if (!id) return
+      localOutboxJournal = localOutboxJournal.filter((event) => event.itemId !== id)
+      const messageId = queuedMessageId(id)
+      if (!state.messages.some((message) => message.id === messageId)) return
+      publish({
+        ...state,
+        messages: state.messages.filter((message) => message.id !== messageId),
+        presentation: state.presentation.filter((row) => row.id !== messageId),
+      })
     },
     start,
     refresh,
