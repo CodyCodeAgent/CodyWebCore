@@ -10,6 +10,10 @@ export interface UseConversationController {
   readonly state: ComputedRef<ConversationState>
   connect(threadId: string, transport: ConversationTransport): Promise<void>
   enqueueUserMessage(input: { id: string; text: string; images?: string[]; skills?: Array<{ name: string; path: string; displayName?: string }> }): void
+  submitUserMessage(
+    input: { id: string; text: string; images?: string[]; skills?: Array<{ name: string; path: string; displayName?: string }> },
+    command: Parameters<ConversationController['submitUserMessage']>[1],
+  ): Promise<{ clientCommandId: string }>
   bindQueuedUserMessage(id: string, turnId: string): void
   failQueuedUserMessage(id: string, error: string): void
   refresh(): Promise<void>
@@ -53,6 +57,10 @@ export function useConversationController(): UseConversationController {
   }
 
   const enqueueUserMessage: UseConversationController['enqueueUserMessage'] = (input) => controller?.enqueueUserMessage(input)
+  const submitUserMessage: UseConversationController['submitUserMessage'] = async (input, command) => {
+    if (!controller) throw new Error('Conversation controller is not connected.')
+    return controller.submitUserMessage(input, command)
+  }
   const bindQueuedUserMessage: UseConversationController['bindQueuedUserMessage'] = (id, turnId) => controller?.bindQueuedUserMessage(id, turnId)
   const failQueuedUserMessage: UseConversationController['failQueuedUserMessage'] = (id, error) => controller?.failQueuedUserMessage(id, error)
 
@@ -71,6 +79,7 @@ export function useConversationController(): UseConversationController {
     state: computed(() => state.value),
     connect,
     enqueueUserMessage,
+    submitUserMessage,
     bindQueuedUserMessage,
     failQueuedUserMessage,
     refresh,

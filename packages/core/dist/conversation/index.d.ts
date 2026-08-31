@@ -81,6 +81,13 @@ export type ConversationConnectionState = {
     message: string;
     updatedAtIso: string;
 };
+export type ConversationTransportConnectionState = {
+    status: 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
+    reconnectAttempt: number;
+    closeCode: number | null;
+    closeReason: string;
+    updatedAtIso: string;
+};
 export type ConversationHistoryState = {
     loading: boolean;
     hasMore: boolean;
@@ -106,6 +113,8 @@ export type ConversationState = {
     contextUsage: ConversationContextUsageState | null;
     pendingRequests: ConversationRequest[];
     connection: ConversationConnectionState;
+    /** Browser/client transport only. It never changes native Runtime or Turn state. */
+    transportConnection: ConversationTransportConnectionState;
     history: ConversationHistoryState;
     /** Protocol order across messages, tools, plans, requests and turn receipts. */
     presentation: ConversationPresentationRef[];
@@ -154,7 +163,7 @@ export type ConversationFeedEntry = {
     id: string;
     kind: 'activity';
     turnId: string;
-    status: 'running' | 'retrying' | 'waiting';
+    status: 'running' | 'retrying' | 'waiting' | 'disconnected';
     label: string;
     detail: string;
 };

@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
 import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 import { describe, expect, it } from 'vitest'
-import { createAppServerHost, type SpawnAppServer } from '../src/runtime/index.js'
+import { createAppServerHost, type RuntimeNotification, type SpawnAppServer } from '../src/runtime/index.js'
 
 function fakeAppServer(mode: 'normal' | 'hang-initialize' | 'hang-read' = 'normal'): SpawnAppServer {
   return () => {
@@ -165,6 +165,10 @@ describe('AppServerHost', () => {
 
   it('reports stdin EPIPE failures without waiting for the RPC timeout', async () => {
     const host = createAppServerHost({ spawn: fakeAppServer(), rpcTimeoutMs: 5_000 })
+    const disconnects: RuntimeNotification[] = []
+    host.subscribe((notification) => {
+      if (notification.method === 'runtime/disconnected') disconnects.push(notification)
+    })
     await host.ensureInitialized()
     await expect(host.call('pipe-error')).rejects.toThrow('stdin failed')
     expect(host.failureReport()).toEqual(expect.objectContaining({
@@ -172,6 +176,7 @@ describe('AppServerHost', () => {
     }))
     await expect(host.call('stats')).rejects.toThrow('will not be restarted automatically')
     expect(host.diagnostics()).toMatchObject({ lifecycle: 'unavailable', startCount: 1 })
+    expect(disconnects).toHaveLength(1)
     await host.dispose()
   })
 

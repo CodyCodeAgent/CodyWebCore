@@ -5,7 +5,6 @@ export * from './token-usage.js';
 export * from './turn-input.js';
 export * from './catalog.js';
 export * from './commands.js';
-export * from './turn-recovery.js';
 export { conversationToolFromItem, normalizeCodexNotification, normalizeThreadHistory, readCodexStatus, } from './normalization.js';
 export type { CodexNotificationEventIdentity, CodexNotificationInput, NormalizeCodexNotificationOptions, } from './normalization.js';
 export type ThreadBinding = {
@@ -28,6 +27,17 @@ export type TurnSubmission = {
     started: Promise<TurnHandle>;
     /** Resolves with the one authoritative terminal event for the native Turn. */
     completed: Promise<TurnOutcome>;
+};
+/** Authoritative process-owner state for a product binding. Products may use
+ * this for guards and diagnostics, but must never persist or independently
+ * advance it. */
+export type CodexSessionSnapshot = {
+    bindingId: string;
+    threadId: string;
+    activeTurnId: string;
+    pendingRequestCount: number;
+    attached: boolean;
+    runtimeAvailable: boolean;
 };
 export type ProtectedOperation = {
     requestId: number;
@@ -77,17 +87,21 @@ export declare class CodexSessionManager {
     private readonly upstreamRetries;
     private readonly terminalEvents;
     private readonly operationalFailures;
+    private readonly submissions;
     private readonly pendingRequests;
     private readonly commands;
     private readonly catalog;
     private readonly nowIso;
     private eventSequence;
     private commandSequence;
+    private runtimeUnavailable;
+    private disposed;
     private unlisten;
     constructor(options: CodexSessionManagerOptions);
     subscribe(listener: (event: CodexEvent) => void): () => void;
     /** Returns stable live events for unresolved approvals/questions after a product view reconnects. */
     listPendingEvents(bindingId: string): CodexEvent[];
+    snapshot(bindingId: string): CodexSessionSnapshot | null;
     create(bindingId: string, context: ExecutionContext): Promise<ThreadBinding>;
     resume(binding: ThreadBinding, context: ExecutionContext): Promise<void>;
     detach(bindingId: string): void;
@@ -103,6 +117,7 @@ export declare class CodexSessionManager {
     respondQuestion(bindingId: string, requestId: string, answer: unknown): Promise<void>;
     dispose(): Promise<void>;
     private attachLocal;
+    private requireUsable;
     private require;
     private steerSubmission;
     private ensureSessionReady;

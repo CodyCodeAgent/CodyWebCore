@@ -22,7 +22,7 @@ protocol/runtime/session/conversation/composer/presentation/client
 ```
 
 - `protocol` owns generated schema, typed RPC calls, capability checks and tolerant wire readers.
-- `runtime` owns the App Server process, JSON-RPC transport, initialization, timeout recovery, pending server requests and diagnostics.
+- `runtime` owns the single-start App Server process, JSON-RPC transport, initialization, pending server requests and diagnostics. A timeout or transport failure marks that owner unavailable; it never creates a replacement process.
 - `session` is the only raw-notification-to-`CodexEvent` interpretation path. It owns native Thread attachment, Turn coordination, retry authority and approval routing.
 - `conversation` owns deterministic reducer state, history/live reconciliation, terminal authority, overlays, timeline entries and feed selection.
 - `composer` owns framework-neutral input intent, queue/steer selection, attachments and option reconciliation.
@@ -38,8 +38,10 @@ Imports must follow this direction. A lower layer never imports Vue or a product
 | --- | --- |
 | Native durable transcript | `thread/read`, normalized by `session` |
 | Streaming assistant/reasoning/plan | normalized realtime events reduced by `conversation` |
-| Turn terminal state | only `turn/completed`, `turn/failed`, `turn/interrupted`, or Core's inactivity watchdog |
-| Turn-scoped `error`/`warning` | retry diagnostics; never terminal by themselves |
+| Turn terminal state | only native `turn/completed`, `turn/failed` or `turn/interrupted` |
+| Turn-scoped `error`/`warning` and inactivity | operational retry/disconnected state; never fabricated terminal state |
+| Browser realtime connection | WebSocket open/close plus application heartbeat; unrelated HTTP health checks never change conversation state |
+| Client command admission | Core optimistic outbox plus process-owner idempotency keyed by product binding and client command id |
 | Approval decision | injected product policy; Core transports and reconciles the request |
 | Workspace roots and write access | product policy adapter; Core can preserve or narrow, never widen |
 | Product audit/cost/checkpoints | product adapter consuming normalized events |

@@ -394,7 +394,7 @@ export function normalizeCodexNotification(
       raw: params,
     }
     if (retry.exhausted) {
-      return [{ id: id('terminal'), type: 'turn.failed', ...common, data: {
+      return [{ id: id('disconnected'), type: 'turn.disconnected', ...common, data: {
         error: `Codex 上游响应流恢复失败，未自动重发。${error}`,
         cause: 'upstream_response_stream_unrecoverable',
         ...retryData,

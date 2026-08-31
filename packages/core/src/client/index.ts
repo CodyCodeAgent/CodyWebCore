@@ -8,12 +8,34 @@ import {
 
 export type ConversationSubscriptionEvent =
   | { type: 'event'; event: CodexEvent }
-  | { type: 'connected' }
-  | { type: 'disconnected'; error?: string }
+  | { type: 'connected'; atIso?: string }
+  | { type: 'disconnected'; error?: string; atIso?: string; reconnectAttempt?: number; retryInMs?: number | null; closeCode?: number | null; closeReason?: string }
 
 export interface ConversationTransport {
+  /** Registers the native thread with the process-wide owner. This is
+   * idempotent and must never create a second App Server process. */
+  attach?(threadId: string): Promise<void>
   read(threadId: string): Promise<CodexEvent[]>
   subscribe(threadId: string, listener: (event: ConversationSubscriptionEvent) => void): () => void
+  /** Accepts a command into the process-wide SessionManager. Native binding and
+   * terminal state return through subscribe(); this call only acknowledges
+   * durable command admission. */
+  submit?(command: ConversationCommand): Promise<{ clientCommandId: string }>
+}
+
+export type ConversationCommand = {
+  threadId: string
+  clientCommandId: string
+  mode: 'queue' | 'steer'
+  input: unknown
+  context?: unknown
+}
+
+export type ConversationOptimisticMessage = {
+  id: string
+  text: string
+  images?: string[]
+  skills?: Array<{ name: string; path: string; displayName?: string }>
 }
 
 export type ConversationController = {
@@ -23,10 +45,16 @@ export type ConversationController = {
    * Adds a local user row before the transport has acknowledged turn/start.
    * The row is reconciled with the native user item rather than appended again.
    */
-  enqueueUserMessage(input: { id: string; text: string; images?: string[]; skills?: Array<{ name: string; path: string; displayName?: string }> }): void
+  enqueueUserMessage(input: ConversationOptimisticMessage): void
+  /** The single browser command entrypoint: optimistic projection first,
+   * process-owner admission second, and an explicit failed outbox on transport
+   * rejection. Products must not coordinate turn/start themselves. */
+  submitUserMessage(input: ConversationOptimisticMessage, command: Omit<ConversationCommand, 'threadId' | 'clientCommandId'>): Promise<{ clientCommandId: string }>
   bindQueuedUserMessage(id: string, turnId: string): void
   failQueuedUserMessage(id: string, error: string): void
   discardQueuedUserMessage(id: string): void
+  /** Applies a product-originated normalized event without creating a second message store. */
+  ingestEvent(event: CodexEvent): void
   start(): Promise<void>
   refresh(): Promise<void>
   dispose(): void
@@ -43,7 +71,6 @@ export function createConversationController(threadId: string, transport: Conver
   let started = false
   let initialReadSettled = false
   let initialReadPromise: Promise<void> | null = null
-  let connectionRevision = 0
   let realtimeEventRevision = 0
   let realtimeJournal: Array<{ revision: number; event: CodexEvent }> = []
   let localOutboxJournal: CodexEvent[] = []
@@ -62,9 +89,37 @@ export function createConversationController(threadId: string, transport: Conver
     localOutboxJournal = localOutboxJournal.filter((event) => visibleIds.has(queuedMessageId(event.itemId || event.id)))
   }
 
-  const refresh = async (): Promise<void> => {
+  const applyRealtimeEvent = (event: CodexEvent): void => {
+    if (!event.id || event.threadId !== threadId) return
+    const commandId = typeof event.data.clientCommandId === 'string'
+      ? event.data.clientCommandId
+      : event.itemId
+    if (event.type === 'command.bound' && commandId && event.turnId) {
+      localOutboxJournal = localOutboxJournal.map((row) => (
+        row.itemId === commandId ? { ...row, turnId: event.turnId } : row
+      ))
+    }
+    if (event.type === 'command.failed' && commandId) {
+      localOutboxJournal = localOutboxJournal.map((row) => row.itemId === commandId ? {
+        ...row,
+        id: `local-outbox-failed:${commandId}:${Date.now().toString(36)}`,
+        atIso: event.atIso,
+        data: { ...row.data, optimistic: false, localOutbox: 'failed', error: event.data.error },
+      } : row)
+    }
+    realtimeEventRevision += 1
+    realtimeJournal = [
+      ...realtimeJournal,
+      { revision: realtimeEventRevision, event },
+    ].slice(-MAX_REALTIME_JOURNAL_EVENTS)
+    const next = reduceConversationEvent(state, event)
+    pruneSettledOutbox(next)
+    publish(next)
+  }
+
+  const refresh = async (realtimeBaseline = realtimeEventRevision): Promise<void> => {
     const revision = ++readRevision
-    const realtimeRevisionAtStart = realtimeEventRevision
+    const realtimeRevisionAtStart = realtimeBaseline
     publish({ ...state, history: { ...state.history, loading: true, requestRevision: revision, error: '' } })
     try {
       const events = await transport.read(threadId)
@@ -120,37 +175,61 @@ export function createConversationController(threadId: string, transport: Conver
     if (!unsubscribeTransport) {
       unsubscribeTransport = transport.subscribe(threadId, (value) => {
         if (value.type === 'event') {
-          realtimeEventRevision += 1
-          realtimeJournal = [
-            ...realtimeJournal,
-            { revision: realtimeEventRevision, event: value.event },
-          ].slice(-MAX_REALTIME_JOURNAL_EVENTS)
-          const next = reduceConversationEvent(state, value.event)
-          pruneSettledOutbox(next)
-          publish(next)
+          applyRealtimeEvent(value.event)
           return
         }
         if (value.type === 'connected') {
-          publish(reduceConversationEvent(state, {
-            id: `connection:${threadId}:${String(++connectionRevision)}:connected`, type: 'runtime.connected', threadId,
-            atIso: new Date().toISOString(), data: {},
-          }))
+          publish({
+            ...state,
+            transportConnection: {
+              status: 'connected', reconnectAttempt: 0, closeCode: null, closeReason: '',
+              updatedAtIso: value.atIso ?? new Date().toISOString(),
+            },
+          })
           if (initialReadSettled) void refresh().catch(() => undefined)
           return
         }
-        publish(reduceConversationEvent(state, {
-          id: `connection:${threadId}:${String(++connectionRevision)}:disconnected`, type: 'runtime.disconnected', threadId,
-          atIso: new Date().toISOString(), data: { error: value.error ?? 'Realtime connection disconnected.' },
-        }))
+        publish({
+          ...state,
+          transportConnection: {
+            status: 'reconnecting',
+            reconnectAttempt: value.reconnectAttempt ?? state.transportConnection.reconnectAttempt + 1,
+            closeCode: value.closeCode ?? null,
+            closeReason: value.closeReason ?? value.error ?? '',
+            updatedAtIso: value.atIso ?? new Date().toISOString(),
+          },
+        })
       })
     }
     // Initial history is enrichment, not a prerequisite for realtime use. The
     // error remains visible in state while the live subscription stays usable.
     // Explicit refresh() calls still reject so retry controls can report failure.
-    initialReadPromise = refresh().catch(() => undefined).finally(() => {
-      initialReadSettled = true
-      initialReadPromise = null
-    })
+    // A controller may be created by a global realtime event before the user
+    // selects/starts that thread. The first native read must replay the entire
+    // journal, otherwise that pre-start event disappears when the empty (or
+    // slightly stale) native snapshot replaces the current projection.
+    // Subsequent refreshes still use a current revision baseline and therefore
+    // replace old overlays with native history as intended.
+    const initialRealtimeBaseline = 0
+    initialReadPromise = (transport.attach
+      ? transport.attach(threadId).then(() => refresh(initialRealtimeBaseline))
+      : refresh(initialRealtimeBaseline))
+      .catch((error) => {
+        if (!state.history.error) {
+          publish({
+            ...state,
+            history: {
+              ...state.history,
+              loading: false,
+              error: error instanceof Error ? error.message : String(error),
+            },
+          })
+        }
+      })
+      .finally(() => {
+        initialReadSettled = true
+        initialReadPromise = null
+      })
     return initialReadPromise
   }
 
@@ -175,6 +254,21 @@ export function createConversationController(threadId: string, transport: Conver
       }
       localOutboxJournal = [...localOutboxJournal.filter((row) => row.itemId !== input.id), event]
       publish(reduceConversationEvent(state, event))
+    },
+    async submitUserMessage(input, command) {
+      if (!transport.submit) throw new Error('Conversation transport does not support command submission.')
+      if (!input.id || !input.text.trim()) throw new Error('Conversation command requires a non-empty user message.')
+      this.enqueueUserMessage(input)
+      try {
+        return await transport.submit({
+          ...command,
+          threadId,
+          clientCommandId: input.id,
+        })
+      } catch (error) {
+        this.failQueuedUserMessage(input.id, error instanceof Error ? error.message : String(error))
+        throw error
+      }
     },
     bindQueuedUserMessage(id, turnId) {
       if (!id || !turnId) return
@@ -213,6 +307,9 @@ export function createConversationController(threadId: string, transport: Conver
         presentation: state.presentation.filter((row) => row.id !== messageId),
       })
     },
+    ingestEvent(event) {
+      applyRealtimeEvent(event)
+    },
     start,
     refresh,
     dispose() {
@@ -241,6 +338,11 @@ export type ReconnectingSocketOptions = {
   createSocket?: (url: string) => WebSocket
   minDelayMs?: number
   maxDelayMs?: number
+  /** Optional application heartbeat. This detects half-open browser sockets
+   * without polling an unrelated HTTP health endpoint. */
+  heartbeatIntervalMs?: number
+  heartbeatTimeoutMs?: number
+  heartbeatPayload?: string
 }
 
 /** Small shared WebSocket lifecycle with bounded exponential reconnect. */
@@ -252,22 +354,67 @@ export function createReconnectingConversationSocket(options: ReconnectingSocket
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
   let delay = minDelay
   let closed = false
+  let reconnectAttempt = 0
+  let openedAt = 0
+  let lastActivityAt = 0
+  let heartbeatTimer: ReturnType<typeof setInterval> | null = null
+
+  const clearHeartbeat = (): void => {
+    if (heartbeatTimer) clearInterval(heartbeatTimer)
+    heartbeatTimer = null
+  }
+
+  const startHeartbeat = (current: WebSocket): void => {
+    clearHeartbeat()
+    const interval = Math.max(1_000, options.heartbeatIntervalMs ?? 20_000)
+    const timeout = Math.max(interval * 2, options.heartbeatTimeoutMs ?? 45_000)
+    lastActivityAt = Date.now()
+    heartbeatTimer = setInterval(() => {
+      if (closed || socket !== current) return
+      if (Date.now() - lastActivityAt > timeout) {
+        current.close(4000, 'heartbeat timeout')
+        return
+      }
+      if (current.readyState === 1) current.send(options.heartbeatPayload ?? JSON.stringify({ type: 'ping' }))
+    }, interval)
+  }
 
   const connect = (): void => {
     if (closed) return
+    openedAt = 0
     socket = createSocket(typeof options.url === 'function' ? options.url() : options.url)
-    socket.addEventListener('open', () => { delay = minDelay; options.listener({ type: 'connected' }) })
-    socket.addEventListener('message', (event) => {
+    const current = socket
+    current.addEventListener('open', () => {
+      openedAt = Date.now()
+      lastActivityAt = openedAt
+      startHeartbeat(current)
+      options.listener({ type: 'connected', atIso: new Date().toISOString() })
+    })
+    current.addEventListener('message', (event) => {
+      lastActivityAt = Date.now()
       const parsed = options.parse(event.data)
       if (parsed) options.listener(parsed)
     })
-    socket.addEventListener('error', () => socket?.close())
-    socket.addEventListener('close', () => {
+    current.addEventListener('error', () => current.close())
+    current.addEventListener('close', (event) => {
+      if (socket !== current) return
+      clearHeartbeat()
       socket = null
       if (closed || reconnectTimer) return
-      options.listener({ type: 'disconnected' })
+      if (openedAt > 0 && Date.now() - openedAt >= 30_000) {
+        delay = minDelay
+        reconnectAttempt = 0
+      }
+      reconnectAttempt += 1
       const wait = delay
       delay = Math.min(maxDelay, Math.round(delay * 1.6))
+      options.listener({
+        type: 'disconnected', atIso: new Date().toISOString(),
+        reconnectAttempt,
+        retryInMs: wait,
+        closeCode: typeof event.code === 'number' ? event.code : null,
+        closeReason: typeof event.reason === 'string' ? event.reason : '',
+      })
       reconnectTimer = setTimeout(() => { reconnectTimer = null; connect() }, wait)
     })
   }
@@ -276,6 +423,7 @@ export function createReconnectingConversationSocket(options: ReconnectingSocket
   return {
     close() {
       closed = true
+      clearHeartbeat()
       if (reconnectTimer) clearTimeout(reconnectTimer)
       reconnectTimer = null
       socket?.close()

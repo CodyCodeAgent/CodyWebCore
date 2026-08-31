@@ -9,7 +9,7 @@ import {
   normalizeRpcResponse,
 } from '../protocol/index.js'
 
-export const CODY_WEB_CORE_VERSION = '0.36.2'
+export const CODY_WEB_CORE_VERSION = '0.37.0'
 
 export type { RuntimeNotification, ServerRequest } from '../protocol/index.js'
 
@@ -186,6 +186,7 @@ export function createAppServerHost(options: AppServerHostOptions = {}): AppServ
   let lastFailure: AppServerFailureDiagnostic | null = null
   let processGeneration = 0
   let stdinFailureGeneration = -1
+  let unavailableEventGeneration = -1
   let insidePrivateKey = false
   const notificationCountsByMethod = new Map<string, number>()
 
@@ -258,6 +259,20 @@ export function createAppServerHost(options: AppServerHostOptions = {}): AppServ
     pending.clear()
   }
 
+  const markUnavailable = (reason: Error): void => {
+    lifecycle = 'unavailable'
+    unavailableReason = reason.message
+    rejectPending(reason)
+    if (unavailableEventGeneration === processGeneration) return
+    unavailableEventGeneration = processGeneration
+    for (const request of pendingServerRequests.values()) {
+      emit('server/request/expired', { ...request, error: reason.message })
+    }
+    pendingServerRequests.clear()
+    emit('runtime/disconnected', { error: reason.message })
+    options.onDisconnected?.(reason)
+  }
+
   const onLine = (line: string): void => {
     let parsed: unknown
     try { parsed = JSON.parse(line) } catch {
@@ -302,6 +317,7 @@ export function createAppServerHost(options: AppServerHostOptions = {}): AppServ
     const args = options.args ?? fromCommand
     stopping = false
     processGeneration += 1
+    unavailableEventGeneration = -1
     startCount += 1
     try {
       process = spawnAppServer(command, args, { cwd: options.cwd, env: { ...globalThis.process.env, ...options.env }, stdio: ['pipe', 'pipe', 'pipe'] })
@@ -337,39 +353,35 @@ export function createAppServerHost(options: AppServerHostOptions = {}): AppServ
       const entries = [...pending].map(([id, entry]) => clientSummary(id, entry, Date.now()))
       const failedMethod = entries.length === 1 ? entries[0]!.method : null
       pushLog('error', 'bridge', `stdin: ${error.message}`)
-      rejectPending(new Error(`Codex App Server stdin failed: ${error.message}`))
+      const reason = new Error(`Codex App Server stdin failed: ${error.message}`)
       captureFailure('transport', 'stdin_error', failedMethod, 'The Codex App Server input pipe failed.', entries)
       stdinFailureGeneration = processGeneration
-      lifecycle = 'unavailable'
-      unavailableReason = `Codex App Server stdin failed: ${error.message}`
+      markUnavailable(reason)
     })
     child.on('error', (error) => {
       const reason = new Error(`Codex App Server process error: ${error.message}`)
       pushLog('error', 'bridge', reason.message)
-      rejectPending(reason)
-      lifecycle = 'unavailable'
-      unavailableReason = reason.message
+      markUnavailable(reason)
       captureFailure('process', 'process_exit', null, reason.message)
     })
     child.on('exit', (code, signal) => {
       const reason = new Error(stopping ? 'Codex App Server stopped' : `Codex App Server exited (${String(code ?? signal ?? 'unknown')})`)
       const entries = [...pending].map(([id, entry]) => clientSummary(id, entry, Date.now()))
       const failedMethod = entries.length === 1 ? entries[0]!.method : null
-      rejectPending(reason)
       exitedAtIso = new Date().toISOString()
       exitCode = typeof code === 'number' ? code : null
       exitSignal = signal ?? null
+      process = null; initialized = false; initializePromise = null; buffer = ''
       if (!stopping) {
-        for (const request of pendingServerRequests.values()) emit('server/request/expired', { ...request, error: reason.message })
-        emit('runtime/disconnected', { error: reason.message })
         lifecycle = 'unavailable'
         unavailableReason = reason.message
+        if (stdinFailureGeneration !== processGeneration) captureFailure('process', 'process_exit', failedMethod, reason.message, entries)
+        markUnavailable(reason)
+      } else {
+        rejectPending(reason)
       }
-      process = null; initialized = false; initializePromise = null; buffer = ''
       pushLog(stopping ? 'info' : 'error', 'bridge', reason.message)
-      if (!stopping && stdinFailureGeneration !== processGeneration) captureFailure('process', 'process_exit', failedMethod, reason.message, entries)
       pendingServerRequests.clear()
-      if (!stopping) options.onDisconnected?.(reason)
     })
   }
 
@@ -416,6 +428,7 @@ export function createAppServerHost(options: AppServerHostOptions = {}): AppServ
         const reason = error instanceof Error ? error : new Error(String(error))
         pushLog('error', 'bridge', `stdin: ${reason.message}`)
         captureFailure('transport', 'stdin_error', method, 'The Codex App Server input pipe failed.', failedEntry ? [clientSummary(id, failedEntry, Date.now())] : [])
+        markUnavailable(reason)
         reject(reason)
       }
     })

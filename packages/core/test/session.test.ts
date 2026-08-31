@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AppServerDiagnostics, AppServerHost, RuntimeNotification, RuntimeNotificationListener, ServerRequestReply } from '../src/runtime/index.js'
-import { buildTurnUserInput, codexTokenUsageFromPayload, CodexSessionManager, CodexTurnRecoveryMonitor, conversationToolFromItem, normalizeCodexNotification, normalizeThreadHistory } from '../src/session/index.js'
+import { buildTurnUserInput, codexTokenUsageFromPayload, CodexSessionManager, conversationToolFromItem, normalizeCodexNotification, normalizeThreadHistory } from '../src/session/index.js'
 import { createConversationState, latestAssistantTextFromEvents, reduceConversationEvents, type CodexEvent } from '../src/conversation/index.js'
 
 class FakeHost implements AppServerHost {
@@ -179,7 +179,7 @@ describe('normalizeCodexNotification', () => {
     ])
   })
 
-  it('normalizes an exhausted upstream error as a terminal failure', () => {
+  it('normalizes an exhausted upstream error as operational disconnect, never a native terminal', () => {
     expect(normalizeCodexNotification({
       method: 'error',
       params: {
@@ -192,7 +192,7 @@ describe('normalizeCodexNotification', () => {
       },
       atIso: '2026-01-01T00:00:00.000Z',
     }, options)).toEqual([expect.objectContaining({
-      type: 'turn.failed',
+      type: 'turn.disconnected',
       data: expect.objectContaining({ cause: 'upstream_response_stream_unrecoverable', error: expect.stringContaining('未自动重发') }),
     })])
   })
@@ -227,57 +227,15 @@ const context = { thread: { cwd: '/repo', experimentalRawEvents: false } }
 
 afterEach(() => { vi.useRealTimers() })
 
-describe('CodexTurnRecoveryMonitor', () => {
-  it('turns a bounded retry sequence into one terminal failure without forwarding a stale retry', () => {
-    const monitor = new CodexTurnRecoveryMonitor({ maxUpstreamRetryAttempts: 3 })
-    monitor.track({ threadId: 'thread-1', turnId: 'turn-1' })
-
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
-      expect(monitor.observe({
-        method: 'error',
-        params: { threadId: 'thread-1', turnId: 'turn-1', willRetry: true, error: { message: 'Response stream interrupted; reconnecting.' } },
-        receivedAtIso: '2026-01-01T00:00:00.000Z',
-      })).toEqual([])
-    }
-
-    expect(monitor.observe({
-      method: 'error',
-      params: { threadId: 'thread-1', turnId: 'turn-1', willRetry: true, error: { message: 'Response stream interrupted; reconnecting.' } },
-      receivedAtIso: '2026-01-01T00:00:00.000Z',
-    })).toEqual([expect.objectContaining({
-      type: 'turn.failed',
-      threadId: 'thread-1',
-      turnId: 'turn-1',
-      data: expect.objectContaining({ cause: 'upstream_response_stream_unrecoverable', retryAttempt: 3, retryLimit: 3 }),
-    })])
-    monitor.dispose()
-  })
-
-  it('finishes a silent raw turn through the owner callback', () => {
-    vi.useFakeTimers()
-    const terminal: CodexEvent[] = []
-    const monitor = new CodexTurnRecoveryMonitor({
-      inactivityTimeoutMs: 500,
-      nowIso: () => '2026-01-01T00:00:00.000Z',
-      onTerminal: (event) => terminal.push(event),
-    })
-    monitor.track({ threadId: 'thread-1', turnId: 'turn-1' })
-    vi.advanceTimersByTime(500)
-    expect(terminal).toEqual([expect.objectContaining({
-      type: 'turn.failed',
-      threadId: 'thread-1',
-      turnId: 'turn-1',
-      data: expect.objectContaining({ cause: 'inactivity_timeout' }),
-    })])
-    monitor.dispose()
-  })
-})
-
 describe('CodexSessionManager', () => {
   it('accepts a client command immediately and binds it to the native turn without inventing a turn id', async () => {
     const host = new FakeHost()
     const manager = new CodexSessionManager({ host })
     await manager.create('conversation-1', context)
+    expect(manager.snapshot('conversation-1')).toMatchObject({
+      bindingId: 'conversation-1', threadId: 'thread-1', activeTurnId: '',
+      pendingRequestCount: 0, attached: true, runtimeAvailable: true,
+    })
     const events: CodexEvent[] = []
     manager.subscribe((event) => events.push(event))
 
@@ -292,11 +250,31 @@ describe('CodexSessionManager', () => {
     expect(events).toContainEqual(expect.objectContaining({ type: 'command.queued', itemId: 'client-command-1' }))
     expect(events.find((event) => event.type === 'command.queued')).not.toHaveProperty('turnId')
     const handle = await submission.started
+    expect(manager.snapshot('conversation-1')?.activeTurnId).toBe(handle.turnId)
     expect(handle.turnId).toBe('turn-1')
     expect(events).toContainEqual(expect.objectContaining({ type: 'command.bound', itemId: 'client-command-1', turnId: 'turn-1' }))
 
     host.emit('turn/completed', { threadId: 'thread-1', turn: { id: handle.turnId, status: 'completed' } })
     await expect(submission.completed).resolves.toMatchObject({ handle, terminalEvent: { type: 'turn.completed' } })
+    expect(manager.snapshot('conversation-1')?.activeTurnId).toBe('')
+    await manager.dispose()
+  })
+
+  it('treats repeated client command ids as one idempotent submission', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host })
+    await manager.create('conversation-1', context)
+    const input = { input: [{ type: 'text' as const, text: 'run once', text_elements: [] }] }
+
+    const first = manager.submit('conversation-1', input, 'queue', 'same-command')
+    const second = manager.submit('conversation-1', input, 'queue', 'same-command')
+
+    expect(second).toBe(first)
+    await first.started
+    expect(host.calls.filter(call => call.method === 'turn/start')).toHaveLength(1)
+    expect(() => manager.submit('conversation-1', {
+      input: [{ type: 'text', text: 'different', text_elements: [] }],
+    }, 'queue', 'same-command')).toThrow('already submitted with different content')
     await manager.dispose()
   })
 
@@ -317,6 +295,40 @@ describe('CodexSessionManager', () => {
     await expect(submission.started).rejects.toThrow('turn start rejected')
     expect(events).toContainEqual(expect.objectContaining({ type: 'command.failed', itemId: 'client-command-2' }))
     expect(events.some((event) => event.type === 'turn.failed' || event.type === 'turn.interrupted' || event.type === 'turn.completed')).toBe(false)
+    await manager.dispose()
+  })
+
+  it('steers the active native turn immediately instead of waiting for its terminal event', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host })
+    await manager.create('conversation-1', context)
+    const first = manager.submit(
+      'conversation-1',
+      { input: [{ type: 'text', text: 'start work', text_elements: [] }] },
+      'queue',
+      'client-command-1',
+    )
+    const handle = await first.started
+
+    const steering = manager.submit(
+      'conversation-1',
+      { input: [{ type: 'text', text: 'also check tests', text_elements: [] }] },
+      'steer',
+      'client-command-2',
+    )
+    await expect(steering.started).resolves.toEqual(handle)
+    expect(host.calls).toContainEqual({
+      method: 'turn/steer',
+      params: {
+        threadId: 'thread-1',
+        expectedTurnId: handle.turnId,
+        input: [{ type: 'text', text: 'also check tests', text_elements: [] }],
+      },
+    })
+
+    host.emit('turn/completed', { threadId: 'thread-1', turn: { id: handle.turnId, status: 'completed' } })
+    await expect(first.completed).resolves.toMatchObject({ terminalEvent: { type: 'turn.completed' } })
+    await expect(steering.completed).resolves.toMatchObject({ terminalEvent: { type: 'turn.completed' } })
     await manager.dispose()
   })
 
@@ -432,14 +444,13 @@ describe('CodexSessionManager', () => {
       error: { message: 'response stream disconnected' },
     })
 
-    await expect(manager.waitForTurn(handle)).resolves.toMatchObject({
+    expect(events).toContainEqual(expect.objectContaining({
       type: 'turn.disconnected',
-      data: expect.objectContaining({
-        cause: 'upstream_response_stream_unrecoverable',
-        willRetry: false,
-        error: expect.stringContaining('未自动重发'),
-      }),
-    })
+      data: expect.objectContaining({ cause: 'upstream_response_stream_unrecoverable', willRetry: false }),
+    }))
+    const terminal = manager.waitForTurn(handle)
+    host.emit('turn/failed', { threadId: 'thread-1', turnId: handle.turnId, error: { message: 'response stream disconnected' } })
+    await expect(terminal).resolves.toMatchObject({ type: 'turn.failed' })
     expect(events.some((event) => event.type === 'turn.retrying')).toBe(false)
     expect(events.filter((event) => event.type === 'turn.disconnected')).toHaveLength(1)
     await manager.dispose()
@@ -457,10 +468,8 @@ describe('CodexSessionManager', () => {
       error: { message: 'Reconnecting... 5/5' },
     })
 
-    await expect(manager.waitForTurn(handle)).resolves.toMatchObject({
-      type: 'turn.disconnected',
-      data: expect.objectContaining({ retryAttempt: 5, retryLimit: 5, cause: 'upstream_response_stream_unrecoverable' }),
-    })
+    host.emit('turn/failed', { threadId: 'thread-1', turnId: handle.turnId, error: { message: 'retry exhausted' } })
+    await expect(manager.waitForTurn(handle)).resolves.toMatchObject({ type: 'turn.failed' })
     await manager.dispose()
   })
 
@@ -477,10 +486,8 @@ describe('CodexSessionManager', () => {
       error: { message: 'Reconnecting... 5/5' },
     })
 
-    await expect(manager.waitForTurn(handle)).resolves.toMatchObject({
-      type: 'turn.disconnected',
-      data: expect.objectContaining({ retryAttempt: 5, retryLimit: 5, cause: 'upstream_response_stream_unrecoverable' }),
-    })
+    host.emit('turn/failed', { threadId: 'thread-1', turnId: handle.turnId, error: { message: 'retry exhausted' } })
+    await expect(manager.waitForTurn(handle)).resolves.toMatchObject({ type: 'turn.failed' })
     await manager.dispose()
   })
 
@@ -496,10 +503,8 @@ describe('CodexSessionManager', () => {
     host.emit('error', { threadId: 'thread-1', turnId: handle.turnId, error: { message: 'response stream disconnected' } })
     host.emit('error', { threadId: 'thread-1', turnId: handle.turnId, error: { message: 'response stream disconnected' } })
 
-    await expect(manager.waitForTurn(handle)).resolves.toMatchObject({
-      type: 'turn.disconnected',
-      data: expect.objectContaining({ retryAttempt: 3, retryLimit: 3, cause: 'upstream_response_stream_unrecoverable' }),
-    })
+    host.emit('turn/failed', { threadId: 'thread-1', turnId: handle.turnId, error: { message: 'retry exhausted' } })
+    await expect(manager.waitForTurn(handle)).resolves.toMatchObject({ type: 'turn.failed' })
     expect(events.filter((event) => event.type === 'turn.retrying')).toHaveLength(2)
     expect(events.filter((event) => event.type === 'turn.disconnected')).toHaveLength(1)
     await manager.dispose()
@@ -522,10 +527,8 @@ describe('CodexSessionManager', () => {
       })
     }
 
-    await expect(manager.waitForTurn(handle)).resolves.toMatchObject({
-      type: 'turn.disconnected',
-      data: expect.objectContaining({ retryAttempt: 3, retryLimit: 3, cause: 'upstream_response_stream_unrecoverable' }),
-    })
+    host.emit('turn/failed', { threadId: 'thread-1', turnId: handle.turnId, error: { message: 'retry exhausted' } })
+    await expect(manager.waitForTurn(handle)).resolves.toMatchObject({ type: 'turn.failed' })
     expect(events.filter((event) => event.type === 'turn.retrying')).toHaveLength(2)
     await manager.dispose()
   })
@@ -578,14 +581,26 @@ describe('CodexSessionManager', () => {
     await manager.dispose()
   })
 
-  it('resumes the native thread before the next operation after a host disconnect', async () => {
+  it('never resumes or restarts the owner process after a host disconnect', async () => {
     const host = new FakeHost()
     const manager = new CodexSessionManager({ host })
     await manager.create('conversation-1', context)
     host.emit('runtime/disconnected', { error: 'process exited' })
-    await manager.read('conversation-1')
-    expect(host.calls.map(call => call.method)).toEqual(['thread/start', 'thread/resume', 'thread/read'])
+    await expect(manager.read('conversation-1')).rejects.toThrow('Restart the product service')
+    expect(host.calls.map(call => call.method)).toEqual(['thread/start'])
     await manager.dispose()
+  })
+
+  it('rejects commands queued after disposal before they can reach App Server', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host })
+    await manager.create('conversation-1', context)
+    await manager.dispose()
+
+    expect(() => manager.submit('conversation-1', {
+      input: [{ type: 'text', text: 'must not run', text_elements: [] }],
+    })).toThrow('disposed')
+    expect(host.calls.map(call => call.method)).toEqual(['thread/start'])
   })
 
   it('does not reuse a stale terminal result when a restarted provider reuses a turn id', async () => {
@@ -643,16 +658,17 @@ describe('CodexSessionManager', () => {
     const terminal = manager.waitForTurn(handle)
 
     await vi.advanceTimersByTimeAsync(1_001)
-    await expect(terminal).resolves.toMatchObject({
+    expect(events).toContainEqual(expect.objectContaining({
       type: 'turn.disconnected',
       data: expect.objectContaining({ cause: 'inactivity_timeout', error: expect.stringContaining('had no progress') }),
-    })
+    }))
     expect(host.calls.filter((call) => call.method === 'turn/interrupt')).toEqual([
       { method: 'turn/interrupt', params: handle },
     ])
-    expect(await manager.interrupt('conversation-1')).toBe(false)
+    expect(await manager.interrupt('conversation-1')).toBe(true)
 
     host.emit('turn/completed', { threadId: 'thread-1', turn: { id: handle.turnId, status: 'completed' } })
+    await expect(terminal).resolves.toMatchObject({ type: 'turn.completed' })
     await vi.advanceTimersByTimeAsync(2_000)
     expect(events.filter((event) => event.type === 'turn.disconnected' || event.type === 'turn.completed')).toHaveLength(2)
     expect(events.filter((event) => event.type === 'turn.disconnected')).toHaveLength(1)

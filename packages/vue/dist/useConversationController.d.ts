@@ -1,6 +1,6 @@
 import { type ComputedRef } from 'vue';
 import { type ConversationState } from '@codycodeagent/cody-web-core/conversation';
-import { type ConversationTransport } from '@codycodeagent/cody-web-core/client';
+import { type ConversationController, type ConversationTransport } from '@codycodeagent/cody-web-core/client';
 export interface UseConversationController {
     readonly state: ComputedRef<ConversationState>;
     connect(threadId: string, transport: ConversationTransport): Promise<void>;
@@ -14,6 +14,18 @@ export interface UseConversationController {
             displayName?: string;
         }>;
     }): void;
+    submitUserMessage(input: {
+        id: string;
+        text: string;
+        images?: string[];
+        skills?: Array<{
+            name: string;
+            path: string;
+            displayName?: string;
+        }>;
+    }, command: Parameters<ConversationController['submitUserMessage']>[1]): Promise<{
+        clientCommandId: string;
+    }>;
     bindQueuedUserMessage(id: string, turnId: string): void;
     failQueuedUserMessage(id: string, error: string): void;
     refresh(): Promise<void>;

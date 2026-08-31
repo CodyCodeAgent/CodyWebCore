@@ -133,6 +133,42 @@ describe('conversation core', () => {
     ])
   })
 
+  it('keeps the shared feed Turn-contiguous when a follow-up is queued before the active answer completes', () => {
+    const base = { threadId: 'thread-1', atIso: '2026-01-01T00:00:00.000Z' }
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { ...base, id: 'turn-a-start', type: 'turn.started', turnId: 'turn-a', data: {} },
+      { ...base, id: 'user-a', type: 'user.completed', turnId: 'turn-a', itemId: 'user-a', data: { text: 'first' } },
+      { ...base, id: 'queued-b', type: 'command.queued', itemId: 'command-b', data: { text: 'second' } },
+      { ...base, id: 'answer-a', type: 'assistant.completed', turnId: 'turn-a', itemId: 'answer-a', data: { text: 'first answer' } },
+      { ...base, id: 'turn-a-done', type: 'turn.completed', turnId: 'turn-a', atIso: '2026-01-01T00:00:01.000Z', data: { durationMs: 1_000 } },
+    ])
+
+    expect(conversationTranscriptFromState(state).map((message) => [message.text, message.messageType])).toEqual([
+      ['first', undefined],
+      ['first answer', undefined],
+      ['Worked for 1s', 'worked'],
+      ['second', 'userMessage.optimistic'],
+    ])
+  })
+
+  it('orders a later bound Turn after the earlier Turn even when its optimistic ref arrived first', () => {
+    const base = { threadId: 'thread-1', atIso: '2026-01-01T00:00:00.000Z' }
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { ...base, id: 'turn-a-start', type: 'turn.started', turnId: 'turn-a', data: {} },
+      { ...base, id: 'user-a', type: 'user.completed', turnId: 'turn-a', itemId: 'user-a', data: { text: 'first' } },
+      { ...base, id: 'queued-b', type: 'command.queued', itemId: 'command-b', data: { text: 'second' } },
+      { ...base, id: 'answer-a', type: 'assistant.completed', turnId: 'turn-a', itemId: 'answer-a', data: { text: 'first answer' } },
+      { ...base, id: 'turn-a-done', type: 'turn.completed', turnId: 'turn-a', atIso: '2026-01-01T00:00:01.000Z', data: { durationMs: 1_000 } },
+      { ...base, id: 'turn-b-start', type: 'turn.started', turnId: 'turn-b', atIso: '2026-01-01T00:00:02.000Z', data: {} },
+      { ...base, id: 'bound-b', type: 'command.bound', turnId: 'turn-b', itemId: 'command-b', data: { clientCommandId: 'command-b' } },
+      { ...base, id: 'answer-b', type: 'assistant.completed', turnId: 'turn-b', itemId: 'answer-b', data: { text: 'second answer' } },
+    ])
+
+    expect(conversationTranscriptFromState(state).map((message) => message.text)).toEqual([
+      'first', 'first answer', 'Worked for 1s', 'second', 'second answer',
+    ])
+  })
+
   it('renders one terminal receipt per Turn when durable history and realtime completion overlap', () => {
     const user = { id: 'user-a', turnId: 'turn-a', role: 'user' as const, text: 'First question' }
     const answer = { id: 'answer-a', turnId: 'turn-a', role: 'assistant' as const, text: 'First answer' }
@@ -274,6 +310,21 @@ describe('conversation core', () => {
     expect(state.pendingRequests).toEqual([])
     expect(state.activeTurnId).toBe('')
     expect(state.presentation).not.toContainEqual(expect.objectContaining({ kind: 'failure' }))
+  })
+
+  it('keeps an upstream-disconnected Turn active until an explicit native terminal arrives', () => {
+    const base = { threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:00.000Z' }
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { ...base, id: 'started', type: 'turn.started', data: {} },
+      { ...base, id: 'disconnected', type: 'turn.disconnected', data: { error: 'response stream timed out' } },
+    ])
+
+    expect(state.activeTurnId).toBe('turn-1')
+    expect(state.turns['turn-1']).toMatchObject({ lifecycle: 'disconnected', error: 'response stream timed out' })
+    expect(conversationFeedFromState(state)).toContainEqual(expect.objectContaining({
+      kind: 'activity', turnId: 'turn-1', status: 'disconnected',
+    }))
+    expect(conversationLiveOverlayFromState(state)?.errorText).toBe('response stream timed out')
   })
 
   it('keeps an empty interrupted Turn diagnostic out of the visible transcript', () => {

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.37.0
+
+- Made the shared client controller the single owner of optimistic command admission, native history reconciliation, realtime overlays, failed outbox state, and browser transport status.
+- Added one shared heartbeat-aware WebSocket lifecycle with bounded reconnect, close-code diagnostics, and no unrelated HTTP health polling.
+- Made the App Server host permanently unavailable after its first process exits or its transport fails; only a product service restart can create a new owner process.
+- Added process-owner command idempotency so multiple browser tabs can submit the same durable outbox command without starting duplicate native Turns.
+- Kept upstream response-stream failure separate from browser WebSocket state and native terminal events, preserving the active Turn queue barrier until Codex reports a real terminal transition.
+- Reconciled terminal assistant overlays one-to-one with durable history and made the final shared feed Turn-contiguous, including queued follow-ups and terminal receipts.
+- Added Core-owned runtime/session snapshots so products no longer persist or independently advance native Turn lifecycle state.
+
 ## 0.36.2
 
 - Added explicit local-command discard support to the shared conversation controller.

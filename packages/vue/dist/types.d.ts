@@ -59,7 +59,7 @@ export type CodyConversationEntry = {
     kind: 'activity';
     title: string;
     detail: string;
-    tone: 'running' | 'retrying' | 'waiting';
+    tone: 'running' | 'retrying' | 'waiting' | 'disconnected';
 };
 /** Converts shared reducer state into the shared Vue presentation model. */
 export declare function conversationEntriesFromState(state: ConversationState): CodyConversationEntry[];

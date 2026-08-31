@@ -71,7 +71,7 @@ export type CodyConversationEntry =
   | { id: string; kind: 'failure'; text: string }
   | { id: string; kind: 'interrupted'; text: string }
   | { id: string; kind: 'worked'; label: string }
-  | { id: string; kind: 'activity'; title: string; detail: string; tone: 'running' | 'retrying' | 'waiting' }
+  | { id: string; kind: 'activity'; title: string; detail: string; tone: 'running' | 'retrying' | 'waiting' | 'disconnected' }
 
 /** Converts shared reducer state into the shared Vue presentation model. */
 export function conversationEntriesFromState(state: ConversationState): CodyConversationEntry[] {

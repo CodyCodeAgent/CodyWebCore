@@ -120,6 +120,14 @@ export type ConversationConnectionState = {
   updatedAtIso: string
 }
 
+export type ConversationTransportConnectionState = {
+  status: 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'disconnected'
+  reconnectAttempt: number
+  closeCode: number | null
+  closeReason: string
+  updatedAtIso: string
+}
+
 export type ConversationHistoryState = {
   loading: boolean
   hasMore: boolean
@@ -147,6 +155,8 @@ export type ConversationState = {
   contextUsage: ConversationContextUsageState | null
   pendingRequests: ConversationRequest[]
   connection: ConversationConnectionState
+  /** Browser/client transport only. It never changes native Runtime or Turn state. */
+  transportConnection: ConversationTransportConnectionState
   history: ConversationHistoryState
   /** Protocol order across messages, tools, plans, requests and turn receipts. */
   presentation: ConversationPresentationRef[]
@@ -209,7 +219,7 @@ export type ConversationFeedEntry =
   | { id: string; kind: 'plan'; turnId?: string; plan: ConversationPlanState }
   | { id: string; kind: 'request'; turnId?: string; request: ConversationRequest }
   | { id: string; kind: 'turn'; turnId: string; status: 'completed' | 'failed' | 'interrupted'; durationMs: number | null; error: string }
-  | { id: string; kind: 'activity'; turnId: string; status: 'running' | 'retrying' | 'waiting'; label: string; detail: string }
+  | { id: string; kind: 'activity'; turnId: string; status: 'running' | 'retrying' | 'waiting' | 'disconnected'; label: string; detail: string }
 
 const MAX_APPLIED_EVENT_IDS = 10_000
 
@@ -300,7 +310,11 @@ function updateTurn(state: ConversationState, event: CodexEvent, lifecycle: Turn
   if ((current?.lifecycle === 'completed' || current?.lifecycle === 'failed' || current?.lifecycle === 'interrupted')
     && (lifecycle === 'completed' || lifecycle === 'failed' || lifecycle === 'interrupted')) return state
   const terminal = lifecycle === 'completed' || lifecycle === 'failed' || lifecycle === 'interrupted'
-  const error = lifecycle === 'failed' ? eventText(event.data, 'Codex failed to complete this turn.') : undefined
+  const error = lifecycle === 'failed'
+    ? eventText(event.data, 'Codex failed to complete this turn.')
+    : lifecycle === 'disconnected'
+      ? eventText(event.data, 'Codex upstream response stream disconnected.')
+      : undefined
   const retryMessage = lifecycle === 'retrying' ? eventText(event.data, 'Reconnecting…') : undefined
   const explicitDurationMs = typeof event.data.durationMs === 'number' && Number.isFinite(event.data.durationMs)
     ? Math.max(event.data.durationMs, 0)
@@ -347,6 +361,9 @@ export function createConversationState(threadId = ''): ConversationState {
     contextUsage: null,
     pendingRequests: [],
     connection: { status: 'connected', message: '', updatedAtIso: new Date(0).toISOString() },
+    transportConnection: {
+      status: 'idle', reconnectAttempt: 0, closeCode: null, closeReason: '', updatedAtIso: new Date(0).toISOString(),
+    },
     history: {
       loading: false,
       hasMore: false,
@@ -463,7 +480,6 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
     if (!turnId) return { ...updated, activity: null }
     return {
       ...updated,
-      activeTurnId: updated.activeTurnId === turnId ? '' : updated.activeTurnId,
       timeline: terminalizeTurnTools(updated.timeline, turnId, 'failed'),
       pendingRequests: updated.pendingRequests.filter((request) => request.turnId !== turnId),
       reasoningText: '',
@@ -544,7 +560,13 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
     const messages = state.messages.map((message) => message.id === messageId
       ? { ...message, turnId: event.turnId, outbox: { status: 'sending' as const } }
       : message)
-    return messages.some((message, index) => message !== state.messages[index]) ? { ...state, messages } : state
+    const presentation = state.presentation.map((row) => row.id === messageId
+      ? { ...row, turnId: event.turnId }
+      : row)
+    return messages.some((message, index) => message !== state.messages[index])
+      || presentation.some((row, index) => row !== state.presentation[index])
+      ? { ...state, messages, presentation }
+      : state
   }
   if (event.type === 'command.failed') {
     const commandId = event.itemId || ''
@@ -744,7 +766,9 @@ export function conversationStateFromRegistry(
 
 export function conversationLiveOverlayFromState(state: ConversationState): ConversationLiveOverlay | null {
   const latestTurn = Object.values(state.turns).at(-1)
-  const errorText = latestTurn?.lifecycle === 'failed' ? latestTurn.error ?? '' : ''
+  const errorText = latestTurn?.lifecycle === 'failed' || latestTurn?.lifecycle === 'disconnected'
+    ? latestTurn.error ?? ''
+    : ''
   const reasoningText = state.reasoningText.trim()
   if (!state.activity && !reasoningText && !errorText) return null
   return {
@@ -857,6 +881,12 @@ export function conversationFeedFromState(state: ConversationState): Conversatio
         label: activeTurn.retryMessage || 'Codex is reconnecting',
         detail: state.connection.status === 'disconnected' ? 'Connection interrupted; waiting to recover.' : 'Restoring this response.',
       })
+    } else if (activeTurn.lifecycle === 'disconnected') {
+      feed.push({
+        id: `activity:${activeTurn.id}`, kind: 'activity', turnId: activeTurn.id, status: 'disconnected',
+        label: activeTurn.error || 'Codex upstream response stream disconnected',
+        detail: 'The command was not resent. Stop this Turn before retrying the message.',
+      })
     } else if (activeTurn.lifecycle === 'running') {
       feed.push({
         id: `activity:${activeTurn.id}`, kind: 'activity', turnId: activeTurn.id, status: 'running',
@@ -865,7 +895,63 @@ export function conversationFeedFromState(state: ConversationState): Conversatio
       })
     }
   }
-  return feed
+  return orderConversationFeedByTurn(state, feed)
+}
+
+/**
+ * Protocol events for a queued follow-up can arrive before the active Turn's
+ * later assistant/tool/terminal events. The presentation log records that
+ * arrival order for identity reconciliation, but the transcript must keep a
+ * Turn contiguous. Turn insertion order comes from normalized turn.started
+ * history; truly unscoped rows retain their nearest preceding Turn, while
+ * unbound optimistic commands remain at the end until command.bound assigns
+ * their native Turn.
+ */
+function orderConversationFeedByTurn(
+  state: ConversationState,
+  feed: ConversationFeedEntry[],
+): ConversationFeedEntry[] {
+  const turnIds = Object.keys(state.turns)
+  if (turnIds.length === 0) return feed
+
+  const leading: ConversationFeedEntry[] = []
+  const pending: ConversationFeedEntry[] = []
+  const byTurn = new Map(turnIds.map((turnId) => [turnId, [] as ConversationFeedEntry[]]))
+  let nearestTurnId = ''
+
+  for (const item of feed) {
+    const itemTurnId = item.turnId
+      || (item.kind === 'message' ? item.message.turnId ?? '' : '')
+    if (itemTurnId) {
+      const bucket = byTurn.get(itemTurnId) ?? []
+      bucket.push({ ...item, turnId: itemTurnId })
+      byTurn.set(itemTurnId, bucket)
+      nearestTurnId = itemTurnId
+      continue
+    }
+
+    if (
+      item.kind === 'message'
+      && item.message.role === 'user'
+      && Boolean(item.message.outbox)
+    ) {
+      pending.push(item)
+      continue
+    }
+
+    if (nearestTurnId) byTurn.get(nearestTurnId)?.push(item)
+    else leading.push(item)
+  }
+
+  const ordered = [
+    ...leading,
+    ...turnIds.flatMap((turnId) => byTurn.get(turnId) ?? []),
+    ...[...byTurn.entries()]
+      .filter(([turnId]) => !state.turns[turnId])
+      .flatMap(([, items]) => items),
+    ...pending,
+  ]
+  return ordered.every((item, index) => item === feed[index]) ? feed : ordered
 }
 
 /**

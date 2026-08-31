@@ -27,7 +27,6 @@ export * from './token-usage.js'
 export * from './turn-input.js'
 export * from './catalog.js'
 export * from './commands.js'
-export * from './turn-recovery.js'
 export {
   conversationToolFromItem,
   normalizeCodexNotification,
@@ -55,6 +54,18 @@ export type TurnSubmission = {
   started: Promise<TurnHandle>
   /** Resolves with the one authoritative terminal event for the native Turn. */
   completed: Promise<TurnOutcome>
+}
+
+/** Authoritative process-owner state for a product binding. Products may use
+ * this for guards and diagnostics, but must never persist or independently
+ * advance it. */
+export type CodexSessionSnapshot = {
+  bindingId: string
+  threadId: string
+  activeTurnId: string
+  pendingRequestCount: number
+  attached: boolean
+  runtimeAvailable: boolean
 }
 
 export type ProtectedOperation = {
@@ -129,12 +140,15 @@ export class CodexSessionManager {
   private readonly upstreamRetries = new Map<string, UpstreamRetry>()
   private readonly terminalEvents = new Map<string, CodexEvent>()
   private readonly operationalFailures = new Map<string, CodexEvent>()
+  private readonly submissions = new Map<string, { fingerprint: string; submission: TurnSubmission }>()
   private readonly pendingRequests = new Map<string, { request: ServerRequest; bindingId: string; kind: 'approval' | 'question'; event?: CodexEvent }>()
   private readonly commands: CodexThreadCommands
   private readonly catalog: CodexSessionCatalog
   private readonly nowIso: () => string
   private eventSequence = 0
   private commandSequence = 0
+  private runtimeUnavailable = false
+  private disposed = false
   private unlisten: (() => void) | null = null
 
   constructor(private readonly options: CodexSessionManagerOptions) {
@@ -156,7 +170,25 @@ export class CodexSessionManager {
       .map((pending) => pending.event!)
   }
 
+  snapshot(bindingId: string): CodexSessionSnapshot | null {
+    const session = this.sessions.get(bindingId)
+    if (!session) return null
+    let pendingRequestCount = 0
+    for (const pending of this.pendingRequests.values()) {
+      if (pending.bindingId === bindingId) pendingRequestCount += 1
+    }
+    return {
+      bindingId,
+      threadId: session.binding.threadId,
+      activeTurnId: session.activeTurnId,
+      pendingRequestCount,
+      attached: session.attached,
+      runtimeAvailable: !this.runtimeUnavailable && !this.disposed,
+    }
+  }
+
   async create(bindingId: string, context: ExecutionContext): Promise<ThreadBinding> {
+    this.requireUsable()
     await this.options.host.ensureInitialized()
     const threadId = await this.commands.startThread({
       ...context.thread,
@@ -169,10 +201,14 @@ export class CodexSessionManager {
   }
 
   async resume(binding: ThreadBinding, context: ExecutionContext): Promise<void> {
+    this.requireUsable()
     await this.options.host.ensureInitialized()
     await this.commands.resumeThread(binding.threadId, context.thread as Omit<ThreadResumeParams, 'threadId'>)
+    const snapshot = await this.catalog.readThreadSnapshot(binding.threadId)
     this.forgetTerminalEvents(binding.threadId)
     this.attachLocal(binding, context)
+    const activeTurn = [...snapshot.turns].reverse().find((turn) => /progress|running|active|started/iu.test(turn.status))
+    if (activeTurn) this.require(binding.id).activeTurnId = activeTurn.turnId
     this.emit({ type: 'thread.attached', threadId: binding.threadId, data: { bindingId: binding.id, mode: 'resumed' } })
   }
 
@@ -195,8 +231,18 @@ export class CodexSessionManager {
   }
 
   submit(bindingId: string, input: TurnInput, mode: 'queue' | 'steer' = 'queue', clientCommandId?: string): TurnSubmission {
+    this.requireUsable()
     const session = this.require(bindingId)
     const commandId = clientCommandId?.trim() || `command:${bindingId}:${String(++this.commandSequence)}`
+    const submissionKey = `${bindingId}\u0000${commandId}`
+    const fingerprint = JSON.stringify({ mode, input })
+    const existingSubmission = this.submissions.get(submissionKey)
+    if (existingSubmission) {
+      if (existingSubmission.fingerprint !== fingerprint) {
+        throw new Error(`Client command ${commandId} was already submitted with different content`)
+      }
+      return existingSubmission.submission
+    }
     const content = contentFromInputs(input.input)
     this.emit({
       type: 'command.queued',
@@ -214,9 +260,18 @@ export class CodexSessionManager {
     // observable through events without producing an unhandled rejection.
     void started.catch(() => undefined)
     void completed.catch(() => undefined)
+    const submission: TurnSubmission = { clientCommandId: commandId, started, completed }
+    this.submissions.set(submissionKey, { fingerprint, submission })
+    // Bound memory without sacrificing idempotency for any realistic active
+    // browser outbox. The oldest command is the least useful replay.
+    if (this.submissions.size > 10_000) {
+      const oldestKey = this.submissions.keys().next().value as string | undefined
+      if (oldestKey) this.submissions.delete(oldestKey)
+    }
     const execute = async (): Promise<void> => {
       let handle: TurnHandle | null = null
       try {
+        this.requireUsable()
         await this.ensureSessionReady(session)
         const turnId = mode === 'steer'
           ? await this.steerSubmission(session, input)
@@ -258,9 +313,17 @@ export class CodexSessionManager {
         throw error
       }
     }
-    const scheduled = session.queueTail.catch(() => undefined).then(execute)
-    session.queueTail = scheduled.catch(() => undefined)
-    return { clientCommandId: commandId, started, completed }
+    // Queue mode is serialized behind the authoritative terminal event of the
+    // previous Turn. Steering is different: it targets the currently active
+    // native Turn and must run immediately. Putting steer on queueTail makes it
+    // wait until that Turn has already finished, at which point there is no
+    // active Turn left to steer.
+    const scheduled = mode === 'steer'
+      ? execute()
+      : session.queueTail.catch(() => undefined).then(execute)
+    if (mode === 'queue') session.queueTail = scheduled.catch(() => undefined)
+    else void scheduled.catch(() => undefined)
+    return submission
   }
 
   async send(bindingId: string, input: TurnInput, mode: 'queue' | 'steer' = 'queue', clientCommandId?: string): Promise<TurnHandle> {
@@ -283,8 +346,6 @@ export class CodexSessionManager {
     const key = this.turnKey(handle.threadId, handle.turnId)
     const terminal = this.terminalEvents.get(key)
     if (terminal) return Promise.resolve(terminal)
-    const operationalFailure = this.operationalFailures.get(key)
-    if (operationalFailure) return Promise.resolve(operationalFailure)
     this.ensureTurnWatchdog(handle)
     return new Promise<CodexEvent>((resolve, reject) => {
       const rows = this.waiters.get(key) ?? []
@@ -322,14 +383,18 @@ export class CodexSessionManager {
   }
 
   async dispose(): Promise<void> {
+    if (this.disposed) return
+    this.disposed = true
     this.unlisten?.()
     this.unlisten = null
     for (const watchdog of this.turnWatchdogs.values()) clearTimeout(watchdog.timer)
     this.turnWatchdogs.clear()
     this.upstreamRetries.clear()
     this.operationalFailures.clear()
+    this.submissions.clear()
     for (const rows of this.waiters.values()) for (const waiter of rows) waiter.reject(new Error('Codex session manager disposed'))
     this.waiters.clear()
+    this.pendingRequests.clear()
     this.sessions.clear()
     this.sessionIdByThreadId.clear()
   }
@@ -337,8 +402,17 @@ export class CodexSessionManager {
   private attachLocal(binding: ThreadBinding, context: ExecutionContext): void {
     const existingBindingId = this.sessionIdByThreadId.get(binding.threadId)
     if (existingBindingId && existingBindingId !== binding.id) throw new Error(`Codex thread ${binding.threadId} is already attached to ${existingBindingId}`)
+    const previous = this.sessions.get(binding.id)
+    if (previous && previous.binding.threadId !== binding.threadId) {
+      this.sessionIdByThreadId.delete(previous.binding.threadId)
+    }
     this.sessions.set(binding.id, { binding, context, activeTurnId: '', queueTail: Promise.resolve(), attached: true })
     this.sessionIdByThreadId.set(binding.threadId, binding.id)
+  }
+
+  private requireUsable(): void {
+    if (this.disposed) throw new Error('Codex session manager is disposed')
+    if (this.runtimeUnavailable) throw new Error('Codex App Server is unavailable. Restart the product service to create a new owner process.')
   }
 
   private require(bindingId: string): AttachedSession {
@@ -355,11 +429,8 @@ export class CodexSessionManager {
 
   private async ensureSessionReady(session: AttachedSession): Promise<void> {
     if (session.attached) return
-    await this.options.host.ensureInitialized()
-    await this.commands.resumeThread(session.binding.threadId, session.context.thread as Omit<ThreadResumeParams, 'threadId'>)
-    this.forgetTerminalEvents(session.binding.threadId)
-    session.attached = true
-    this.emit({ type: 'runtime.connected', threadId: session.binding.threadId, data: { resumed: true } })
+    if (this.runtimeUnavailable) throw new Error('Codex App Server is unavailable. Restart the product service to create a new owner process.')
+    throw new Error(`Codex thread binding ${session.binding.id} is detached`)
   }
 
   private forgetTerminalEvents(threadId: string): void {
@@ -423,13 +494,11 @@ export class CodexSessionManager {
     if (this.terminalEvents.has(key) || this.operationalFailures.has(key)) return
     this.operationalFailures.set(key, event)
     this.upstreamRetries.delete(key)
-    const bindingId = this.sessionIdByThreadId.get(event.threadId)
-    const session = bindingId ? this.sessions.get(bindingId) : undefined
-    if (session?.activeTurnId === event.turnId) session.activeTurnId = ''
-    const rows = this.waiters.get(key) ?? []
-    this.waiters.delete(key)
+    // An upstream transport failure is not a native terminal. Keep the active
+    // Turn and its queue barrier until App Server later emits completed,
+    // failed, or interrupted. Releasing here can overlap two native Turns and
+    // is the source of phantom Stopped/Worked receipts.
     this.clearTurnWatchdog(key)
-    for (const waiter of rows) waiter.resolve(event)
   }
 
   private ensureTurnWatchdog(handle: TurnHandle): void {
@@ -511,12 +580,19 @@ export class CodexSessionManager {
   private turnKey(threadId: string, turnId: string): string { return `${threadId}\u0000${turnId}` }
 
   private async handleNotification(notification: RuntimeNotification): Promise<void> {
+    if (notification.method === 'server/request/expired') {
+      const requestId = String(asRecord(notification.params)?.id ?? '')
+      if (requestId) this.pendingRequests.delete(requestId)
+      return
+    }
     if (notification.method === 'server/request') {
       const request = notification.params as ServerRequest
       if (typeof request?.id === 'number') await this.handleServerRequest(request)
       return
     }
     if (notification.method === 'runtime/disconnected') {
+      this.runtimeUnavailable = true
+      this.pendingRequests.clear()
       const error = textFromError(asRecord(notification.params)?.error ?? notification.params) || 'Codex App Server disconnected.'
       for (const session of this.sessions.values()) {
         const [event] = normalizeCodexNotification(notification, {
@@ -552,10 +628,6 @@ export class CodexSessionManager {
     })
     for (const event of events) {
       if (event.type === 'turn.started' && event.turnId) session.activeTurnId = event.turnId
-      if (notification.method === 'error' && event.type === 'turn.failed' && event.data.cause === 'upstream_response_stream_unrecoverable') {
-        this.emit({ ...event, type: 'turn.disconnected' })
-        continue
-      }
       // Only App Server `error` notifications represent a concrete response
       // stream retry attempt. Generic warnings are activity updates and must
       // not consume the retry budget.
@@ -587,25 +659,34 @@ export class CodexSessionManager {
       itemId: readItemId(params),
       params,
     }
+    const isQuestion = isToolUserInputRequestMethod(request.method)
+    if (!isApprovalRequestMethod(request.method) && !isQuestion) {
+      const reason = `Unsupported Codex server request method: ${request.method}`
+      this.options.onDiagnostic?.({ level: 'error', message: reason, method: request.method, params })
+      await this.options.host.resolveServerRequest(request.id, { error: { code: -32601, message: reason } })
+      return
+    }
+    const kind = isQuestion ? 'question' : 'approval'
+    const requestId = String(request.id)
+    // Register before asynchronous policy evaluation. Expiry, terminal cleanup,
+    // runtime disconnect, or dispose can now invalidate this exact entry and
+    // prevent a late policy result from creating a ghost approval.
+    const pending = { request, bindingId, kind } as { request: ServerRequest; bindingId: string; kind: 'approval' | 'question'; event?: CodexEvent }
+    this.pendingRequests.set(requestId, pending)
     const decision = await this.options.policy?.evaluate(operation, session.binding, session.context) ?? { action: 'ask' as const }
+    if (this.pendingRequests.get(requestId) !== pending) return
     if (decision.action === 'allow') {
       await this.options.host.resolveServerRequest(request.id, decision.reply ?? { result: { decision: 'accept' } })
+      this.pendingRequests.delete(requestId)
       this.emit({ type: 'approval.resolved', threadId, turnId: operation.turnId, itemId: operation.itemId, data: { requestId: String(request.id), decision: 'accept', automatic: true, reason: decision.reason } })
       return
     }
     if (decision.action === 'deny') {
       await this.options.host.resolveServerRequest(request.id, decision.reply ?? { error: { code: -32000, message: decision.reason } })
+      this.pendingRequests.delete(requestId)
       this.emit({ type: 'approval.resolved', threadId, turnId: operation.turnId, itemId: operation.itemId, data: { requestId: String(request.id), decision: 'decline', automatic: true, reason: decision.reason } })
       return
     }
-    const isQuestion = isToolUserInputRequestMethod(request.method)
-    const kind = isQuestion ? 'question' : 'approval'
-    if (!isApprovalRequestMethod(request.method) && !isQuestion) {
-      this.options.onDiagnostic?.({ level: 'warning', message: 'Unsupported server request is pending for explicit product handling.', method: request.method, params })
-    }
-    const requestId = String(request.id)
-    const pending = { request, bindingId, kind } as { request: ServerRequest; bindingId: string; kind: 'approval' | 'question'; event?: CodexEvent }
-    this.pendingRequests.set(requestId, pending)
     const event = this.emit({
       type: kind === 'approval' ? 'approval.requested' : 'question.requested',
       threadId, turnId: operation.turnId, itemId: operation.itemId,

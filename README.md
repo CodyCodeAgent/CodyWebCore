@@ -3,7 +3,7 @@
 Framework-neutral Codex App Server primitives shared by CodyWebUI and CodyWork.
 
 `@codycodeagent/cody-web-core/protocol` owns wire normalization and capabilities.
-`@codycodeagent/cody-web-core/runtime` owns a resilient service-level App Server host.
+`@codycodeagent/cody-web-core/runtime` owns a single-start service-level App Server host.
 `@codycodeagent/cody-web-core/session` owns typed thread/turn coordination, notification normalization, retry semantics, and approval routing.
 `@codycodeagent/cody-web-core/conversation` owns deterministic realtime/history merge rules.
 `@codycodeagent/cody-web-core/composer` owns canonical queue/steer intent, turn attachments, trigger parsing and selection reconciliation.
@@ -21,6 +21,8 @@ Framework-neutral Codex App Server primitives shared by CodyWebUI and CodyWork.
 
 | Core | Codex App Server boundary | Product migration |
 | --- | --- | --- |
+| 0.37.0 | Single process owner, idempotent client commands, heartbeat-aware browser transport, Turn-contiguous feed and native-history authority | CodyWebUI and CodyWork use Core as their only conversation/Turn projection and do not restart App Server after runtime failure |
+| 0.35–0.36.x | Single-start App Server and Core-owned optimistic command lifecycle | Superseded by 0.37.0 because product transport and final feed authority were not yet fully unified |
 | 0.32.0 | Current generated schema; stable Thread/Turn/Goal/Skill authority, contract diagnostics and initialization-timeout recovery | Products receive field-specific protocol errors; a hung initialization is replaced by a fresh App Server process |
 | 0.15–0.31.0 | Progressive shared runtime, conversation, request, presentation, command, catalog and recovery authority | Superseded by 0.32.0 because malformed success payloads could surface opaque property-access errors |
 | ≤ 0.14 | Runtime/protocol foundation without the complete shared conversation authority | Superseded; do not use for either product |
@@ -64,10 +66,10 @@ The failure causes are `initialize_timeout`, `rpc_timeout`, `process_exit`, `std
 
 Logs are capped at 80 entries and 500 normalized characters per entry. Common authorization, bearer-token, API-key, token, secret, password, URL-userinfo and private-key forms are replaced with `[REDACTED]`. Products must still treat reports as operational data and apply their normal access and retention policy; heuristic redaction is not a substitute for avoiding secrets in process logs.
 
-The pre-existing `diagnostics()` method remains the lightweight current-state/counter view. Use `failureReport()` when presenting or exporting the last classified failure snapshot. A later process failure replaces the previous report, except that an immediately following exit does not hide the stdin failure that caused it.
+The pre-existing `diagnostics()` method remains the lightweight current-state/counter view. Use `failureReport()` when presenting or exporting the last classified failure snapshot. A later process failure replaces the previous report, except that an immediately following exit does not hide the stdin failure that caused it. After the first process exits or its stdin transport fails, the host remains `unavailable`; an explicit product service restart or deployment is the only way to create a new App Server owner.
 
 ## Turn liveness contract
 
 `CodexSessionManager` treats `turnInactivityTimeoutMs` as a silence watchdog, not a maximum turn duration. Every normalized non-terminal event for the active turn resets the watchdog, so long-running commands, tool calls and reasoning streams can continue for as long as they keep making observable progress. The default inactivity window is ten minutes.
 
-If the provider produces no event for the full window, Core emits one authoritative `turn.failed` event with `data.cause === 'inactivity_timeout'`, clears the active turn and resolves all turn waiters with that same event. A later provider `turn/completed` or `turn.failed` notification for the same turn is ignored. Product code should consume the normalized terminal event and must not add a second wall-clock turn timeout.
+If the provider produces no event for the full window, Core requests a native interrupt and emits an operational `turn.disconnected` event with `data.cause === 'inactivity_timeout'`. This is deliberately not a fabricated terminal event: the active Turn and queue barrier remain until App Server reports `turn/completed`, `turn/failed` or `turn/interrupted`. Products must expose that recovery state and an explicit stop/retry path, and must not add a second wall-clock timeout or silently resend the command.
