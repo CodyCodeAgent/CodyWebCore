@@ -163,7 +163,14 @@ export function removeDuplicateAdjacentUserMessages(messages) {
     const next = [];
     for (const message of messages) {
         const previous = next.at(-1);
-        if (!previous || !areUserMessagesEquivalent(previous, message)) {
+        const equivalent = previous ? areUserMessagesEquivalent(previous, message) : false;
+        const distinctNativeTurns = previous
+            && isPersistedUserMessage(previous)
+            && isPersistedUserMessage(message)
+            && previous.turnId
+            && message.turnId
+            && previous.turnId !== message.turnId;
+        if (!previous || !equivalent || distinctNativeTurns) {
             next.push(message);
             continue;
         }
@@ -265,18 +272,10 @@ export function mergeMessages(previous, incoming, options = {}) {
         }
         return oldMessage;
     });
-    let lastTurnBoundary = -1;
-    for (let index = previous.length - 1; index >= 0; index -= 1) {
-        if (previous[index]?.messageType === 'worked') {
-            lastTurnBoundary = index;
-            break;
-        }
-    }
-    const currentTurnUsers = previous.slice(lastTurnBoundary + 1).filter(isPersistedUserMessage);
     const appended = stableIncoming.filter((message) => {
         if (consumed.has(message.id) || previousById.has(message.id))
             return false;
-        return !(isPersistedUserMessage(message) && currentTurnUsers.some((existing) => areUserMessagesEquivalent(existing, message)));
+        return true;
     });
     const ordered = insertAtProtocolPosition(merged, appended, stableIncoming);
     const compacted = removeDuplicateAdjacentUserMessages(removeDuplicateMessageIds(ordered));

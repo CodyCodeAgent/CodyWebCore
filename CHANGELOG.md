@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.37.1
+
+- Restored the queue barrier when attaching to a native thread with an active Turn, and preserved it across repeated attaches.
+- Scoped command idempotency to the native thread so rebinding a product conversation cannot replay a submission from the old thread.
+- Preserved intentionally repeated user prompts across distinct native Turns while retaining same-Turn optimistic reconciliation.
+- Made the first terminal Turn transition authoritative so delayed conflicting terminal events cannot create duplicate receipts.
+- Made application heartbeats opt-in, added reconnect jitter, and avoided treating background-tab timer throttling as a dead socket.
+
 ## 0.37.0
 
 - Made the shared client controller the single owner of optimistic command admission, native history reconciliation, realtime overlays, failed outbox state, and browser transport status.

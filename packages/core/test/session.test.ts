@@ -10,6 +10,7 @@ class FakeHost implements AppServerHost {
   nextTurn = 1
   initialized = 0
   failTurnStart = ''
+  threadReadTurns: Array<Record<string, unknown>> = []
 
   async ensureInitialized(): Promise<void> { this.initialized += 1 }
   async call<T>(method: string, params?: unknown): Promise<T> {
@@ -21,7 +22,7 @@ class FakeHost implements AppServerHost {
       preview: '', ephemeral: false, section: null, sectionEnteredAt: null, historyMode: 'paginated',
       modelProvider: 'openai', createdAt: 0, updatedAt: 0, recencyAt: null, status: { type: 'idle' },
       path: null, cwd: '/repo', cliVersion: 'test', source: 'appServer', canAcceptDirectInput: true,
-      threadSource: null, agentNickname: null, agentRole: null, gitInfo: null, name: null, turns: [],
+      threadSource: null, agentNickname: null, agentRole: null, gitInfo: null, name: null, turns: this.threadReadTurns,
     } } as T
     if (method === 'turn/start') {
       if (this.failTurnStart) throw new Error(this.failTurnStart)
@@ -275,6 +276,69 @@ describe('CodexSessionManager', () => {
     expect(() => manager.submit('conversation-1', {
       input: [{ type: 'text', text: 'different', text_elements: [] }],
     }, 'queue', 'same-command')).toThrow('already submitted with different content')
+    await manager.dispose()
+  })
+
+  it('restores the queue barrier for an active Turn discovered during resume', async () => {
+    const host = new FakeHost()
+    host.threadReadTurns = [{ id: 'turn-active', status: 'inProgress', items: [], error: null }]
+    const manager = new CodexSessionManager({ host })
+    await manager.resume({ id: 'conversation-1', threadId: 'thread-1' }, context)
+
+    const queued = manager.submit('conversation-1', {
+      input: [{ type: 'text', text: 'wait for the active turn', text_elements: [] }],
+    }, 'queue', 'queued-after-resume')
+    await Promise.resolve()
+    expect(host.calls.filter(call => call.method === 'turn/start')).toHaveLength(0)
+
+    host.emit('turn/completed', { threadId: 'thread-1', turn: { id: 'turn-active', status: 'completed' } })
+    await expect(queued.started).resolves.toMatchObject({ threadId: 'thread-1', turnId: 'turn-1' })
+    expect(host.calls.filter(call => call.method === 'turn/start')).toHaveLength(1)
+    await manager.dispose()
+  })
+
+  it('preserves one queue chain when the same binding is resumed by another client', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host })
+    await manager.create('conversation-1', context)
+    const first = manager.submit('conversation-1', {
+      input: [{ type: 'text', text: 'first', text_elements: [] }],
+    }, 'queue', 'first')
+    const firstHandle = await first.started
+
+    host.threadReadTurns = [{ id: firstHandle.turnId, status: 'inProgress', items: [], error: null }]
+    await manager.resume({ id: 'conversation-1', threadId: 'thread-1' }, context)
+    const second = manager.submit('conversation-1', {
+      input: [{ type: 'text', text: 'second', text_elements: [] }],
+    }, 'queue', 'second')
+    await Promise.resolve()
+    expect(host.calls.filter(call => call.method === 'turn/start')).toHaveLength(1)
+
+    host.emit('turn/completed', { threadId: 'thread-1', turn: { id: firstHandle.turnId, status: 'completed' } })
+    await second.started
+    expect(host.calls.filter(call => call.method === 'turn/start')).toHaveLength(2)
+    await manager.dispose()
+  })
+
+  it('scopes command idempotency to the native thread after a binding moves', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host })
+    await manager.create('conversation-1', context)
+    const first = manager.submit('conversation-1', {
+      input: [{ type: 'text', text: 'same', text_elements: [] }],
+    }, 'queue', 'same-command')
+    const firstHandle = await first.started
+    host.emit('turn/completed', { threadId: 'thread-1', turn: { id: firstHandle.turnId, status: 'completed' } })
+    await first.completed
+
+    host.threadReadTurns = []
+    await manager.resume({ id: 'conversation-1', threadId: 'thread-2' }, context)
+    const second = manager.submit('conversation-1', {
+      input: [{ type: 'text', text: 'same', text_elements: [] }],
+    }, 'queue', 'same-command')
+    expect(second).not.toBe(first)
+    await second.started
+    expect(host.calls.filter(call => call.method === 'turn/start')).toHaveLength(2)
     await manager.dispose()
   })
 

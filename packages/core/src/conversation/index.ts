@@ -339,6 +339,12 @@ function updateTurn(state: ConversationState, event: CodexEvent, lifecycle: Turn
   }
 }
 
+function hasTerminalTurn(state: ConversationState, event: CodexEvent): boolean {
+  const turnId = event.turnId || state.activeTurnId
+  const lifecycle = turnId ? state.turns[turnId]?.lifecycle : undefined
+  return lifecycle === 'completed' || lifecycle === 'failed' || lifecycle === 'interrupted'
+}
+
 function endConversationPlan(plan: ConversationPlanState | null, turnId: string): ConversationPlanState | null {
   if (!plan || plan.turnId !== turnId || plan.lifecycle === 'ended') return plan
   return {
@@ -488,6 +494,7 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
     }
   }
   if (event.type === 'turn.completed') {
+    if (hasTerminalTurn(state, event)) return state
     const updated = updateTurn(state, event, 'completed')
     const turnId = event.turnId || state.activeTurnId
     if (!turnId) return updated
@@ -498,6 +505,7 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
     return { ...updated, timeline, presentation, pendingRequests: updated.pendingRequests.filter((request) => request.turnId !== turnId), reasoningText: '', activity: null, plan: endConversationPlan(updated.plan, turnId) }
   }
   if (event.type === 'turn.failed') {
+    if (hasTerminalTurn(state, event)) return state
     const updated = updateTurn(state, event, 'failed')
     const turnId = event.turnId || state.activeTurnId
     return turnId
@@ -505,6 +513,7 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
       : { ...updated, activity: null }
   }
   if (event.type === 'turn.interrupted') {
+    if (hasTerminalTurn(state, event)) return state
     const updated = updateTurn(state, event, 'interrupted')
     const turnId = event.turnId || state.activeTurnId
     return turnId
@@ -604,7 +613,12 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
     }
     // A refresh can already contain the durable user item while an in-memory
     // optimistic journal is replayed afterwards. Do not resurrect that row.
-    if (optimistic && state.messages.some((message) => message.role === 'user' && message.messageType?.startsWith('userMessage.') !== true && areUserMessagesEquivalent(message, incomingMessage))) return state
+    if (optimistic && event.turnId && state.messages.some((message) => (
+      message.role === 'user'
+      && message.turnId === event.turnId
+      && message.messageType?.startsWith('userMessage.') !== true
+      && areUserMessagesEquivalent(message, incomingMessage)
+    ))) return state
     return {
       ...state,
       messages: mergeMessages(state.messages, [incomingMessage], { preserveMissing: true }),

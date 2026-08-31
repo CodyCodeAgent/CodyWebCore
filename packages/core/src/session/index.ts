@@ -206,9 +206,13 @@ export class CodexSessionManager {
     await this.commands.resumeThread(binding.threadId, context.thread as Omit<ThreadResumeParams, 'threadId'>)
     const snapshot = await this.catalog.readThreadSnapshot(binding.threadId)
     this.forgetTerminalEvents(binding.threadId)
-    this.attachLocal(binding, context)
+    const session = this.attachLocal(binding, context)
     const activeTurn = [...snapshot.turns].reverse().find((turn) => /progress|running|active|started/iu.test(turn.status))
-    if (activeTurn) this.require(binding.id).activeTurnId = activeTurn.turnId
+    if (activeTurn && session.activeTurnId !== activeTurn.turnId) {
+      session.activeTurnId = activeTurn.turnId
+      session.queueTail = this.waitForTurn({ threadId: binding.threadId, turnId: activeTurn.turnId })
+        .then(() => undefined)
+    }
     this.emit({ type: 'thread.attached', threadId: binding.threadId, data: { bindingId: binding.id, mode: 'resumed' } })
   }
 
@@ -234,7 +238,7 @@ export class CodexSessionManager {
     this.requireUsable()
     const session = this.require(bindingId)
     const commandId = clientCommandId?.trim() || `command:${bindingId}:${String(++this.commandSequence)}`
-    const submissionKey = `${bindingId}\u0000${commandId}`
+    const submissionKey = `${bindingId}\u0000${session.binding.threadId}\u0000${commandId}`
     const fingerprint = JSON.stringify({ mode, input })
     const existingSubmission = this.submissions.get(submissionKey)
     if (existingSubmission) {
@@ -399,15 +403,23 @@ export class CodexSessionManager {
     this.sessionIdByThreadId.clear()
   }
 
-  private attachLocal(binding: ThreadBinding, context: ExecutionContext): void {
+  private attachLocal(binding: ThreadBinding, context: ExecutionContext): AttachedSession {
     const existingBindingId = this.sessionIdByThreadId.get(binding.threadId)
     if (existingBindingId && existingBindingId !== binding.id) throw new Error(`Codex thread ${binding.threadId} is already attached to ${existingBindingId}`)
     const previous = this.sessions.get(binding.id)
+    if (previous?.binding.threadId === binding.threadId) {
+      previous.context = context
+      previous.attached = true
+      this.sessionIdByThreadId.set(binding.threadId, binding.id)
+      return previous
+    }
     if (previous && previous.binding.threadId !== binding.threadId) {
       this.sessionIdByThreadId.delete(previous.binding.threadId)
     }
-    this.sessions.set(binding.id, { binding, context, activeTurnId: '', queueTail: Promise.resolve(), attached: true })
+    const session: AttachedSession = { binding, context, activeTurnId: '', queueTail: Promise.resolve(), attached: true }
+    this.sessions.set(binding.id, session)
     this.sessionIdByThreadId.set(binding.threadId, binding.id)
+    return session
   }
 
   private requireUsable(): void {

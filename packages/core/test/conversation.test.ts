@@ -213,6 +213,20 @@ describe('conversation core', () => {
     expect(mergeMessages([first, receipt], [first, receipt, second], { preserveMissing: true })).toEqual([first, receipt, second])
   })
 
+  it('preserves identical persisted prompts in distinct native Turns without relying on receipt rows in messages', () => {
+    const base = { threadId: 'thread-1', atIso: '2026-01-01T00:00:00.000Z' }
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { ...base, id: 'turn-1-start', type: 'turn.started', turnId: 'turn-1', data: {} },
+      { ...base, id: 'user-1', type: 'user.completed', turnId: 'turn-1', itemId: 'user-1', data: { text: 'retry' } },
+      { ...base, id: 'turn-1-done', type: 'turn.completed', turnId: 'turn-1', data: { durationMs: 1_000 } },
+      { ...base, id: 'turn-2-start', type: 'turn.started', turnId: 'turn-2', data: {} },
+      { ...base, id: 'user-2', type: 'user.completed', turnId: 'turn-2', itemId: 'user-2', data: { text: 'retry' } },
+      { ...base, id: 'turn-2-done', type: 'turn.completed', turnId: 'turn-2', data: { durationMs: 1_000 } },
+    ])
+    expect(state.messages.filter(message => message.role === 'user')).toHaveLength(2)
+    expect(conversationTranscriptFromState(state).filter(message => message.text === 'retry')).toHaveLength(2)
+  })
+
   it('keeps realtime deltas in one row', () => {
     const once = upsertLiveDelta([], { messageId: 'a', textDelta: 'one', messageType: 'agentMessage.live' })
     const twice = upsertLiveDelta(once, { messageId: 'a', textDelta: ' two', messageType: 'plan.live', turnId: 'turn-1' })
@@ -238,6 +252,8 @@ describe('conversation core', () => {
     ])
     expect(state.turns['turn-1']).toMatchObject({ lifecycle: 'completed' })
     expect(state.activeTurnId).toBe('')
+    expect(conversationTranscriptFromState(state).filter(message => message.messageType === 'turn.failed')).toEqual([])
+    expect(conversationTranscriptFromState(state).filter(message => message.messageType === 'worked')).toHaveLength(1)
   })
 
   it('owns transient activity, structured plans and context compaction state', () => {

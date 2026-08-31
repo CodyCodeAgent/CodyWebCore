@@ -156,6 +156,11 @@ function updateTurn(state, event, lifecycle) {
         },
     };
 }
+function hasTerminalTurn(state, event) {
+    const turnId = event.turnId || state.activeTurnId;
+    const lifecycle = turnId ? state.turns[turnId]?.lifecycle : undefined;
+    return lifecycle === 'completed' || lifecycle === 'failed' || lifecycle === 'interrupted';
+}
 function endConversationPlan(plan, turnId) {
     if (!plan || plan.turnId !== turnId || plan.lifecycle === 'ended')
         return plan;
@@ -303,6 +308,8 @@ export function reduceConversationEvent(previous, event) {
         };
     }
     if (event.type === 'turn.completed') {
+        if (hasTerminalTurn(state, event))
+            return state;
         const updated = updateTurn(state, event, 'completed');
         const turnId = event.turnId || state.activeTurnId;
         if (!turnId)
@@ -314,6 +321,8 @@ export function reduceConversationEvent(previous, event) {
         return { ...updated, timeline, presentation, pendingRequests: updated.pendingRequests.filter((request) => request.turnId !== turnId), reasoningText: '', activity: null, plan: endConversationPlan(updated.plan, turnId) };
     }
     if (event.type === 'turn.failed') {
+        if (hasTerminalTurn(state, event))
+            return state;
         const updated = updateTurn(state, event, 'failed');
         const turnId = event.turnId || state.activeTurnId;
         return turnId
@@ -321,6 +330,8 @@ export function reduceConversationEvent(previous, event) {
             : { ...updated, activity: null };
     }
     if (event.type === 'turn.interrupted') {
+        if (hasTerminalTurn(state, event))
+            return state;
         const updated = updateTurn(state, event, 'interrupted');
         const turnId = event.turnId || state.activeTurnId;
         return turnId
@@ -420,7 +431,10 @@ export function reduceConversationEvent(previous, event) {
         };
         // A refresh can already contain the durable user item while an in-memory
         // optimistic journal is replayed afterwards. Do not resurrect that row.
-        if (optimistic && state.messages.some((message) => message.role === 'user' && message.messageType?.startsWith('userMessage.') !== true && areUserMessagesEquivalent(message, incomingMessage)))
+        if (optimistic && event.turnId && state.messages.some((message) => (message.role === 'user'
+            && message.turnId === event.turnId
+            && message.messageType?.startsWith('userMessage.') !== true
+            && areUserMessagesEquivalent(message, incomingMessage))))
             return state;
         return {
             ...state,

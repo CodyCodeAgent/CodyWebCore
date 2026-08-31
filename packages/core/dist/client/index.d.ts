@@ -87,6 +87,9 @@ export type ReconnectingSocketOptions = {
     heartbeatIntervalMs?: number;
     heartbeatTimeoutMs?: number;
     heartbeatPayload?: string;
+    /** Randomized reconnect spread prevents many tabs reconnecting in lockstep. */
+    reconnectJitterRatio?: number;
+    random?: () => number;
 };
 /** Small shared WebSocket lifecycle with bounded exponential reconnect. */
 export declare function createReconnectingConversationSocket(options: ReconnectingSocketOptions): ReconnectingSocket;

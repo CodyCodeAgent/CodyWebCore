@@ -343,6 +343,9 @@ export type ReconnectingSocketOptions = {
   heartbeatIntervalMs?: number
   heartbeatTimeoutMs?: number
   heartbeatPayload?: string
+  /** Randomized reconnect spread prevents many tabs reconnecting in lockstep. */
+  reconnectJitterRatio?: number
+  random?: () => number
 }
 
 /** Small shared WebSocket lifecycle with bounded exponential reconnect. */
@@ -350,6 +353,8 @@ export function createReconnectingConversationSocket(options: ReconnectingSocket
   const createSocket = options.createSocket ?? ((url) => new WebSocket(url))
   const minDelay = Math.max(100, options.minDelayMs ?? 500)
   const maxDelay = Math.max(minDelay, options.maxDelayMs ?? 10_000)
+  const jitterRatio = Math.min(0.5, Math.max(0, options.reconnectJitterRatio ?? 0.2))
+  const random = options.random ?? Math.random
   let socket: WebSocket | null = null
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
   let delay = minDelay
@@ -358,6 +363,7 @@ export function createReconnectingConversationSocket(options: ReconnectingSocket
   let openedAt = 0
   let lastActivityAt = 0
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null
+  let heartbeatTickAt = 0
 
   const clearHeartbeat = (): void => {
     if (heartbeatTimer) clearInterval(heartbeatTimer)
@@ -366,12 +372,21 @@ export function createReconnectingConversationSocket(options: ReconnectingSocket
 
   const startHeartbeat = (current: WebSocket): void => {
     clearHeartbeat()
-    const interval = Math.max(1_000, options.heartbeatIntervalMs ?? 20_000)
+    if (!options.heartbeatIntervalMs || options.heartbeatIntervalMs <= 0) return
+    const interval = Math.max(1_000, options.heartbeatIntervalMs)
     const timeout = Math.max(interval * 2, options.heartbeatTimeoutMs ?? 45_000)
     lastActivityAt = Date.now()
+    heartbeatTickAt = lastActivityAt
     heartbeatTimer = setInterval(() => {
       if (closed || socket !== current) return
-      if (Date.now() - lastActivityAt > timeout) {
+      const now = Date.now()
+      const timerLag = now - heartbeatTickAt
+      heartbeatTickAt = now
+      // Browsers heavily throttle background-tab timers. A late callback is
+      // not evidence that the socket was dead; give the server one fresh probe
+      // window after the tab wakes instead of immediately closing it.
+      if (timerLag > interval * 2) lastActivityAt = now
+      if (now - lastActivityAt > timeout) {
         current.close(4000, 'heartbeat timeout')
         return
       }
@@ -406,7 +421,8 @@ export function createReconnectingConversationSocket(options: ReconnectingSocket
         reconnectAttempt = 0
       }
       reconnectAttempt += 1
-      const wait = delay
+      const jitter = 1 + ((random() * 2) - 1) * jitterRatio
+      const wait = Math.max(0, Math.round(delay * jitter))
       delay = Math.min(maxDelay, Math.round(delay * 1.6))
       options.listener({
         type: 'disconnected', atIso: new Date().toISOString(),

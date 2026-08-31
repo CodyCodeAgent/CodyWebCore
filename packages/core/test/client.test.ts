@@ -340,6 +340,7 @@ describe('ReconnectingConversationSocket', () => {
       minDelayMs: 500,
       heartbeatIntervalMs: 1_000,
       heartbeatTimeoutMs: 2_000,
+      random: () => 0.5,
     })
     sockets[0]!.emit('open')
     vi.advanceTimersByTime(1_000)
@@ -373,6 +374,7 @@ describe('ReconnectingConversationSocket', () => {
       listener: (event) => events.push(event),
       minDelayMs: 500,
       maxDelayMs: 10_000,
+      random: () => 0.5,
     })
 
     sockets[0]!.emit('open')
@@ -384,6 +386,32 @@ describe('ReconnectingConversationSocket', () => {
     // stable timestamp from the previous socket.
     sockets[1]!.emit('close', { code: 1006, reason: 'connect failed' })
     expect(events.at(-1)).toMatchObject({ type: 'disconnected', reconnectAttempt: 2, retryInMs: 800 })
+    transport.close()
+  })
+
+  it('does not enable an application heartbeat unless the product opts in', () => {
+    vi.useFakeTimers()
+    class FakeSocket {
+      readonly listeners = new Map<string, Array<(event: any) => void>>()
+      readyState = 1
+      sent: string[] = []
+      addEventListener(type: string, listener: (event: any) => void) {
+        this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener])
+      }
+      send(value: string) { this.sent.push(value) }
+      close(code = 1000, reason = '') { this.emit('close', { code, reason }) }
+      emit(type: string, event: any = {}) { for (const listener of this.listeners.get(type) ?? []) listener(event) }
+    }
+    const socket = new FakeSocket()
+    const transport = createReconnectingConversationSocket({
+      url: 'ws://example.test',
+      createSocket: () => socket as unknown as WebSocket,
+      parse: () => null,
+      listener: () => undefined,
+    })
+    socket.emit('open')
+    vi.advanceTimersByTime(60_000)
+    expect(socket.sent).toEqual([])
     transport.close()
   })
 })
