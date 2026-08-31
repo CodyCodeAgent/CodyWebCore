@@ -128,6 +128,17 @@ type UpstreamRetry = {
   limit: number
 }
 
+type SubmissionRecord = {
+  fingerprint: string
+  submission: TurnSubmission
+  bindingId: string
+  threadId: string
+  commandId: string
+  content: Record<string, unknown>
+  state: 'queued' | 'bound' | 'terminal' | 'failed'
+  turnId?: string
+}
+
 const DEFAULT_TURN_INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000
 const DEFAULT_MAX_UPSTREAM_RETRY_ATTEMPTS = 5
 
@@ -140,8 +151,10 @@ export class CodexSessionManager {
   private readonly upstreamRetries = new Map<string, UpstreamRetry>()
   private readonly terminalEvents = new Map<string, CodexEvent>()
   private readonly operationalFailures = new Map<string, CodexEvent>()
-  private readonly submissions = new Map<string, { fingerprint: string; submission: TurnSubmission }>()
+  private readonly submissions = new Map<string, SubmissionRecord>()
   private readonly pendingRequests = new Map<string, { request: ServerRequest; bindingId: string; kind: 'approval' | 'question'; event?: CodexEvent }>()
+  private readonly requestResolutions = new Map<string, Promise<void>>()
+  private readonly resolvedRequests = new Set<string>()
   private readonly commands: CodexThreadCommands
   private readonly catalog: CodexSessionCatalog
   private readonly nowIso: () => string
@@ -168,6 +181,50 @@ export class CodexSessionManager {
     return [...this.pendingRequests.values()]
       .filter((pending) => pending.bindingId === bindingId && pending.event)
       .map((pending) => pending.event!)
+  }
+
+  /** Returns the volatile owner state needed to attach a browser projection.
+   * Native thread/read can lag an active Turn, so attach must explicitly
+   * publish that Turn instead of making the browser infer activity. */
+  listAttachmentEvents(bindingId: string): CodexEvent[] {
+    const session = this.require(bindingId)
+    const events: CodexEvent[] = []
+    for (const record of this.submissions.values()) {
+      if (record.bindingId !== bindingId || (record.state !== 'queued' && record.state !== 'bound')) continue
+      events.push({
+        id: this.eventId('attachment:command.queued', record.threadId, '', record.commandId),
+        type: 'command.queued',
+        threadId: record.threadId,
+        itemId: record.commandId,
+        atIso: this.nowIso(),
+        data: { ...record.content, clientCommandId: record.commandId, attachment: true },
+      })
+      if (record.state === 'bound' && record.turnId) {
+        events.push({
+          id: this.eventId('attachment:command.bound', record.threadId, record.turnId, record.commandId),
+          type: 'command.bound',
+          threadId: record.threadId,
+          turnId: record.turnId,
+          itemId: record.commandId,
+          atIso: this.nowIso(),
+          data: { clientCommandId: record.commandId, attachment: true },
+        })
+      }
+    }
+    if (session.activeTurnId) {
+      const key = this.turnKey(session.binding.threadId, session.activeTurnId)
+      const operationalFailure = this.operationalFailures.get(key)
+      events.push(operationalFailure ?? {
+        id: this.eventId('attachment:turn.started', session.binding.threadId, session.activeTurnId),
+        type: 'turn.started',
+        threadId: session.binding.threadId,
+        turnId: session.activeTurnId,
+        atIso: new Date().toISOString(),
+        data: { status: 'running', attachment: true },
+      })
+    }
+    events.push(...this.listPendingEvents(bindingId))
+    return events
   }
 
   snapshot(bindingId: string): CodexSessionSnapshot | null {
@@ -265,7 +322,16 @@ export class CodexSessionManager {
     void started.catch(() => undefined)
     void completed.catch(() => undefined)
     const submission: TurnSubmission = { clientCommandId: commandId, started, completed }
-    this.submissions.set(submissionKey, { fingerprint, submission })
+    const record: SubmissionRecord = {
+      fingerprint,
+      submission,
+      bindingId,
+      threadId: session.binding.threadId,
+      commandId,
+      content,
+      state: 'queued',
+    }
+    this.submissions.set(submissionKey, record)
     // Bound memory without sacrificing idempotency for any realistic active
     // browser outbox. The oldest command is the least useful replay.
     if (this.submissions.size > 10_000) {
@@ -293,6 +359,8 @@ export class CodexSessionManager {
           })
         handle = { threadId: session.binding.threadId, turnId }
         session.activeTurnId = handle.turnId
+        record.state = 'bound'
+        record.turnId = handle.turnId
         this.emit({
           type: 'command.bound',
           threadId: handle.threadId,
@@ -305,6 +373,7 @@ export class CodexSessionManager {
         resolveCompleted({ handle, terminalEvent })
       } catch (error) {
         if (!handle) {
+          record.state = 'failed'
           this.emit({
             type: 'command.failed',
             threadId: session.binding.threadId,
@@ -359,31 +428,33 @@ export class CodexSessionManager {
   }
 
   async respondApproval(bindingId: string, requestId: string, decision: 'accept' | 'acceptForSession' | 'decline' | 'cancel'): Promise<void> {
-    const pending = this.requirePending(bindingId, requestId, 'approval')
-    await this.options.host.resolveServerRequest(pending.request.id, { result: { decision } })
-    this.pendingRequests.delete(requestId)
-    this.emit({ type: 'approval.resolved', threadId: this.require(bindingId).binding.threadId, data: { requestId, decision } })
+    await this.resolveRequestOnce(bindingId, requestId, 'approval', async (pending) => {
+      await this.options.host.resolveServerRequest(pending.request.id, { result: { decision } })
+      this.pendingRequests.delete(requestId)
+      this.emit({ type: 'approval.resolved', threadId: this.require(bindingId).binding.threadId, data: { requestId, decision } })
+    })
   }
 
   async respondQuestion(bindingId: string, requestId: string, answer: unknown): Promise<void> {
-    const pending = this.requirePending(bindingId, requestId, 'question')
-    const supplied = asRecord(answer)
-    let answers: Record<string, { answers: string[] }>
-    if (supplied && Object.values(supplied).every(value => Array.isArray(asRecord(value)?.answers))) {
-      answers = supplied as Record<string, { answers: string[] }>
-    } else {
-      const params = asRecord(asRecord(pending.request.params)?.params ?? pending.request.params)
-      const questions = Array.isArray(params?.questions) ? params.questions : []
-      const text = typeof answer === 'string' ? answer : outputText(answer)
-      answers = Object.fromEntries(questions.flatMap((question, index) => {
-        const id = readString(asRecord(question)?.id) || `question-${String(index + 1)}`
-        return [[id, { answers: [text] }]]
-      }))
-      if (Object.keys(answers).length === 0) answers = { answer: { answers: [text] } }
-    }
-    await this.options.host.resolveServerRequest(pending.request.id, { result: { answers } })
-    this.pendingRequests.delete(requestId)
-    this.emit({ type: 'question.resolved', threadId: this.require(bindingId).binding.threadId, data: { requestId } })
+    await this.resolveRequestOnce(bindingId, requestId, 'question', async (pending) => {
+      const supplied = asRecord(answer)
+      let answers: Record<string, { answers: string[] }>
+      if (supplied && Object.values(supplied).every(value => Array.isArray(asRecord(value)?.answers))) {
+        answers = supplied as Record<string, { answers: string[] }>
+      } else {
+        const params = asRecord(asRecord(pending.request.params)?.params ?? pending.request.params)
+        const questions = Array.isArray(params?.questions) ? params.questions : []
+        const text = typeof answer === 'string' ? answer : outputText(answer)
+        answers = Object.fromEntries(questions.flatMap((question, index) => {
+          const id = readString(asRecord(question)?.id) || `question-${String(index + 1)}`
+          return [[id, { answers: [text] }]]
+        }))
+        if (Object.keys(answers).length === 0) answers = { answer: { answers: [text] } }
+      }
+      await this.options.host.resolveServerRequest(pending.request.id, { result: { answers } })
+      this.pendingRequests.delete(requestId)
+      this.emit({ type: 'question.resolved', threadId: this.require(bindingId).binding.threadId, data: { requestId } })
+    })
   }
 
   async dispose(): Promise<void> {
@@ -399,6 +470,8 @@ export class CodexSessionManager {
     for (const rows of this.waiters.values()) for (const waiter of rows) waiter.reject(new Error('Codex session manager disposed'))
     this.waiters.clear()
     this.pendingRequests.clear()
+    this.requestResolutions.clear()
+    this.resolvedRequests.clear()
     this.sessions.clear()
     this.sessionIdByThreadId.clear()
   }
@@ -457,6 +530,30 @@ export class CodexSessionManager {
     return pending
   }
 
+  private async resolveRequestOnce(
+    bindingId: string,
+    requestId: string,
+    kind: 'approval' | 'question',
+    resolve: (pending: { request: ServerRequest; bindingId: string; kind: 'approval' | 'question'; event?: CodexEvent }) => Promise<void>,
+  ): Promise<void> {
+    const key = `${bindingId}\u0000${kind}\u0000${requestId}`
+    if (this.resolvedRequests.has(key)) return
+    const inFlight = this.requestResolutions.get(key)
+    if (inFlight) return inFlight
+    const operation = (async () => {
+      const pending = this.requirePending(bindingId, requestId, kind)
+      await resolve(pending)
+      this.resolvedRequests.add(key)
+      if (this.resolvedRequests.size > 2_048) this.resolvedRequests.delete(this.resolvedRequests.values().next().value as string)
+    })()
+    this.requestResolutions.set(key, operation)
+    try {
+      await operation
+    } finally {
+      this.requestResolutions.delete(key)
+    }
+  }
+
   private eventId(method: string, threadId: string, turnId = '', itemId = ''): string {
     this.eventSequence += 1
     return `live:${String(this.eventSequence)}:${method}:${threadId}:${turnId}:${itemId}`
@@ -489,6 +586,9 @@ export class CodexSessionManager {
     const bindingId = this.sessionIdByThreadId.get(event.threadId)
     const session = bindingId ? this.sessions.get(bindingId) : undefined
     if (session?.activeTurnId === event.turnId) session.activeTurnId = ''
+    for (const record of this.submissions.values()) {
+      if (record.threadId === event.threadId && record.turnId === event.turnId) record.state = 'terminal'
+    }
     for (const [requestId, pending] of this.pendingRequests) {
       if (pending.event?.threadId === event.threadId && pending.event.turnId === event.turnId) {
         this.pendingRequests.delete(requestId)

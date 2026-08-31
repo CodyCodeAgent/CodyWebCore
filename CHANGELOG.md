@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.37.2
+
+- Made the service-side session manager the sole owner of admitted and active commands, and replayed that volatile state when a browser tab attaches or refreshes.
+- Kept browser persistence only for the pre-admission HTTP window, including acknowledgement-loss recovery when realtime admission arrives before the HTTP response.
+- Settled optimistic user messages from native Turn terminal events even when Codex never emits a durable user item.
+- Restricted response-stream recovery state to explicit transport recovery warnings instead of treating every warning as a retry.
+- Made duplicate approval and question responses idempotent across multiple browser tabs.
+
 ## 0.37.1
 
 - Restored the queue barrier when attaching to a native thread with an active Turn, and preserved it across repeated attaches.

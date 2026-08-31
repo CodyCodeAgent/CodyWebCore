@@ -33,6 +33,11 @@ function upstreamRetryState(params) {
     const exhausted = terminalError || willRetry === false || (retry !== null && retry.attempt >= retry.limit);
     return { willRetry, attempt: retry?.attempt ?? null, limit: retry?.limit ?? null, exhausted };
 }
+function isExplicitResponseStreamRecoveryWarning(message) {
+    const transport = /response stream|websocket|web socket|https transport|network/iu.test(message);
+    const recovery = /reconnect|re-connect|recover|fallback|falling back|interrupted/iu.test(message);
+    return transport && recovery;
+}
 function readDelta(params) {
     return readString(params.delta) || readString(params.textDelta) || readString(params.text_delta)
         || readString(params.content) || readString(params.text);
@@ -371,11 +376,14 @@ export function normalizeCodexNotification(notification, options = {}) {
         return [{ id: id('retrying'), type: 'turn.retrying', ...common, data: { error, ...retryData } }];
     }
     if (notification.method === 'warning' && turnId) {
-        return [{ id: id('retrying'), type: 'turn.retrying', ...common, data: {
-                    error: textFromError(params.message ?? params.error ?? params) || 'Codex is retrying the response stream.',
-                    willRetry: true,
-                    raw: params,
-                } }];
+        const warning = textFromError(params.message ?? params.error ?? params);
+        if (isExplicitResponseStreamRecoveryWarning(warning)) {
+            return [{ id: id('retrying'), type: 'turn.retrying', ...common, data: {
+                        error: warning || 'Codex is retrying the response stream.',
+                        willRetry: true,
+                        raw: params,
+                    } }];
+        }
     }
     if (notification.method === 'item/agentMessage/delta') {
         return [

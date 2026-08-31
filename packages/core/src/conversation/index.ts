@@ -303,6 +303,17 @@ function terminalizeTurnTools(
   return changed ? next : timeline
 }
 
+function settleTurnOutboxMessages(messages: ConversationMessage[], turnId: string): ConversationMessage[] {
+  let changed = false
+  const next = messages.map((message) => {
+    if (message.role !== 'user' || message.turnId !== turnId || !message.outbox) return message
+    changed = true
+    const { outbox: _outbox, ...settled } = message
+    return { ...settled, messageType: 'userMessage.settled' }
+  })
+  return changed ? next : messages
+}
+
 function updateTurn(state: ConversationState, event: CodexEvent, lifecycle: TurnLifecycle): ConversationState {
   const turnId = event.turnId || state.activeTurnId
   if (!turnId) return state
@@ -502,14 +513,14 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
     const presentation = event.data.durationKnown === false
       ? updated.presentation
       : appendPresentation(updated.presentation, { id: `worked:${turnId}`, kind: 'worked', turnId })
-    return { ...updated, timeline, presentation, pendingRequests: updated.pendingRequests.filter((request) => request.turnId !== turnId), reasoningText: '', activity: null, plan: endConversationPlan(updated.plan, turnId) }
+    return { ...updated, messages: settleTurnOutboxMessages(updated.messages, turnId), timeline, presentation, pendingRequests: updated.pendingRequests.filter((request) => request.turnId !== turnId), reasoningText: '', activity: null, plan: endConversationPlan(updated.plan, turnId) }
   }
   if (event.type === 'turn.failed') {
     if (hasTerminalTurn(state, event)) return state
     const updated = updateTurn(state, event, 'failed')
     const turnId = event.turnId || state.activeTurnId
     return turnId
-      ? { ...updated, timeline: terminalizeTurnTools(updated.timeline, turnId, 'failed'), presentation: appendPresentation(updated.presentation, { id: `failure:${turnId}`, kind: 'failure', turnId }), pendingRequests: updated.pendingRequests.filter((request) => request.turnId !== turnId), reasoningText: '', activity: null, plan: endConversationPlan(updated.plan, turnId) }
+      ? { ...updated, messages: settleTurnOutboxMessages(updated.messages, turnId), timeline: terminalizeTurnTools(updated.timeline, turnId, 'failed'), presentation: appendPresentation(updated.presentation, { id: `failure:${turnId}`, kind: 'failure', turnId }), pendingRequests: updated.pendingRequests.filter((request) => request.turnId !== turnId), reasoningText: '', activity: null, plan: endConversationPlan(updated.plan, turnId) }
       : { ...updated, activity: null }
   }
   if (event.type === 'turn.interrupted') {
@@ -517,7 +528,7 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
     const updated = updateTurn(state, event, 'interrupted')
     const turnId = event.turnId || state.activeTurnId
     return turnId
-      ? { ...updated, timeline: terminalizeTurnTools(updated.timeline, turnId, 'cancelled'), presentation: appendPresentation(updated.presentation, { id: `interrupted:${turnId}`, kind: 'interrupted', turnId }), pendingRequests: updated.pendingRequests.filter((request) => request.turnId !== turnId), reasoningText: '', activity: null, plan: endConversationPlan(updated.plan, turnId) }
+      ? { ...updated, messages: settleTurnOutboxMessages(updated.messages, turnId), timeline: terminalizeTurnTools(updated.timeline, turnId, 'cancelled'), presentation: appendPresentation(updated.presentation, { id: `interrupted:${turnId}`, kind: 'interrupted', turnId }), pendingRequests: updated.pendingRequests.filter((request) => request.turnId !== turnId), reasoningText: '', activity: null, plan: endConversationPlan(updated.plan, turnId) }
       : { ...updated, activity: null }
   }
 

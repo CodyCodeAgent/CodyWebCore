@@ -315,6 +315,19 @@ describe('conversation core', () => {
     expect(state.pendingRequests).toEqual([])
   })
 
+  it('settles a bound optimistic user message when its native Turn terminates', () => {
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { id: 'queued', type: 'command.queued', threadId: 'thread-1', itemId: 'command-1', atIso: '2026-01-01T00:00:00.000Z', data: { text: 'run it' } },
+      { id: 'bound', type: 'command.bound', threadId: 'thread-1', turnId: 'turn-1', itemId: 'command-1', atIso: '2026-01-01T00:00:00.100Z', data: { clientCommandId: 'command-1' } },
+      { id: 'interrupted', type: 'turn.interrupted', threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:01.000Z', data: {} },
+    ])
+
+    expect(state.messages).toMatchObject([
+      { id: 'user:command-1', turnId: 'turn-1', text: 'run it', messageType: 'userMessage.settled' },
+    ])
+    expect(state.messages[0]?.outbox).toBeUndefined()
+  })
+
   it('clears interactive requests without fabricating a terminal receipt when runtime disconnects', () => {
     const state = reduceConversationEvents(createConversationState('thread-1'), [
       { id: 'start', type: 'turn.started', threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:00.000Z', data: {} },

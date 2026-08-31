@@ -89,6 +89,8 @@ export declare class CodexSessionManager {
     private readonly operationalFailures;
     private readonly submissions;
     private readonly pendingRequests;
+    private readonly requestResolutions;
+    private readonly resolvedRequests;
     private readonly commands;
     private readonly catalog;
     private readonly nowIso;
@@ -101,6 +103,10 @@ export declare class CodexSessionManager {
     subscribe(listener: (event: CodexEvent) => void): () => void;
     /** Returns stable live events for unresolved approvals/questions after a product view reconnects. */
     listPendingEvents(bindingId: string): CodexEvent[];
+    /** Returns the volatile owner state needed to attach a browser projection.
+     * Native thread/read can lag an active Turn, so attach must explicitly
+     * publish that Turn instead of making the browser infer activity. */
+    listAttachmentEvents(bindingId: string): CodexEvent[];
     snapshot(bindingId: string): CodexSessionSnapshot | null;
     create(bindingId: string, context: ExecutionContext): Promise<ThreadBinding>;
     resume(binding: ThreadBinding, context: ExecutionContext): Promise<void>;
@@ -123,6 +129,7 @@ export declare class CodexSessionManager {
     private ensureSessionReady;
     private forgetTerminalEvents;
     private requirePending;
+    private resolveRequestOnce;
     private eventId;
     private emit;
     private finishTurn;

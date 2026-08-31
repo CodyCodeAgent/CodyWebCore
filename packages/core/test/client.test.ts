@@ -28,6 +28,24 @@ describe('ConversationController', () => {
     expect(calls).toEqual(['attach', 'read'])
   })
 
+  it('projects volatile owner state returned by attach before native history catches up', async () => {
+    const controller = createConversationController('thread-1', {
+      attach: async () => ({
+        events: [{
+          id: 'attachment-active', type: 'turn.started', threadId: 'thread-1', turnId: 'turn-live',
+          atIso: new Date(0).toISOString(), data: { attachment: true },
+        }],
+      }),
+      read: async () => [],
+      subscribe: () => () => undefined,
+    })
+
+    await controller.start()
+
+    expect(controller.getState().activeTurnId).toBe('turn-live')
+    expect(controller.getState().turns['turn-live']?.lifecycle).toBe('running')
+  })
+
   it('keeps the realtime subscription alive and exposes owner attach failures', async () => {
     let listener: ((value: ConversationSubscriptionEvent) => void) | undefined
     const controller = createConversationController('thread-1', {
@@ -214,7 +232,7 @@ describe('ConversationController', () => {
 
     controller.enqueueUserMessage({ id: 'local-1', text: '先检查当前分支' })
     expect(controller.getState().messages).toMatchObject([
-      { id: 'user:local-1', text: '先检查当前分支', messageType: 'userMessage.optimistic', outbox: { status: 'sending' } },
+      { id: 'user:local-1', text: '先检查当前分支', messageType: 'userMessage.optimistic', outbox: { status: 'queued' } },
     ])
 
     history.resolve([{
@@ -241,12 +259,36 @@ describe('ConversationController', () => {
       mode: 'queue', input: { input: [{ type: 'text', text: '立即可见' }] },
     })
     expect(controller.getState().messages).toMatchObject([
-      { id: 'user:command-1', text: '立即可见', outbox: { status: 'sending' } },
+      { id: 'user:command-1', text: '立即可见', outbox: { status: 'queued' } },
     ])
     admission.reject(new Error('owner unavailable'))
     await expect(submitted).rejects.toThrow('owner unavailable')
     expect(controller.getState().messages).toMatchObject([
       { id: 'user:command-1', text: '立即可见', outbox: { status: 'failed', lastError: 'owner unavailable' } },
+    ])
+  })
+
+  it('trusts realtime command admission when the matching HTTP response is lost', async () => {
+    let listener: ((value: ConversationSubscriptionEvent) => void) | undefined
+    const admission = deferred<{ clientCommandId: string }>()
+    const controller = createConversationController('thread-1', {
+      read: async () => [],
+      subscribe: (_threadId, next) => { listener = next; return () => undefined },
+      submit: () => admission.promise,
+    })
+    await controller.start()
+    const submitted = controller.submitUserMessage({ id: 'command-1', text: 'run once' }, {
+      mode: 'queue', input: { input: [{ type: 'text', text: 'run once' }] },
+    })
+    listener?.({
+      type: 'event',
+      event: { ...event('admitted', 'command.queued', { text: 'run once', clientCommandId: 'command-1' }), itemId: 'command-1', turnId: undefined },
+    })
+    admission.reject(new Error('HTTP response lost'))
+
+    await expect(submitted).resolves.toEqual({ clientCommandId: 'command-1' })
+    expect(controller.getState().messages).toMatchObject([
+      { id: 'user:command-1', outbox: { status: 'queued' } },
     ])
   })
 

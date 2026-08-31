@@ -13,6 +13,7 @@ export function createConversationController(threadId, transport) {
     let realtimeEventRevision = 0;
     let realtimeJournal = [];
     let localOutboxJournal = [];
+    const admittedCommandIds = new Set();
     const listeners = new Set();
     const MAX_REALTIME_JOURNAL_EVENTS = 10_000;
     const publish = (next) => {
@@ -33,6 +34,9 @@ export function createConversationController(threadId, transport) {
         const commandId = typeof event.data.clientCommandId === 'string'
             ? event.data.clientCommandId
             : event.itemId;
+        if ((event.type === 'command.queued' || event.type === 'command.bound') && commandId) {
+            admittedCommandIds.add(commandId);
+        }
         if (event.type === 'command.bound' && commandId && event.turnId) {
             localOutboxJournal = localOutboxJournal.map((row) => (row.itemId === commandId ? { ...row, turnId: event.turnId } : row));
         }
@@ -150,7 +154,11 @@ export function createConversationController(threadId, transport) {
         // replace old overlays with native history as intended.
         const initialRealtimeBaseline = 0;
         initialReadPromise = (transport.attach
-            ? transport.attach(threadId).then(() => refresh(initialRealtimeBaseline))
+            ? transport.attach(threadId).then((attachment) => {
+                for (const event of attachment?.events ?? [])
+                    applyRealtimeEvent(event);
+                return refresh(initialRealtimeBaseline);
+            })
             : refresh(initialRealtimeBaseline))
             .catch((error) => {
             if (!state.history.error) {
@@ -187,7 +195,7 @@ export function createConversationController(threadId, transport) {
                     ...(input.images?.length ? { images: input.images } : {}),
                     ...(input.skills?.length ? { skills: input.skills } : {}),
                     optimistic: true,
-                    localOutbox: 'sending',
+                    localOutbox: 'queued',
                 },
             };
             localOutboxJournal = [...localOutboxJournal.filter((row) => row.itemId !== input.id), event];
@@ -207,6 +215,12 @@ export function createConversationController(threadId, transport) {
                 });
             }
             catch (error) {
+                // A proxy can lose the HTTP 202 after the owner has already emitted
+                // command.queued over realtime. That owner event is stronger evidence
+                // than the failed response path; preserve the admitted command and let
+                // its native events drive the lifecycle.
+                if (admittedCommandIds.has(input.id))
+                    return { clientCommandId: input.id };
                 this.failQueuedUserMessage(input.id, error instanceof Error ? error.message : String(error));
                 throw error;
             }

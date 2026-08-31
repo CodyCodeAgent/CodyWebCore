@@ -21,7 +21,8 @@ Framework-neutral Codex App Server primitives shared by CodyWebUI and CodyWork.
 
 | Core | Codex App Server boundary | Product migration |
 | --- | --- | --- |
-| 0.37.1 | Reattach-safe queue barriers, thread-scoped idempotency, first-terminal authority and background-tab-safe reconnect | Recommended corrective release for all 0.37 consumers |
+| 0.37.2 | Session-owned admission/attach recovery, pre-admission-only browser outbox and multi-tab idempotency | Recommended corrective release for all 0.37 consumers |
+| 0.37.1 | Reattach-safe queue barriers, thread-scoped idempotency, first-terminal authority and background-tab-safe reconnect | Superseded by 0.37.2 |
 | 0.37.0 | Single process owner, idempotent client commands, heartbeat-aware browser transport, Turn-contiguous feed and native-history authority | CodyWebUI and CodyWork use Core as their only conversation/Turn projection and do not restart App Server after runtime failure |
 | 0.35–0.36.x | Single-start App Server and Core-owned optimistic command lifecycle | Superseded by 0.37.0 because product transport and final feed authority were not yet fully unified |
 | 0.32.0 | Current generated schema; stable Thread/Turn/Goal/Skill authority, contract diagnostics and initialization-timeout recovery | Products receive field-specific protocol errors; a hung initialization is replaced by a fresh App Server process |

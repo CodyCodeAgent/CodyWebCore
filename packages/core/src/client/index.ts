@@ -11,10 +11,16 @@ export type ConversationSubscriptionEvent =
   | { type: 'connected'; atIso?: string }
   | { type: 'disconnected'; error?: string; atIso?: string; reconnectAttempt?: number; retryInMs?: number | null; closeCode?: number | null; closeReason?: string }
 
+export type ConversationAttachment = {
+  /** Current owner state that is not guaranteed to exist in native history
+   * yet (for example, a Turn that is still running). */
+  events: CodexEvent[]
+}
+
 export interface ConversationTransport {
   /** Registers the native thread with the process-wide owner. This is
    * idempotent and must never create a second App Server process. */
-  attach?(threadId: string): Promise<void>
+  attach?(threadId: string): Promise<ConversationAttachment | void>
   read(threadId: string): Promise<CodexEvent[]>
   subscribe(threadId: string, listener: (event: ConversationSubscriptionEvent) => void): () => void
   /** Accepts a command into the process-wide SessionManager. Native binding and
@@ -74,6 +80,7 @@ export function createConversationController(threadId: string, transport: Conver
   let realtimeEventRevision = 0
   let realtimeJournal: Array<{ revision: number; event: CodexEvent }> = []
   let localOutboxJournal: CodexEvent[] = []
+  const admittedCommandIds = new Set<string>()
   const listeners = new Set<(value: ConversationState) => void>()
   const MAX_REALTIME_JOURNAL_EVENTS = 10_000
 
@@ -94,6 +101,9 @@ export function createConversationController(threadId: string, transport: Conver
     const commandId = typeof event.data.clientCommandId === 'string'
       ? event.data.clientCommandId
       : event.itemId
+    if ((event.type === 'command.queued' || event.type === 'command.bound') && commandId) {
+      admittedCommandIds.add(commandId)
+    }
     if (event.type === 'command.bound' && commandId && event.turnId) {
       localOutboxJournal = localOutboxJournal.map((row) => (
         row.itemId === commandId ? { ...row, turnId: event.turnId } : row
@@ -212,7 +222,10 @@ export function createConversationController(threadId: string, transport: Conver
     // replace old overlays with native history as intended.
     const initialRealtimeBaseline = 0
     initialReadPromise = (transport.attach
-      ? transport.attach(threadId).then(() => refresh(initialRealtimeBaseline))
+      ? transport.attach(threadId).then((attachment) => {
+          for (const event of attachment?.events ?? []) applyRealtimeEvent(event)
+          return refresh(initialRealtimeBaseline)
+        })
       : refresh(initialRealtimeBaseline))
       .catch((error) => {
         if (!state.history.error) {
@@ -249,7 +262,7 @@ export function createConversationController(threadId: string, transport: Conver
           ...(input.images?.length ? { images: input.images } : {}),
           ...(input.skills?.length ? { skills: input.skills } : {}),
           optimistic: true,
-          localOutbox: 'sending',
+          localOutbox: 'queued',
         },
       }
       localOutboxJournal = [...localOutboxJournal.filter((row) => row.itemId !== input.id), event]
@@ -266,6 +279,11 @@ export function createConversationController(threadId: string, transport: Conver
           clientCommandId: input.id,
         })
       } catch (error) {
+        // A proxy can lose the HTTP 202 after the owner has already emitted
+        // command.queued over realtime. That owner event is stronger evidence
+        // than the failed response path; preserve the admitted command and let
+        // its native events drive the lifecycle.
+        if (admittedCommandIds.has(input.id)) return { clientCommandId: input.id }
         this.failQueuedUserMessage(input.id, error instanceof Error ? error.message : String(error))
         throw error
       }

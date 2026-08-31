@@ -261,6 +261,33 @@ describe('CodexSessionManager', () => {
     await manager.dispose()
   })
 
+  it('exposes the active owner Turn to a newly attached browser projection', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host })
+    await manager.create('conversation-1', context)
+    const submission = manager.submit(
+      'conversation-1',
+      { input: [{ type: 'text', text: 'long running task', text_elements: [] }] },
+      'queue',
+      'client-command-1',
+    )
+    const handle = await submission.started
+
+    expect(manager.listAttachmentEvents('conversation-1')).toEqual([
+      expect.objectContaining({ type: 'command.queued', itemId: 'client-command-1' }),
+      expect.objectContaining({ type: 'command.bound', itemId: 'client-command-1', turnId: handle.turnId }),
+      expect.objectContaining({
+        type: 'turn.started', threadId: 'thread-1', turnId: handle.turnId,
+        data: expect.objectContaining({ attachment: true }),
+      }),
+    ])
+
+    host.emit('turn/completed', { threadId: 'thread-1', turn: { id: handle.turnId, status: 'completed' } })
+    await submission.completed
+    expect(manager.listAttachmentEvents('conversation-1')).toEqual([])
+    await manager.dispose()
+  })
+
   it('treats repeated client command ids as one idempotent submission', async () => {
     const host = new FakeHost()
     const manager = new CodexSessionManager({ host })
@@ -465,6 +492,24 @@ describe('CodexSessionManager', () => {
     await manager.dispose()
   })
 
+  it('keeps ordinary turn warnings out of the upstream retry lifecycle', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host })
+    await manager.create('conversation-1', context)
+    const events: CodexEvent[] = []
+    manager.subscribe((event) => events.push(event))
+    const handle = await manager.send('conversation-1', { input: [{ type: 'text', text: 'hello', text_elements: [] }] })
+
+    host.emit('warning', { threadId: 'thread-1', turnId: handle.turnId, message: 'The requested model setting was adjusted.' })
+
+    expect(events.filter((event) => event.type === 'turn.retrying')).toEqual([])
+    expect(events).toContainEqual(expect.objectContaining({
+      type: 'provider.extension',
+      data: expect.objectContaining({ method: 'warning' }),
+    }))
+    await manager.dispose()
+  })
+
   it('waits for an authoritative terminal notification after a turn-scoped error', async () => {
     const host = new FakeHost()
     const manager = new CodexSessionManager({ host })
@@ -626,7 +671,9 @@ describe('CodexSessionManager', () => {
     ])
 
     await manager.respondApproval('conversation-1', '43', 'decline')
+    await manager.respondApproval('conversation-1', '43', 'decline')
     expect(manager.listPendingEvents('conversation-1')).toEqual([])
+    expect(host.replies.filter((reply) => reply.id === 43)).toHaveLength(1)
     await manager.dispose()
   })
 

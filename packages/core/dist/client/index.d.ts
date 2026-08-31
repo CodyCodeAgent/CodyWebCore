@@ -14,10 +14,15 @@ export type ConversationSubscriptionEvent = {
     closeCode?: number | null;
     closeReason?: string;
 };
+export type ConversationAttachment = {
+    /** Current owner state that is not guaranteed to exist in native history
+     * yet (for example, a Turn that is still running). */
+    events: CodexEvent[];
+};
 export interface ConversationTransport {
     /** Registers the native thread with the process-wide owner. This is
      * idempotent and must never create a second App Server process. */
-    attach?(threadId: string): Promise<void>;
+    attach?(threadId: string): Promise<ConversationAttachment | void>;
     read(threadId: string): Promise<CodexEvent[]>;
     subscribe(threadId: string, listener: (event: ConversationSubscriptionEvent) => void): () => void;
     /** Accepts a command into the process-wide SessionManager. Native binding and
