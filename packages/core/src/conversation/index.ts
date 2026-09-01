@@ -331,7 +331,6 @@ function failLatestTurnUserMessage(messages: ConversationMessage[], turnId: stri
   const next = [...messages]
   next[messageIndex] = {
     ...message,
-    messageType: 'userMessage.outbox.failed',
     outbox: { status: 'failed', lastError: error },
   }
   return next
@@ -377,6 +376,18 @@ function hasTerminalTurn(state: ConversationState, event: CodexEvent): boolean {
   const turnId = event.turnId || state.activeTurnId
   const lifecycle = turnId ? state.turns[turnId]?.lifecycle : undefined
   return lifecycle === 'completed' || lifecycle === 'failed' || lifecycle === 'interrupted'
+}
+
+function isTerminalCorrection(event: CodexEvent): boolean {
+  return event.data.terminalCorrection === true
+}
+
+function removeTurnTerminalPresentation(
+  presentation: ConversationPresentationRef[],
+  turnId: string,
+): ConversationPresentationRef[] {
+  return presentation.filter((row) => row.turnId !== turnId
+    || (row.kind !== 'worked' && row.kind !== 'failure' && row.kind !== 'interrupted'))
 }
 
 function endConversationPlan(plan: ConversationPlanState | null, turnId: string): ConversationPlanState | null {
@@ -512,9 +523,10 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
       } : null,
     }
   }
-  if (event.type === 'turn.started') return updateTurn(state, event, 'running')
-  if (event.type === 'turn.retrying') return updateTurn(state, event, 'retrying')
+  if (event.type === 'turn.started') return hasTerminalTurn(state, event) ? state : updateTurn(state, event, 'running')
+  if (event.type === 'turn.retrying') return hasTerminalTurn(state, event) ? state : updateTurn(state, event, 'retrying')
   if (event.type === 'turn.disconnected') {
+    if (hasTerminalTurn(state, event)) return state
     const updated = updateTurn(state, event, 'disconnected')
     const turnId = event.turnId || state.activeTurnId
     if (!turnId) return { ...updated, activity: null }
@@ -539,11 +551,18 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
     return { ...updated, messages: settleTurnOutboxMessages(updated.messages, turnId), timeline, presentation, pendingRequests: updated.pendingRequests.filter((request) => request.turnId !== turnId), reasoningText: '', activity: null, plan: endConversationPlan(updated.plan, turnId) }
   }
   if (event.type === 'turn.failed') {
-    if (hasTerminalTurn(state, event)) return state
+    if (hasTerminalTurn(state, event) && !isTerminalCorrection(event)) return state
     const turnId = event.turnId || state.activeTurnId
     const retainOutboxForRetry = event.data.retainOutboxForRetry === true
       || (turnId ? state.turns[turnId]?.lifecycle === 'disconnected' : false)
-    const updated = updateTurn(state, event, 'failed')
+    const correctionBase = turnId && isTerminalCorrection(event)
+      ? {
+          ...state,
+          turns: { ...state.turns, [turnId]: { ...state.turns[turnId], lifecycle: 'disconnected' as const } },
+          presentation: removeTurnTerminalPresentation(state.presentation, turnId),
+        }
+      : state
+    const updated = updateTurn(correctionBase, event, 'failed')
     return turnId
       ? { ...updated, messages: retainOutboxForRetry ? failLatestTurnUserMessage(updated.messages, turnId, eventText(event.data, 'Codex failed to complete this turn.')) : settleTurnOutboxMessages(updated.messages, turnId), timeline: terminalizeTurnTools(updated.timeline, turnId, 'failed'), presentation: appendPresentation(updated.presentation, { id: `failure:${turnId}`, kind: 'failure', turnId }), pendingRequests: updated.pendingRequests.filter((request) => request.turnId !== turnId), reasoningText: '', activity: null, plan: endConversationPlan(updated.plan, turnId) }
       : { ...updated, activity: null }
@@ -620,7 +639,7 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
     const messageId = `user:${commandId}`
     const error = eventText(event.data, 'Codex failed to start this command.')
     const messages = state.messages.map((message) => message.id === messageId
-      ? { ...message, messageType: 'userMessage.outbox.failed', outbox: { status: 'failed' as const, lastError: error } }
+      ? { ...message, outbox: { status: 'failed' as const, lastError: error } }
       : message)
     return messages.some((message, index) => message !== state.messages[index]) ? { ...state, messages } : state
   }
@@ -646,7 +665,7 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
       ...(images.length ? { images } : {}),
       ...(skills.length ? { skills } : {}),
       ...(optimistic ? { messageType: 'userMessage.optimistic', outbox: { status: localOutbox || 'sending' } } : {}),
-      ...(localOutbox === 'failed' ? { messageType: 'userMessage.outbox.failed', outbox: { status: 'failed' as const, ...(typeof event.data.error === 'string' ? { lastError: event.data.error } : {}) } } : {}),
+      ...(localOutbox === 'failed' ? { messageType: 'userMessage.optimistic', outbox: { status: 'failed' as const, ...(typeof event.data.error === 'string' ? { lastError: event.data.error } : {}) } } : {}),
     }
     // A refresh can already contain the durable user item while an in-memory
     // optimistic journal is replayed afterwards. Do not resurrect that row.

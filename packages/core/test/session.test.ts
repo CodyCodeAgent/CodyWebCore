@@ -292,6 +292,37 @@ describe('CodexSessionManager', () => {
     await manager.dispose()
   })
 
+  it('retains an operational terminal correction in every owner attachment snapshot', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host, turnStopReconcileDelayMs: 0 })
+    await manager.create('conversation-1', context)
+    const submission = manager.submit(
+      'conversation-1',
+      { input: [{ type: 'text', text: 'retryable task', text_elements: [] }] },
+      'queue',
+      'client-command-1',
+    )
+    const handle = await submission.started
+    for (let attempt = 1; attempt <= 5; attempt += 1) {
+      host.emit('error', {
+        threadId: 'thread-1', turnId: handle.turnId,
+        error: { message: `Reconnecting... ${String(attempt)}/5`, codexErrorInfo: { responseStreamDisconnected: {} } },
+        willRetry: true,
+      })
+    }
+    host.emit('turn/completed', { threadId: 'thread-1', turn: { id: handle.turnId, status: 'interrupted' } })
+    await expect(submission.completed).resolves.toMatchObject({ terminalEvent: { type: 'turn.failed' } })
+
+    const corrections = manager.listAttachmentEvents('conversation-1')
+      .filter(event => event.data.terminalCorrection === true)
+    expect(corrections).toEqual([expect.objectContaining({
+      type: 'turn.failed', turnId: handle.turnId,
+      data: expect.objectContaining({ retainOutboxForRetry: true, terminalCorrection: true }),
+    })])
+    expect(corrections[0]?.id).toContain('owner:terminal-correction')
+    await manager.dispose()
+  })
+
   it('replays one active command followed by queued commands in owner order to every tab', async () => {
     const host = new FakeHost()
     const manager = new CodexSessionManager({ host })
@@ -854,6 +885,37 @@ describe('CodexSessionManager', () => {
     host.emit('runtime/disconnected', { error: 'process exited' })
     await expect(manager.read('conversation-1')).rejects.toThrow('Restart the product service')
     expect(host.calls.map(call => call.method)).toEqual(['thread/start'])
+    await manager.dispose()
+  })
+
+  it('terminalizes an active command when the owner process disconnects without resending it', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host })
+    const events: CodexEvent[] = []
+    manager.subscribe(event => events.push(event))
+    await manager.create('conversation-1', context)
+    const submission = manager.submit(
+      'conversation-1',
+      { input: [{ type: 'text', text: 'one command only', text_elements: [] }] },
+      'queue',
+      'client-command-1',
+    )
+    const handle = await submission.started
+
+    host.emit('runtime/disconnected', { error: 'process exited' })
+
+    await expect(submission.completed).resolves.toMatchObject({
+      handle,
+      terminalEvent: {
+        type: 'turn.failed',
+        data: expect.objectContaining({ retainOutboxForRetry: true, cause: 'runtime_unavailable' }),
+      },
+    })
+    expect(events.filter(event => event.type === 'turn.failed')).toHaveLength(1)
+    expect(host.calls.filter(call => call.method === 'turn/start')).toHaveLength(1)
+    expect(manager.listAttachmentEvents('conversation-1')).toContainEqual(expect.objectContaining({
+      type: 'turn.failed', turnId: handle.turnId,
+    }))
     await manager.dispose()
   })
 

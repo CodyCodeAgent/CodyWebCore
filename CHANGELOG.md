@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.37.9
+
+- Keep owner terminal corrections in attachment snapshots so refresh and reconnect cannot turn an upstream failure back into a misleading interruption.
+- Separate native user-message identity from outbox delivery state; an explicit same-text retry remains a distinct command and Turn.
+- Make Turn lifecycle projection monotonic and ignore late retry/disconnect events after a terminal outcome.
+- Reconcile local optimistic commands before native history during refresh, preventing owner state from regressing to a stale queued row.
+- Convert an App Server process exit with an active Turn into one retryable terminal failure without restarting the App Server or resending the command.
+
 ## 0.37.8
 
 - Derive retryable failed user messages from the native Turn after optimistic reconciliation, including after a page refresh.

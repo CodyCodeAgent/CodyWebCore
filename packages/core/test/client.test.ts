@@ -382,7 +382,7 @@ describe('ConversationController', () => {
     controller.failQueuedUserMessage('local-1', 'request timed out')
 
     expect(controller.getState().messages).toMatchObject([
-      { id: 'user:local-1', messageType: 'userMessage.outbox.failed', outbox: { status: 'failed', lastError: 'request timed out' } },
+      { id: 'user:local-1', messageType: 'userMessage.optimistic', outbox: { status: 'failed', lastError: 'request timed out' } },
     ])
   })
 })

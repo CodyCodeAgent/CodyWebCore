@@ -36,8 +36,16 @@ function userIdentity(message) {
     return `${normalizeMessageText(message.text)}\u0000${imageIdentity(message)}\u0000${skillIdentity(message)}`;
 }
 function isLocalPendingUserMessage(message) {
+    // Delivery state is not message identity. A native user item can carry a
+    // failed outbox marker after its Turn terminates, but it must remain a
+    // durable message so a later explicit retry with identical text becomes a
+    // distinct Turn instead of replacing the failed attempt.
     return message.role === 'user' && (message.messageType === 'userMessage.optimistic'
-        || message.messageType?.startsWith('userMessage.outbox.') === true);
+        // Compatibility for pre-provenance callers. Failed is deliberately not
+        // included: after native admission it is a delivery state, not a local
+        // message identity.
+        || message.messageType === 'userMessage.outbox.queued'
+        || message.messageType === 'userMessage.outbox.sending');
 }
 function isPersistedUserMessage(message) {
     return message.role === 'user' && !isLocalPendingUserMessage(message);
@@ -164,18 +172,21 @@ export function removeDuplicateAdjacentUserMessages(messages) {
     for (const message of messages) {
         const previous = next.at(-1);
         const equivalent = previous ? areUserMessagesEquivalent(previous, message) : false;
-        const distinctNativeTurns = previous
-            && isPersistedUserMessage(previous)
-            && isPersistedUserMessage(message)
-            && previous.turnId
-            && message.turnId
-            && previous.turnId !== message.turnId;
-        if (!previous || !equivalent || distinctNativeTurns) {
+        if (!previous || !equivalent) {
             next.push(message);
             continue;
         }
-        if (isLocalPendingUserMessage(previous) && !isLocalPendingUserMessage(message))
+        const previousPending = isLocalPendingUserMessage(previous);
+        const incomingPending = isLocalPendingUserMessage(message);
+        const sameTurn = Boolean(previous.turnId && message.turnId && previous.turnId === message.turnId);
+        // Only collapse the optimistic -> native transition. Two native items, two
+        // local commands, or a native failed attempt followed by a new optimistic
+        // retry are different user actions even when their text is identical.
+        if (previousPending && !incomingPending && (!previous.turnId || sameTurn)) {
             next[next.length - 1] = message;
+            continue;
+        }
+        next.push(message);
     }
     return next.length === messages.length && next.every((message, index) => message === messages[index]) ? messages : next;
 }
@@ -319,13 +330,23 @@ export function compactConversationMessages(messages) {
     const persistedUsers = messages.filter(isPersistedUserMessage);
     const consumed = new Set();
     const next = [];
-    for (const message of removeDuplicateAdjacentUserMessages(removeDuplicateMessageIds(messages))) {
+    const deduped = removeDuplicateAdjacentUserMessages(removeDuplicateMessageIds(messages));
+    for (let index = 0; index < deduped.length; index += 1) {
+        const message = deduped[index];
         if (!isLocalPendingUserMessage(message)) {
             if (!consumed.has(message.id))
                 next.push(message);
             continue;
         }
-        const replacement = persistedUsers.find((candidate) => !consumed.has(candidate.id) && areUserMessagesEquivalent(message, candidate));
+        const replacement = persistedUsers.find((candidate) => {
+            if (consumed.has(candidate.id) || !areUserMessagesEquivalent(message, candidate))
+                return false;
+            if (message.turnId && candidate.turnId)
+                return message.turnId === candidate.turnId;
+            // An unbound optimistic row may reconcile only with a later native row.
+            // Matching an earlier failed attempt would erase an explicit retry.
+            return !message.turnId && deduped.indexOf(candidate) > index;
+        });
         if (!replacement) {
             next.push(message);
             continue;

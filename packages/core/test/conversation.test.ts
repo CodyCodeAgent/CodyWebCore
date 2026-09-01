@@ -372,10 +372,46 @@ describe('conversation core', () => {
     expect(state.activeTurnId).toBe('')
     expect(state.turns['turn-1']).toMatchObject({ lifecycle: 'failed', error: 'response stream timed out' })
     expect(state.messages).toMatchObject([{
-      id: 'user:native-user-1', turnId: 'turn-1', messageType: 'userMessage.outbox.failed',
+      id: 'user:native-user-1', turnId: 'turn-1',
       outbox: { status: 'failed', lastError: 'response stream timed out' },
     }])
     expect(state.presentation.filter((row) => row.kind === 'failure')).toHaveLength(1)
+  })
+
+  it('allows an owner terminal correction to replace native interrupted history exactly once', () => {
+    const base = { threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:00.000Z' }
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { ...base, id: 'start', type: 'turn.started', data: {} },
+      { ...base, id: 'user', type: 'user.completed', itemId: 'user-1', data: { text: 'run it' } },
+      { ...base, id: 'history:terminal', type: 'turn.interrupted', data: {} },
+      { ...base, id: 'owner:correction', type: 'turn.failed', data: { error: 'stream failed', retainOutboxForRetry: true, terminalCorrection: true } },
+      { ...base, id: 'late-retry', type: 'turn.retrying', data: { error: 'late event' } },
+    ])
+
+    expect(state.turns['turn-1']).toMatchObject({ lifecycle: 'failed', error: 'stream failed' })
+    expect(state.messages[0]).toMatchObject({ outbox: { status: 'failed' } })
+    expect(state.presentation.filter(row => row.turnId === 'turn-1' && ['worked', 'failure', 'interrupted'].includes(row.kind)))
+      .toEqual([expect.objectContaining({ kind: 'failure' })])
+  })
+
+  it('keeps an explicit same-text retry as a distinct user message and Turn', () => {
+    const base = { threadId: 'thread-1', atIso: '2026-01-01T00:00:00.000Z' }
+    const firstAttempt = reduceConversationEvents(createConversationState('thread-1'), [
+      { ...base, id: 'turn-1-start', type: 'turn.started', turnId: 'turn-1', data: {} },
+      { ...base, id: 'user-1', type: 'user.completed', turnId: 'turn-1', itemId: 'native-user-1', data: { text: 'retry me' } },
+      { ...base, id: 'turn-1-failed', type: 'turn.failed', turnId: 'turn-1', data: { error: 'timed out', retainOutboxForRetry: true } },
+    ])
+    const retried = reduceConversationEvents(firstAttempt, [
+      { ...base, id: 'command-2', type: 'command.queued', itemId: 'command-2', data: { text: 'retry me' } },
+      { ...base, id: 'command-2-bound', type: 'command.bound', itemId: 'command-2', turnId: 'turn-2', data: { clientCommandId: 'command-2' } },
+      { ...base, id: 'turn-2-start', type: 'turn.started', turnId: 'turn-2', data: {} },
+      { ...base, id: 'user-2', type: 'user.completed', turnId: 'turn-2', itemId: 'native-user-2', data: { text: 'retry me' } },
+    ])
+
+    expect(retried.messages.filter(message => message.role === 'user')).toMatchObject([
+      { id: 'user:native-user-1', turnId: 'turn-1', outbox: { status: 'failed' } },
+      { id: 'user:native-user-2', turnId: 'turn-2' },
+    ])
   })
 
   it('does not offer retry while an upstream response stream is still recovering', () => {

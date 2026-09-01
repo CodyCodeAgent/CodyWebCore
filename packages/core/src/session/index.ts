@@ -232,6 +232,13 @@ export class CodexSessionManager {
         data: { status: 'running', attachment: true },
       })
     }
+    // Native history can only report the safety interrupt used to stop an
+    // unrecoverable response stream. The process owner knows that the actual
+    // outcome is a retryable operational failure, so that correction remains
+    // part of every attachment snapshot for the lifetime of this owner.
+    for (const event of this.terminalEvents.values()) {
+      if (event.threadId === session.binding.threadId && event.data.terminalCorrection === true) events.push(event)
+    }
     events.push(...this.listPendingEvents(bindingId))
     return events
   }
@@ -590,9 +597,12 @@ export class CodexSessionManager {
     const normalizedInput = input.type === 'turn.interrupted' && operationalFailure
       ? {
           ...input,
+          id: this.eventId('owner:terminal-correction', input.threadId, input.turnId, input.itemId),
           type: 'turn.failed' as const,
           data: {
             ...input.data,
+            nativeEventId: input.id ?? '',
+            terminalCorrection: true,
             error: textFromError(operationalFailure.data.error)
               || textFromError(input.data.error)
               || 'Codex upstream response stream failed.',
@@ -630,6 +640,10 @@ export class CodexSessionManager {
     const key = this.turnKey(event.threadId, event.turnId)
     if (this.terminalEvents.has(key)) return
     this.terminalEvents.set(key, event)
+    if (this.terminalEvents.size > 10_000) {
+      const oldestKey = this.terminalEvents.keys().next().value as string | undefined
+      if (oldestKey) this.terminalEvents.delete(oldestKey)
+    }
     this.operationalFailures.delete(key)
     this.upstreamRetries.delete(key)
     const bindingId = this.sessionIdByThreadId.get(event.threadId)
@@ -821,14 +835,27 @@ export class CodexSessionManager {
       this.pendingRequests.clear()
       const error = textFromError(asRecord(notification.params)?.error ?? notification.params) || 'Codex App Server disconnected.'
       for (const session of this.sessions.values()) {
+        const activeTurnId = session.activeTurnId
         const [event] = normalizeCodexNotification(notification, {
           fallbackThreadId: session.binding.threadId,
-          fallbackTurnId: session.activeTurnId,
+          fallbackTurnId: activeTurnId,
           eventId: ({ method, suffix, threadId, turnId, itemId }) => this.eventId(`${method}:${suffix}`, threadId, turnId, itemId),
         })
         if (event) this.emit(event)
-        if (session.activeTurnId) {
-          const key = this.turnKey(session.binding.threadId, session.activeTurnId)
+        if (activeTurnId) {
+          this.emit({
+            id: this.eventId('owner:runtime-terminal', session.binding.threadId, activeTurnId),
+            type: 'turn.failed',
+            threadId: session.binding.threadId,
+            turnId: activeTurnId,
+            data: {
+              error,
+              cause: 'runtime_unavailable',
+              retainOutboxForRetry: true,
+              terminalCorrection: true,
+            },
+          })
+          const key = this.turnKey(session.binding.threadId, activeTurnId)
           this.clearTurnWatchdog(key)
           this.upstreamRetries.delete(key)
           for (const waiter of this.waiters.get(key) ?? []) waiter.reject(new Error(error))

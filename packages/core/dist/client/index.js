@@ -77,10 +77,14 @@ export function createConversationController(threadId, transport) {
             // Native history is authoritative, but events arriving after this read
             // started may not have reached its snapshot yet. Replay only that suffix;
             // older live overlays are intentionally replaced by native history.
-            const snapshot = reduceConversationEvents(reduceConversationEvents(reduceConversationEvents(createConversationState(threadId), events), attachment?.events ?? []), realtimeJournal
+            // Project the local command first. Native history can then reconcile its
+            // user item in place. Replaying the local row after history makes the
+            // same accepted command look like a second, newer user message and also
+            // forces unsafe text-only deduplication across retry attempts.
+            const snapshot = reduceConversationEvents(reduceConversationEvents(reduceConversationEvents(reduceConversationEvents(createConversationState(threadId), localOutboxJournal), events), attachment?.events ?? []), realtimeJournal
                 .filter((entry) => entry.revision > realtimeRevisionAtStart)
                 .map((entry) => entry.event));
-            const reconciled = reduceConversationEvents(snapshot, localOutboxJournal);
+            const reconciled = snapshot;
             pruneSettledOutbox(reconciled);
             // A native snapshot can still contain the last in-flight approval after
             // the transport has disconnected. Connection state is newer authority
