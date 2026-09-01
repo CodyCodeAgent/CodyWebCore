@@ -121,7 +121,10 @@ export function conversationEntriesFromState(state: ConversationState): CodyConv
     else if (item.kind === 'plan') entries.push({ id: item.id, kind: 'plan', text: item.plan.text })
     else if (item.kind === 'request') entries.push({ id: item.id, kind: 'request', request: item.request })
     else if (item.kind === 'turn' && item.status === 'failed') entries.push({ id: item.id, kind: 'failure', text: item.error })
-    else if (item.kind === 'turn' && item.status === 'interrupted') entries.push({ id: item.id, kind: 'interrupted', text: '本次回复已停止' })
+    // A Turn's interrupted lifecycle is state, not a chat message. Rendering
+    // it as a transcript row made owner safety interrupts (for an upstream
+    // failure) look like duplicated user-visible "Stopped" replies.
+    else if (item.kind === 'turn' && item.status === 'interrupted') continue
     else if (item.kind === 'turn' && item.status === 'completed') entries.push({ id: item.id, kind: 'worked', label: `Worked for ${formatTurnDuration(item.durationMs ?? 0)}` })
     else if (item.kind === 'activity') {
       entries.push({

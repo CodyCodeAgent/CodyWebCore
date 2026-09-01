@@ -127,6 +127,9 @@ export declare class CodexSessionManager {
     subscribe(listener: (event: CodexEvent) => void): () => void;
     /** Returns stable live events for unresolved approvals/questions after a product view reconnects. */
     listPendingEvents(bindingId: string): CodexEvent[];
+    /** A product may expose a pending-request badge, but Core remains the
+     * authority for whether that request can still be resolved. */
+    isServerRequestPending(requestId: string): boolean;
     /** Returns the volatile owner state needed to attach a browser projection.
      * Native thread/read can lag an active Turn, so attach must explicitly
      * publish that Turn instead of making the browser infer activity. */
@@ -176,6 +179,13 @@ export declare class CodexSessionManager {
     waitForTurn(handle: TurnHandle): Promise<CodexEvent>;
     respondApproval(bindingId: string, requestId: string, decision: 'accept' | 'acceptForSession' | 'decline' | 'cancel'): Promise<void>;
     respondQuestion(bindingId: string, requestId: string, answer: unknown): Promise<void>;
+    /**
+     * Resolves a pending server request through the same manager that registered
+     * it.  Product adapters may decide *what* a user chose (including their own
+     * audit/grant scope), but they must not call AppServerHost directly: doing so
+     * races the manager's pending-request and terminal cleanup state.
+     */
+    respondServerRequest(requestId: string, reply: ServerRequestReply): Promise<void>;
     dispose(): Promise<void>;
     private attachLocal;
     private requireUsable;

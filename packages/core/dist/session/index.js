@@ -62,6 +62,11 @@ export class CodexSessionManager {
             .filter((pending) => pending.bindingId === bindingId && pending.event)
             .map((pending) => pending.event);
     }
+    /** A product may expose a pending-request badge, but Core remains the
+     * authority for whether that request can still be resolved. */
+    isServerRequestPending(requestId) {
+        return this.pendingRequests.has(requestId);
+    }
     /** Returns the volatile owner state needed to attach a browser projection.
      * Native thread/read can lag an active Turn, so attach must explicitly
      * publish that Turn instead of making the browser infer activity. */
@@ -461,6 +466,32 @@ export class CodexSessionManager {
             await this.options.host.resolveServerRequest(pending.request.id, { result: { answers } });
             this.pendingRequests.delete(requestId);
             this.emit({ type: 'question.resolved', threadId: this.require(bindingId).binding.threadId, data: { requestId } });
+        });
+    }
+    /**
+     * Resolves a pending server request through the same manager that registered
+     * it.  Product adapters may decide *what* a user chose (including their own
+     * audit/grant scope), but they must not call AppServerHost directly: doing so
+     * races the manager's pending-request and terminal cleanup state.
+     */
+    async respondServerRequest(requestId, reply) {
+        const pending = this.pendingRequests.get(requestId);
+        if (!pending)
+            throw new Error(`No pending server request ${requestId}`);
+        const request = pending.request;
+        await this.options.host.resolveServerRequest(request.id, reply);
+        this.pendingRequests.delete(requestId);
+        const session = this.require(pending.bindingId);
+        const operation = {
+            requestId,
+            approvalId: requestId,
+            method: request.method,
+            ...(reply.error ? { decision: 'decline' } : {}),
+        };
+        this.emit({
+            type: pending.kind === 'approval' ? 'approval.resolved' : 'question.resolved',
+            threadId: session.binding.threadId,
+            data: operation,
         });
     }
     async dispose() {

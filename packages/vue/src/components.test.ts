@@ -178,7 +178,7 @@ describe('shared conversation components', () => {
     expect(wrapper.text()).toContain('正在恢复本次回复')
   })
 
-  it('renders an interrupted turn as a neutral receipt instead of a failure', () => {
+  it('keeps an interrupted turn out of the transcript', () => {
     const state = reduceConversationEvents(createConversationState('thread-1'), [
       { id: 'start', type: 'turn.started', threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-08-29T00:00:00.000Z', data: {} },
       { id: 'user', type: 'user.completed', threadId: 'thread-1', turnId: 'turn-1', itemId: 'user-1', atIso: '2026-08-29T00:00:00.100Z', data: { text: 'Continue' } },
@@ -186,7 +186,7 @@ describe('shared conversation components', () => {
     ])
     const wrapper = mount(CodyConversation, { props: { entries: conversationEntriesFromState(state) } })
 
-    expect(wrapper.find('.cody-interrupted-card').text()).toBe('本次回复已停止')
+    expect(wrapper.find('.cody-interrupted-card').exists()).toBe(false)
     expect(wrapper.find('.cody-failure-card').exists()).toBe(false)
   })
 

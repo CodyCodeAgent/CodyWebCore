@@ -917,6 +917,21 @@ describe('CodexSessionManager', () => {
     await manager.dispose()
   })
 
+  it('routes generic product replies through the Core pending-request owner', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host })
+    await manager.create('conversation-1', context)
+    host.emit('server/request', { id: 431, method: 'item/commandExecution/requestApproval', params: { threadId: 'thread-1', turnId: 'turn-1', itemId: 'item-1', command: 'pnpm test' }, receivedAtIso: '2026-01-01T00:00:00.000Z' })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(manager.isServerRequestPending('431')).toBe(true)
+    await manager.respondServerRequest('431', { result: { decision: 'acceptForSession' } })
+
+    expect(manager.isServerRequestPending('431')).toBe(false)
+    expect(host.replies).toContainEqual({ id: 431, reply: { result: { decision: 'acceptForSession' } } })
+    await manager.dispose()
+  })
+
   it('forgets unresolved requests when their turn terminates', async () => {
     const host = new FakeHost()
     const manager = new CodexSessionManager({ host })

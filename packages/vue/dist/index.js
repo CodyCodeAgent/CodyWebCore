@@ -353,13 +353,21 @@ function to(t) {
     };
   };
   for (const e of Be(t))
-    e.kind === "message" ? l.push({ id: e.id, kind: "message", message: e.message }) : e.kind === "timeline" ? r(e.entry) : e.kind === "plan" ? l.push({ id: e.id, kind: "plan", text: e.plan.text }) : e.kind === "request" ? l.push({ id: e.id, kind: "request", request: e.request }) : e.kind === "turn" && e.status === "failed" ? l.push({ id: e.id, kind: "failure", text: e.error }) : e.kind === "turn" && e.status === "interrupted" ? l.push({ id: e.id, kind: "interrupted", text: "本次回复已停止" }) : e.kind === "turn" && e.status === "completed" ? l.push({ id: e.id, kind: "worked", label: `Worked for ${Ie(e.durationMs ?? 0)}` }) : e.kind === "activity" && l.push({
-      id: e.id,
-      kind: "activity",
-      title: e.status === "waiting" ? ((c = t.pendingRequests.find((p) => !p.turnId || p.turnId === e.turnId)) == null ? void 0 : c.kind) === "approval" ? "等待你的审批" : "等待你的回答" : e.label,
-      detail: e.status === "waiting" ? "处理后 Codex 会继续本次回复" : e.status === "retrying" ? t.connection.status === "disconnected" ? "连接已中断，等待恢复" : "正在恢复本次回复" : t.connection.status === "connected" ? "实时更新中" : "等待恢复连接",
-      tone: e.status
-    });
+    if (e.kind === "message") l.push({ id: e.id, kind: "message", message: e.message });
+    else if (e.kind === "timeline") r(e.entry);
+    else if (e.kind === "plan") l.push({ id: e.id, kind: "plan", text: e.plan.text });
+    else if (e.kind === "request") l.push({ id: e.id, kind: "request", request: e.request });
+    else if (e.kind === "turn" && e.status === "failed") l.push({ id: e.id, kind: "failure", text: e.error });
+    else {
+      if (e.kind === "turn" && e.status === "interrupted") continue;
+      e.kind === "turn" && e.status === "completed" ? l.push({ id: e.id, kind: "worked", label: `Worked for ${Ie(e.durationMs ?? 0)}` }) : e.kind === "activity" && l.push({
+        id: e.id,
+        kind: "activity",
+        title: e.status === "waiting" ? ((c = t.pendingRequests.find((p) => !p.turnId || p.turnId === e.turnId)) == null ? void 0 : c.kind) === "approval" ? "等待你的审批" : "等待你的回答" : e.label,
+        detail: e.status === "waiting" ? "处理后 Codex 会继续本次回复" : e.status === "retrying" ? t.connection.status === "disconnected" ? "连接已中断，等待恢复" : "正在恢复本次回复" : t.connection.status === "connected" ? "实时更新中" : "等待恢复连接",
+        tone: e.status
+      });
+    }
   return l;
 }
 const He = ["data-kind"], Ke = { class: "cody-request-heading" }, We = { key: 0 }, Ge = {
