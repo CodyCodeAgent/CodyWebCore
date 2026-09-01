@@ -1,4 +1,4 @@
-import type { AppServerHost, ServerRequestReply } from '../runtime/index.js';
+import type { AppServerHost, ServerRequest, ServerRequestReply } from '../runtime/index.js';
 import type { ConfigReadResponse } from '../protocol/generated/v2/ConfigReadResponse.js';
 import type { GetAccountRateLimitsResponse } from '../protocol/generated/v2/GetAccountRateLimitsResponse.js';
 import type { McpServerRefreshResponse } from '../protocol/generated/v2/McpServerRefreshResponse.js';
@@ -74,8 +74,22 @@ export type PolicyDecision = {
     reply?: ServerRequestReply;
     reason: string;
 };
+/** A reply that has been accepted by the one Core request broker. Product
+ * adapters may audit or persist a scoped grant from this record, but must not
+ * issue a second App Server reply. */
+export type ServerRequestResolution = {
+    operation: ProtectedOperation;
+    binding: ThreadBinding;
+    context: ExecutionContext;
+    request: ServerRequest;
+    kind: 'approval' | 'question';
+    reply: ServerRequestReply;
+    automatic: boolean;
+    policyDecision?: PolicyDecision;
+};
 export interface ExecutionPolicyProvider {
     evaluate(operation: ProtectedOperation, binding: ThreadBinding, context: ExecutionContext): Promise<PolicyDecision> | PolicyDecision;
+    onResolved?(resolution: ServerRequestResolution): Promise<void> | void;
 }
 export type CodexSessionDiagnostic = {
     level: 'info' | 'warning' | 'error';
@@ -210,5 +224,6 @@ export declare class CodexSessionManager {
     private turnKey;
     private handleNotification;
     private handleServerRequest;
+    private notifyServerRequestResolved;
 }
 //# sourceMappingURL=index.d.ts.map

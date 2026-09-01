@@ -108,8 +108,23 @@ export type PolicyDecision =
   | { action: 'allow'; reply?: ServerRequestReply; reason?: string }
   | { action: 'deny'; reply?: ServerRequestReply; reason: string }
 
+/** A reply that has been accepted by the one Core request broker. Product
+ * adapters may audit or persist a scoped grant from this record, but must not
+ * issue a second App Server reply. */
+export type ServerRequestResolution = {
+  operation: ProtectedOperation
+  binding: ThreadBinding
+  context: ExecutionContext
+  request: ServerRequest
+  kind: 'approval' | 'question'
+  reply: ServerRequestReply
+  automatic: boolean
+  policyDecision?: PolicyDecision
+}
+
 export interface ExecutionPolicyProvider {
   evaluate(operation: ProtectedOperation, binding: ThreadBinding, context: ExecutionContext): Promise<PolicyDecision> | PolicyDecision
+  onResolved?(resolution: ServerRequestResolution): Promise<void> | void
 }
 
 export type CodexSessionDiagnostic = {
@@ -170,6 +185,14 @@ type SubmissionRecord = {
   turnId?: string
 }
 
+type PendingServerRequest = {
+  request: ServerRequest
+  bindingId: string
+  kind: 'approval' | 'question'
+  operation: ProtectedOperation
+  event?: CodexEvent
+}
+
 const DEFAULT_TURN_INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000
 const DEFAULT_MAX_UPSTREAM_RETRY_ATTEMPTS = 5
 const DEFAULT_TURN_STOP_RECONCILE_ATTEMPTS = 5
@@ -195,7 +218,7 @@ export class CodexSessionManager {
   private readonly turnEvents = new Map<string, CodexEvent[]>()
   private readonly operationalFailures = new Map<string, CodexEvent>()
   private readonly submissions = new Map<string, SubmissionRecord>()
-  private readonly pendingRequests = new Map<string, { request: ServerRequest; bindingId: string; kind: 'approval' | 'question'; event?: CodexEvent }>()
+  private readonly pendingRequests = new Map<string, PendingServerRequest>()
   private readonly requestResolutions = new Map<string, Promise<void>>()
   private readonly resolvedRequests = new Set<string>()
   private readonly commands: CodexThreadCommands
@@ -624,8 +647,10 @@ export class CodexSessionManager {
 
   async respondApproval(bindingId: string, requestId: string, decision: 'accept' | 'acceptForSession' | 'decline' | 'cancel'): Promise<void> {
     await this.resolveRequestOnce(bindingId, requestId, 'approval', async (pending) => {
-      await this.options.host.resolveServerRequest(pending.request.id, { result: { decision } })
+      const reply = { result: { decision } }
+      await this.options.host.resolveServerRequest(pending.request.id, reply)
       this.pendingRequests.delete(requestId)
+      await this.notifyServerRequestResolved(pending, reply, false)
       this.emit({ type: 'approval.resolved', threadId: this.require(bindingId).binding.threadId, data: { requestId, decision } })
     })
   }
@@ -646,8 +671,10 @@ export class CodexSessionManager {
         }))
         if (Object.keys(answers).length === 0) answers = { answer: { answers: [text] } }
       }
-      await this.options.host.resolveServerRequest(pending.request.id, { result: { answers } })
+      const reply = { result: { answers } }
+      await this.options.host.resolveServerRequest(pending.request.id, reply)
       this.pendingRequests.delete(requestId)
+      await this.notifyServerRequestResolved(pending, reply, false)
       this.emit({ type: 'question.resolved', threadId: this.require(bindingId).binding.threadId, data: { requestId } })
     })
   }
@@ -664,6 +691,7 @@ export class CodexSessionManager {
     const request = pending.request
     await this.options.host.resolveServerRequest(request.id, reply)
     this.pendingRequests.delete(requestId)
+    await this.notifyServerRequestResolved(pending, reply, false)
     const session = this.require(pending.bindingId)
     const operation = {
       requestId,
@@ -760,7 +788,7 @@ export class CodexSessionManager {
     bindingId: string,
     requestId: string,
     kind: 'approval' | 'question',
-    resolve: (pending: { request: ServerRequest; bindingId: string; kind: 'approval' | 'question'; event?: CodexEvent }) => Promise<void>,
+    resolve: (pending: PendingServerRequest) => Promise<void>,
   ): Promise<void> {
     const key = `${bindingId}\u0000${kind}\u0000${requestId}`
     if (this.resolvedRequests.has(key)) return
@@ -1144,19 +1172,23 @@ export class CodexSessionManager {
     // Register before asynchronous policy evaluation. Expiry, terminal cleanup,
     // runtime disconnect, or dispose can now invalidate this exact entry and
     // prevent a late policy result from creating a ghost approval.
-    const pending = { request, bindingId, kind } as { request: ServerRequest; bindingId: string; kind: 'approval' | 'question'; event?: CodexEvent }
+    const pending: PendingServerRequest = { request, bindingId, kind, operation }
     this.pendingRequests.set(requestId, pending)
     const decision = await this.options.policy?.evaluate(operation, session.binding, session.context) ?? { action: 'ask' as const }
     if (this.pendingRequests.get(requestId) !== pending) return
     if (decision.action === 'allow') {
-      await this.options.host.resolveServerRequest(request.id, decision.reply ?? { result: { decision: 'accept' } })
+      const reply = decision.reply ?? { result: { decision: 'accept' } }
+      await this.options.host.resolveServerRequest(request.id, reply)
       this.pendingRequests.delete(requestId)
+      await this.notifyServerRequestResolved(pending, reply, true, decision)
       this.emit({ type: 'approval.resolved', threadId, turnId: operation.turnId, itemId: operation.itemId, data: { requestId: String(request.id), decision: 'accept', automatic: true, reason: decision.reason } })
       return
     }
     if (decision.action === 'deny') {
-      await this.options.host.resolveServerRequest(request.id, decision.reply ?? { error: { code: -32000, message: decision.reason } })
+      const reply = decision.reply ?? { error: { code: -32000, message: decision.reason } }
+      await this.options.host.resolveServerRequest(request.id, reply)
       this.pendingRequests.delete(requestId)
+      await this.notifyServerRequestResolved(pending, reply, true, decision)
       this.emit({ type: 'approval.resolved', threadId, turnId: operation.turnId, itemId: operation.itemId, data: { requestId: String(request.id), decision: 'decline', automatic: true, reason: decision.reason } })
       return
     }
@@ -1166,6 +1198,30 @@ export class CodexSessionManager {
       data: { requestId, approvalId: requestId, method: request.method, params },
     })
     if (this.pendingRequests.get(requestId) === pending) pending.event = event
+  }
+
+  private async notifyServerRequestResolved(
+    pending: PendingServerRequest,
+    reply: ServerRequestReply,
+    automatic: boolean,
+    policyDecision?: PolicyDecision,
+  ): Promise<void> {
+    const session = this.sessions.get(pending.bindingId)
+    if (!session || !this.options.policy?.onResolved) return
+    try {
+      await this.options.policy.onResolved({
+        operation: pending.operation,
+        binding: session.binding,
+        context: session.context,
+        request: pending.request,
+        kind: pending.kind,
+        reply,
+        automatic,
+        policyDecision,
+      })
+    } catch (error) {
+      this.options.onDiagnostic?.({ level: 'warning', message: `Server-request resolution audit failed: ${textFromError(error)}`, method: pending.request.method, params: pending.request.params })
+    }
   }
 }
 

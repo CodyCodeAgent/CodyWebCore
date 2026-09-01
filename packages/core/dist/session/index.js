@@ -440,8 +440,10 @@ export class CodexSessionManager {
     }
     async respondApproval(bindingId, requestId, decision) {
         await this.resolveRequestOnce(bindingId, requestId, 'approval', async (pending) => {
-            await this.options.host.resolveServerRequest(pending.request.id, { result: { decision } });
+            const reply = { result: { decision } };
+            await this.options.host.resolveServerRequest(pending.request.id, reply);
             this.pendingRequests.delete(requestId);
+            await this.notifyServerRequestResolved(pending, reply, false);
             this.emit({ type: 'approval.resolved', threadId: this.require(bindingId).binding.threadId, data: { requestId, decision } });
         });
     }
@@ -463,8 +465,10 @@ export class CodexSessionManager {
                 if (Object.keys(answers).length === 0)
                     answers = { answer: { answers: [text] } };
             }
-            await this.options.host.resolveServerRequest(pending.request.id, { result: { answers } });
+            const reply = { result: { answers } };
+            await this.options.host.resolveServerRequest(pending.request.id, reply);
             this.pendingRequests.delete(requestId);
+            await this.notifyServerRequestResolved(pending, reply, false);
             this.emit({ type: 'question.resolved', threadId: this.require(bindingId).binding.threadId, data: { requestId } });
         });
     }
@@ -481,6 +485,7 @@ export class CodexSessionManager {
         const request = pending.request;
         await this.options.host.resolveServerRequest(request.id, reply);
         this.pendingRequests.delete(requestId);
+        await this.notifyServerRequestResolved(pending, reply, false);
         const session = this.require(pending.bindingId);
         const operation = {
             requestId,
@@ -990,20 +995,24 @@ export class CodexSessionManager {
         // Register before asynchronous policy evaluation. Expiry, terminal cleanup,
         // runtime disconnect, or dispose can now invalidate this exact entry and
         // prevent a late policy result from creating a ghost approval.
-        const pending = { request, bindingId, kind };
+        const pending = { request, bindingId, kind, operation };
         this.pendingRequests.set(requestId, pending);
         const decision = await this.options.policy?.evaluate(operation, session.binding, session.context) ?? { action: 'ask' };
         if (this.pendingRequests.get(requestId) !== pending)
             return;
         if (decision.action === 'allow') {
-            await this.options.host.resolveServerRequest(request.id, decision.reply ?? { result: { decision: 'accept' } });
+            const reply = decision.reply ?? { result: { decision: 'accept' } };
+            await this.options.host.resolveServerRequest(request.id, reply);
             this.pendingRequests.delete(requestId);
+            await this.notifyServerRequestResolved(pending, reply, true, decision);
             this.emit({ type: 'approval.resolved', threadId, turnId: operation.turnId, itemId: operation.itemId, data: { requestId: String(request.id), decision: 'accept', automatic: true, reason: decision.reason } });
             return;
         }
         if (decision.action === 'deny') {
-            await this.options.host.resolveServerRequest(request.id, decision.reply ?? { error: { code: -32000, message: decision.reason } });
+            const reply = decision.reply ?? { error: { code: -32000, message: decision.reason } };
+            await this.options.host.resolveServerRequest(request.id, reply);
             this.pendingRequests.delete(requestId);
+            await this.notifyServerRequestResolved(pending, reply, true, decision);
             this.emit({ type: 'approval.resolved', threadId, turnId: operation.turnId, itemId: operation.itemId, data: { requestId: String(request.id), decision: 'decline', automatic: true, reason: decision.reason } });
             return;
         }
@@ -1014,6 +1023,26 @@ export class CodexSessionManager {
         });
         if (this.pendingRequests.get(requestId) === pending)
             pending.event = event;
+    }
+    async notifyServerRequestResolved(pending, reply, automatic, policyDecision) {
+        const session = this.sessions.get(pending.bindingId);
+        if (!session || !this.options.policy?.onResolved)
+            return;
+        try {
+            await this.options.policy.onResolved({
+                operation: pending.operation,
+                binding: session.binding,
+                context: session.context,
+                request: pending.request,
+                kind: pending.kind,
+                reply,
+                automatic,
+                policyDecision,
+            });
+        }
+        catch (error) {
+            this.options.onDiagnostic?.({ level: 'warning', message: `Server-request resolution audit failed: ${textFromError(error)}`, method: pending.request.method, params: pending.request.params });
+        }
     }
 }
 function contentFromInputs(input) {
