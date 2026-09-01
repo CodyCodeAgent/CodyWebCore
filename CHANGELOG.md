@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.37.22
+
+- Keep typed runtime configuration reads and bounded ephemeral analysis timeout cleanup inside the shared Core owner boundary.
+
 ## 0.37.21
 
 - Route structured-output and client metadata turn options through the single Core session owner.

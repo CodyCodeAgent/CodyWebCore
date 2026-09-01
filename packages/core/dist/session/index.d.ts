@@ -1,4 +1,5 @@
 import type { AppServerHost, ServerRequestReply } from '../runtime/index.js';
+import type { ConfigReadResponse } from '../protocol/generated/v2/ConfigReadResponse.js';
 import { type CodexEvent } from '../conversation/index.js';
 import type { ExecutionContext, TurnInput } from './turn-input.js';
 import { type CodexCollaborationModeOption, type CodexModelOption, type CodexSkillCatalogGroup, type CodexSkillOption, type CodexThreadSummary, type ListCodexThreadsOptions } from './catalog.js';
@@ -145,6 +146,7 @@ export declare class CodexSessionManager {
     listThreads(options?: ListCodexThreadsOptions): Promise<CodexThreadSummary[]>;
     listModels(): Promise<CodexModelOption[]>;
     listCollaborationModes(): Promise<CodexCollaborationModeOption[]>;
+    readConfig(): Promise<ConfigReadResponse>;
     listSkills(cwds: string[]): Promise<CodexSkillOption[]>;
     listSkillCatalog(cwds: string[]): Promise<CodexSkillCatalogGroup[]>;
     setSkillEnabled(path: string, enabled: boolean): Promise<void>;

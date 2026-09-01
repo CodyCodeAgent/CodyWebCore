@@ -149,6 +149,10 @@ export class CodexSessionCatalog {
             reasoningEffort: mode.reasoning_effort ?? '',
         }));
     }
+    /** Reads runtime defaults through the typed Core protocol boundary. */
+    async readConfig() {
+        return this.client.call('config/read', {});
+    }
     async listSkillCatalog(cwds = [], forceReload = false) {
         const normalizedCwds = [...new Set(cwds.map(cwd => cwd.trim()).filter(Boolean))];
         const result = await this.client.call('skills/list', {

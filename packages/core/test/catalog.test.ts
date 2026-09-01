@@ -59,6 +59,18 @@ describe('CodexSessionCatalog', () => {
     ])
   })
 
+  it('owns typed runtime config reads', async () => {
+    const rpc = rpcWith((method) => {
+      expect(method).toBe('config/read')
+      return { config: { model: 'gpt-5.6-sol', model_reasoning_effort: 'high', developer_instructions: 'Keep it focused.' }, origins: {}, layers: null }
+    })
+    const catalog = new CodexSessionCatalog(rpc)
+    await expect(catalog.readConfig()).resolves.toMatchObject({
+      config: { model: 'gpt-5.6-sol', model_reasoning_effort: 'high', developer_instructions: 'Keep it focused.' },
+    })
+    expect(rpc.call).toHaveBeenCalledWith('config/read', {}, undefined)
+  })
+
   it('owns settings and goal RPC payloads', async () => {
     const rpc = rpcWith(() => ({}))
     const catalog = new CodexSessionCatalog(rpc)

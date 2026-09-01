@@ -183,6 +183,11 @@ export class CodexSessionManager {
         await this.options.host.ensureInitialized();
         return this.catalog.listCollaborationModes();
     }
+    async readConfig() {
+        this.requireUsable();
+        await this.options.host.ensureInitialized();
+        return this.catalog.readConfig();
+    }
     async listSkills(cwds) {
         this.requireUsable();
         await this.options.host.ensureInitialized();

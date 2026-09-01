@@ -1,6 +1,7 @@
 import { type CodexRpcCaller } from '../protocol/methods.js';
 import type { CollaborationMode } from '../protocol/generated/CollaborationMode.js';
 import type { ReasoningEffort } from '../protocol/generated/ReasoningEffort.js';
+import type { ConfigReadResponse } from '../protocol/generated/v2/ConfigReadResponse.js';
 import type { SkillScope } from '../protocol/generated/v2/SkillScope.js';
 import type { ThreadGoalStatus } from '../protocol/generated/v2/ThreadGoalStatus.js';
 import { type CodexEvent } from '../conversation/index.js';
@@ -105,6 +106,8 @@ export declare class CodexSessionCatalog {
     readThreadSnapshot(threadId: string, includeTurns?: boolean): Promise<CodexThreadSnapshot>;
     listModels(): Promise<CodexModelOption[]>;
     listCollaborationModes(): Promise<CodexCollaborationModeOption[]>;
+    /** Reads runtime defaults through the typed Core protocol boundary. */
+    readConfig(): Promise<ConfigReadResponse>;
     listSkillCatalog(cwds?: string[], forceReload?: boolean): Promise<CodexSkillCatalogGroup[]>;
     listSkills(cwds?: string[], forceReload?: boolean): Promise<CodexSkillOption[]>;
     setSkillEnabled(path: string, enabled: boolean): Promise<void>;

@@ -1,5 +1,7 @@
 import type { CollaborationModeListParams } from './generated/v2/CollaborationModeListParams.js'
 import type { CollaborationModeListResponse } from './generated/v2/CollaborationModeListResponse.js'
+import type { ConfigReadParams } from './generated/v2/ConfigReadParams.js'
+import type { ConfigReadResponse } from './generated/v2/ConfigReadResponse.js'
 import type { ModelListParams } from './generated/v2/ModelListParams.js'
 import type { ModelListResponse } from './generated/v2/ModelListResponse.js'
 import type { SkillsListParams } from './generated/v2/SkillsListParams.js'
@@ -61,6 +63,7 @@ export interface CodexMethodMap {
   'skills/list': { params: SkillsListParams; result: SkillsListResponse }
   'skills/config/write': { params: SkillsConfigWriteParams; result: SkillsConfigWriteResponse }
   'collaborationMode/list': { params: CollaborationModeListParams; result: CollaborationModeListResponse }
+  'config/read': { params: ConfigReadParams; result: ConfigReadResponse }
 }
 
 export type CodexMethod = keyof CodexMethodMap

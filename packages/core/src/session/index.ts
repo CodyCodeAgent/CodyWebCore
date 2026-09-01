@@ -10,6 +10,7 @@ import {
 } from '../protocol/index.js'
 import type { ThreadStartParams } from '../protocol/generated/v2/ThreadStartParams.js'
 import type { ThreadResumeParams } from '../protocol/generated/v2/ThreadResumeParams.js'
+import type { ConfigReadResponse } from '../protocol/generated/v2/ConfigReadResponse.js'
 import type { UserInput } from '../protocol/generated/v2/UserInput.js'
 import { latestAssistantTextFromEvents, type CodexEvent } from '../conversation/index.js'
 import {
@@ -346,6 +347,12 @@ export class CodexSessionManager {
     this.requireUsable()
     await this.options.host.ensureInitialized()
     return this.catalog.listCollaborationModes()
+  }
+
+  async readConfig(): Promise<ConfigReadResponse> {
+    this.requireUsable()
+    await this.options.host.ensureInitialized()
+    return this.catalog.readConfig()
   }
 
   async listSkills(cwds: string[]): Promise<CodexSkillOption[]> {

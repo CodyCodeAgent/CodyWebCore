@@ -2,6 +2,7 @@ import { asRecord } from '../protocol/index.js'
 import { createTypedCodexClient, type CodexRpcCaller, type TypedCodexClient } from '../protocol/methods.js'
 import type { CollaborationMode } from '../protocol/generated/CollaborationMode.js'
 import type { ReasoningEffort } from '../protocol/generated/ReasoningEffort.js'
+import type { ConfigReadResponse } from '../protocol/generated/v2/ConfigReadResponse.js'
 import type { ModelListResponse } from '../protocol/generated/v2/ModelListResponse.js'
 import type { ThreadListResponse } from '../protocol/generated/v2/ThreadListResponse.js'
 import type { Thread } from '../protocol/generated/v2/Thread.js'
@@ -257,6 +258,11 @@ export class CodexSessionCatalog {
       model: mode.model ?? '',
       reasoningEffort: mode.reasoning_effort ?? '',
     }))
+  }
+
+  /** Reads runtime defaults through the typed Core protocol boundary. */
+  async readConfig(): Promise<ConfigReadResponse> {
+    return this.client.call('config/read', {})
   }
 
   async listSkillCatalog(cwds: string[] = [], forceReload = false): Promise<CodexSkillCatalogGroup[]> {
