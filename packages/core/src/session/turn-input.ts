@@ -18,6 +18,11 @@ export type TurnInput = {
   permissions?: TurnStartParams['permissions']
   runtimeWorkspaceRoots?: TurnStartParams['runtimeWorkspaceRoots']
   sandboxPolicy?: TurnStartParams['sandboxPolicy']
+  /** Optional schema for a machine-consumed final answer.  This belongs to
+   * the shared owner so background adapters never need a private RPC path. */
+  outputSchema?: TurnStartParams['outputSchema']
+  /** Product metadata is transmitted by the owner with the native turn. */
+  responsesapiClientMetadata?: TurnStartParams['responsesapiClientMetadata']
 }
 
 export type TurnInputSkill = { name: string; path: string }

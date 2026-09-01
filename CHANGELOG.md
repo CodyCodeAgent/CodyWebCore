@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.37.21
+
+- Route structured-output and client metadata turn options through the single Core session owner.
+
 ## 0.37.20
 
 - Repair the runtime/package version contract for the typed conversation-feed release.

@@ -332,6 +332,8 @@ export class CodexSessionManager {
                         ...(input.permissions !== undefined ? { permissions: input.permissions } : {}),
                         ...(input.runtimeWorkspaceRoots !== undefined ? { runtimeWorkspaceRoots: input.runtimeWorkspaceRoots } : {}),
                         ...(input.sandboxPolicy !== undefined ? { sandboxPolicy: input.sandboxPolicy } : {}),
+                        ...(input.outputSchema !== undefined ? { outputSchema: input.outputSchema } : {}),
+                        ...(input.responsesapiClientMetadata !== undefined ? { responsesapiClientMetadata: input.responsesapiClientMetadata } : {}),
                     });
                 handle = { threadId: session.binding.threadId, turnId };
                 session.activeTurnId = handle.turnId;
