@@ -1,5 +1,5 @@
 import type { AppServerHost, ServerRequestReply } from '../runtime/index.js';
-import type { CodexEvent } from '../conversation/index.js';
+import { type CodexEvent } from '../conversation/index.js';
 import type { ExecutionContext, TurnInput } from './turn-input.js';
 export * from './token-usage.js';
 export * from './turn-input.js';
@@ -16,9 +16,16 @@ export type TurnHandle = {
     threadId: string;
     turnId: string;
 };
+/**
+ * The process owner owns the complete normalized outcome for one native Turn.
+ * Products may render or persist this value, but must not replay a second
+ * reducer to guess a terminal state or extract a final answer.
+ */
 export type TurnOutcome = {
     handle: TurnHandle;
     terminalEvent: CodexEvent;
+    assistantText: string;
+    events: readonly CodexEvent[];
 };
 export type TurnSubmission = {
     /** Product-generated id for the local outbox row. It never masquerades as a native Turn id. */
@@ -92,6 +99,7 @@ export declare class CodexSessionManager {
     private readonly upstreamRetries;
     private readonly operationalStops;
     private readonly terminalEvents;
+    private readonly turnEvents;
     private readonly operationalFailures;
     private readonly submissions;
     private readonly pendingRequests;

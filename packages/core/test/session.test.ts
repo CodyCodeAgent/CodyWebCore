@@ -259,8 +259,20 @@ describe('CodexSessionManager', () => {
     expect(handle.turnId).toBe('turn-1')
     expect(events).toContainEqual(expect.objectContaining({ type: 'command.bound', itemId: 'client-command-1', turnId: 'turn-1' }))
 
-    host.emit('turn/completed', { threadId: 'thread-1', turn: { id: handle.turnId, status: 'completed' } })
-    await expect(submission.completed).resolves.toMatchObject({ handle, terminalEvent: { type: 'turn.completed' } })
+    host.emit('turn/completed', {
+      threadId: 'thread-1',
+      turn: {
+        id: handle.turnId,
+        status: 'completed',
+        items: [{ id: 'agent-1', type: 'agentMessage', text: 'Core owns the final answer.' }],
+      },
+    })
+    await expect(submission.completed).resolves.toMatchObject({
+      handle,
+      terminalEvent: { type: 'turn.completed' },
+      assistantText: 'Core owns the final answer.',
+      events: expect.arrayContaining([expect.objectContaining({ type: 'assistant.completed', data: expect.objectContaining({ text: 'Core owns the final answer.' }) })]),
+    })
     expect(manager.snapshot('conversation-1')?.activeTurnId).toBe('')
     await manager.dispose()
   })

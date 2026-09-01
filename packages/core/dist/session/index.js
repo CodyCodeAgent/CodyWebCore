@@ -1,4 +1,5 @@
 import { asRecord, isApprovalRequestMethod, isToolUserInputRequestMethod, readItemId, readString, readThreadId, readTurnId, } from '../protocol/index.js';
+import { latestAssistantTextFromEvents } from '../conversation/index.js';
 import { contentFromUserItem, normalizeCodexNotification, outputText, textFromError, } from './normalization.js';
 import { CodexThreadCommands } from './commands.js';
 import { CodexSessionCatalog } from './catalog.js';
@@ -11,6 +12,12 @@ const DEFAULT_TURN_INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000;
 const DEFAULT_MAX_UPSTREAM_RETRY_ATTEMPTS = 5;
 const DEFAULT_TURN_STOP_RECONCILE_ATTEMPTS = 5;
 const DEFAULT_TURN_STOP_RECONCILE_DELAY_MS = 1_000;
+/**
+ * A Turn outcome is an in-process handoff for product adapters, never a
+ * history cache. Retain only a bounded tail so one very chatty tool cannot
+ * make the shared owner grow without bound while a Turn is running.
+ */
+const MAX_TURN_OUTCOME_EVENTS = 256;
 export class CodexSessionManager {
     options;
     sessions = new Map();
@@ -21,6 +28,7 @@ export class CodexSessionManager {
     upstreamRetries = new Map();
     operationalStops = new Map();
     terminalEvents = new Map();
+    turnEvents = new Map();
     operationalFailures = new Map();
     submissions = new Map();
     pendingRequests = new Map();
@@ -248,9 +256,22 @@ export class CodexSessionManager {
                 });
                 resolveStarted(handle);
                 const terminalEvent = await this.waitForTurn(handle);
-                resolveCompleted({ handle, terminalEvent });
+                const outcomeKey = this.turnKey(handle.threadId, handle.turnId);
+                const events = this.turnEvents.get(outcomeKey) ?? [];
+                // No attachment or reconnect path reads this transient outcome buffer;
+                // native thread/read plus owner snapshots remain authoritative. Release
+                // it as soon as the submitter has received its immutable result.
+                this.turnEvents.delete(outcomeKey);
+                resolveCompleted({
+                    handle,
+                    terminalEvent,
+                    assistantText: latestAssistantTextFromEvents(events),
+                    events: [...events],
+                });
             }
             catch (error) {
+                if (handle)
+                    this.turnEvents.delete(this.turnKey(handle.threadId, handle.turnId));
                 if (!handle) {
                     record.state = 'failed';
                     this.emit({
@@ -347,6 +368,7 @@ export class CodexSessionManager {
         this.upstreamRetries.clear();
         this.operationalStops.clear();
         this.operationalFailures.clear();
+        this.turnEvents.clear();
         this.submissions.clear();
         for (const rows of this.waiters.values())
             for (const waiter of rows)
@@ -409,6 +431,9 @@ export class CodexSessionManager {
         for (const key of this.terminalEvents.keys())
             if (key.startsWith(prefix))
                 this.terminalEvents.delete(key);
+        for (const key of this.turnEvents.keys())
+            if (key.startsWith(prefix))
+                this.turnEvents.delete(key);
         for (const key of this.operationalFailures.keys())
             if (key.startsWith(prefix))
                 this.operationalFailures.delete(key);
@@ -492,6 +517,19 @@ export class CodexSessionManager {
             id: normalizedInput.id ?? this.eventId(normalizedInput.type, normalizedInput.threadId, normalizedInput.turnId, normalizedInput.itemId),
             atIso: normalizedInput.atIso ?? this.nowIso(),
         };
+        if (event.turnId) {
+            const key = this.turnKey(event.threadId, event.turnId);
+            const events = this.turnEvents.get(key) ?? [];
+            events.push(event);
+            if (events.length > MAX_TURN_OUTCOME_EVENTS)
+                events.splice(0, events.length - MAX_TURN_OUTCOME_EVENTS);
+            this.turnEvents.set(key, events);
+            if (this.turnEvents.size > 10_000) {
+                const oldestKey = this.turnEvents.keys().next().value;
+                if (oldestKey)
+                    this.turnEvents.delete(oldestKey);
+            }
+        }
         if (event.turnId && event.type !== 'turn.completed' && event.type !== 'turn.failed' && event.type !== 'turn.interrupted')
             this.refreshTurnInactivity(event.threadId, event.turnId);
         if (event.type === 'turn.completed' || event.type === 'turn.failed' || event.type === 'turn.interrupted')

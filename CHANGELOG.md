@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.37.14
+
+- Made the process owner return one bounded, normalized `TurnOutcome` containing the final assistant text and native Turn events, so product adapters no longer replay a second conversation reducer to infer terminal state or final output.
+- Kept outcome event buffering transient and bounded; native `thread/read` and owner attachment snapshots remain the durable reconnect authority.
+
 ## 0.37.13
 
 - Made the shared client controller the only browser command lifecycle owner: it now creates command identifiers, inserts optimistic user messages, reconciles native admission, retains only failed pre-admission outbox rows, retries them, and delegates interruption to the process owner.

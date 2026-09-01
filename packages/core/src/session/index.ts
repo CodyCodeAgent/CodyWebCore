@@ -11,7 +11,7 @@ import {
 import type { ThreadStartParams } from '../protocol/generated/v2/ThreadStartParams.js'
 import type { ThreadResumeParams } from '../protocol/generated/v2/ThreadResumeParams.js'
 import type { UserInput } from '../protocol/generated/v2/UserInput.js'
-import type { CodexEvent } from '../conversation/index.js'
+import { latestAssistantTextFromEvents, type CodexEvent } from '../conversation/index.js'
 import {
   contentFromUserItem,
   normalizeCodexNotification,
@@ -46,7 +46,17 @@ export type ThreadBinding = {
 }
 
 export type TurnHandle = { threadId: string; turnId: string }
-export type TurnOutcome = { handle: TurnHandle; terminalEvent: CodexEvent }
+/**
+ * The process owner owns the complete normalized outcome for one native Turn.
+ * Products may render or persist this value, but must not replay a second
+ * reducer to guess a terminal state or extract a final answer.
+ */
+export type TurnOutcome = {
+  handle: TurnHandle
+  terminalEvent: CodexEvent
+  assistantText: string
+  events: readonly CodexEvent[]
+}
 export type TurnSubmission = {
   /** Product-generated id for the local outbox row. It never masquerades as a native Turn id. */
   clientCommandId: string
@@ -149,6 +159,12 @@ const DEFAULT_TURN_INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000
 const DEFAULT_MAX_UPSTREAM_RETRY_ATTEMPTS = 5
 const DEFAULT_TURN_STOP_RECONCILE_ATTEMPTS = 5
 const DEFAULT_TURN_STOP_RECONCILE_DELAY_MS = 1_000
+/**
+ * A Turn outcome is an in-process handoff for product adapters, never a
+ * history cache. Retain only a bounded tail so one very chatty tool cannot
+ * make the shared owner grow without bound while a Turn is running.
+ */
+const MAX_TURN_OUTCOME_EVENTS = 256
 
 export class CodexSessionManager {
   private readonly sessions = new Map<string, AttachedSession>()
@@ -159,6 +175,7 @@ export class CodexSessionManager {
   private readonly upstreamRetries = new Map<string, UpstreamRetry>()
   private readonly operationalStops = new Map<string, Promise<void>>()
   private readonly terminalEvents = new Map<string, CodexEvent>()
+  private readonly turnEvents = new Map<string, CodexEvent[]>()
   private readonly operationalFailures = new Map<string, CodexEvent>()
   private readonly submissions = new Map<string, SubmissionRecord>()
   private readonly pendingRequests = new Map<string, { request: ServerRequest; bindingId: string; kind: 'approval' | 'question'; event?: CodexEvent }>()
@@ -390,8 +407,20 @@ export class CodexSessionManager {
         })
         resolveStarted(handle)
         const terminalEvent = await this.waitForTurn(handle)
-        resolveCompleted({ handle, terminalEvent })
+        const outcomeKey = this.turnKey(handle.threadId, handle.turnId)
+        const events = this.turnEvents.get(outcomeKey) ?? []
+        // No attachment or reconnect path reads this transient outcome buffer;
+        // native thread/read plus owner snapshots remain authoritative. Release
+        // it as soon as the submitter has received its immutable result.
+        this.turnEvents.delete(outcomeKey)
+        resolveCompleted({
+          handle,
+          terminalEvent,
+          assistantText: latestAssistantTextFromEvents(events),
+          events: [...events],
+        })
       } catch (error) {
+        if (handle) this.turnEvents.delete(this.turnKey(handle.threadId, handle.turnId))
         if (!handle) {
           record.state = 'failed'
           this.emit({
@@ -490,6 +519,7 @@ export class CodexSessionManager {
     this.upstreamRetries.clear()
     this.operationalStops.clear()
     this.operationalFailures.clear()
+    this.turnEvents.clear()
     this.submissions.clear()
     for (const rows of this.waiters.values()) for (const waiter of rows) waiter.reject(new Error('Codex session manager disposed'))
     this.waiters.clear()
@@ -546,6 +576,7 @@ export class CodexSessionManager {
   private forgetTerminalEvents(threadId: string): void {
     const prefix = `${threadId}\u0000`
     for (const key of this.terminalEvents.keys()) if (key.startsWith(prefix)) this.terminalEvents.delete(key)
+    for (const key of this.turnEvents.keys()) if (key.startsWith(prefix)) this.turnEvents.delete(key)
     for (const key of this.operationalFailures.keys()) if (key.startsWith(prefix)) this.operationalFailures.delete(key)
   }
 
@@ -627,6 +658,17 @@ export class CodexSessionManager {
       ...normalizedInput,
       id: normalizedInput.id ?? this.eventId(normalizedInput.type, normalizedInput.threadId, normalizedInput.turnId, normalizedInput.itemId),
       atIso: normalizedInput.atIso ?? this.nowIso(),
+    }
+    if (event.turnId) {
+      const key = this.turnKey(event.threadId, event.turnId)
+      const events = this.turnEvents.get(key) ?? []
+      events.push(event)
+      if (events.length > MAX_TURN_OUTCOME_EVENTS) events.splice(0, events.length - MAX_TURN_OUTCOME_EVENTS)
+      this.turnEvents.set(key, events)
+      if (this.turnEvents.size > 10_000) {
+        const oldestKey = this.turnEvents.keys().next().value as string | undefined
+        if (oldestKey) this.turnEvents.delete(oldestKey)
+      }
     }
     if (event.turnId && event.type !== 'turn.completed' && event.type !== 'turn.failed' && event.type !== 'turn.interrupted') this.refreshTurnInactivity(event.threadId, event.turnId)
     if (event.type === 'turn.completed' || event.type === 'turn.failed' || event.type === 'turn.interrupted') this.finishTurn(event)
