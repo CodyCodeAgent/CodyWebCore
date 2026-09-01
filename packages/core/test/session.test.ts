@@ -10,7 +10,9 @@ class FakeHost implements AppServerHost {
   nextTurn = 1
   initialized = 0
   failTurnStart = ''
+  failTurnInterrupt = ''
   threadReadTurns: Array<Record<string, unknown>> = []
+  threadReadTurnSequence: Array<Array<Record<string, unknown>>> = []
 
   async ensureInitialized(): Promise<void> { this.initialized += 1 }
   async call<T>(method: string, params?: unknown): Promise<T> {
@@ -22,12 +24,14 @@ class FakeHost implements AppServerHost {
       preview: '', ephemeral: false, section: null, sectionEnteredAt: null, historyMode: 'paginated',
       modelProvider: 'openai', createdAt: 0, updatedAt: 0, recencyAt: null, status: { type: 'idle' },
       path: null, cwd: '/repo', cliVersion: 'test', source: 'appServer', canAcceptDirectInput: true,
-      threadSource: null, agentNickname: null, agentRole: null, gitInfo: null, name: null, turns: this.threadReadTurns,
+      threadSource: null, agentNickname: null, agentRole: null, gitInfo: null, name: null,
+      turns: this.threadReadTurnSequence.shift() ?? this.threadReadTurns,
     } } as T
     if (method === 'turn/start') {
       if (this.failTurnStart) throw new Error(this.failTurnStart)
       return { turn: { id: `turn-${String(this.nextTurn++)}`, items: [], status: 'inProgress', error: null } } as T
     }
+    if (method === 'turn/interrupt' && this.failTurnInterrupt) throw new Error(this.failTurnInterrupt)
     return {} as T
   }
   subscribe(listener: RuntimeNotificationListener): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener) }
@@ -629,6 +633,82 @@ describe('CodexSessionManager', () => {
     await manager.dispose()
   })
 
+  it('coalesces duplicate exhausted errors and keeps the next command behind native stop settlement', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host, turnStopReconcileAttempts: 2, turnStopReconcileDelayMs: 0 })
+    await manager.create('conversation-1', context)
+    const events: CodexEvent[] = []
+    manager.subscribe((event) => events.push(event))
+    const first = manager.submit('conversation-1', {
+      input: [{ type: 'text', text: 'first', text_elements: [] }],
+    }, 'queue', 'first')
+    const firstHandle = await first.started
+    const second = manager.submit('conversation-1', {
+      input: [{ type: 'text', text: 'second', text_elements: [] }],
+    }, 'queue', 'second')
+    host.threadReadTurnSequence = [
+      [{ id: firstHandle.turnId, status: 'inProgress', items: [], error: null }],
+      [{ id: firstHandle.turnId, status: 'interrupted', items: [], error: null }],
+    ]
+
+    const exhausted = {
+      threadId: 'thread-1', turnId: firstHandle.turnId, willRetry: false,
+      error: { message: 'response stream disconnected' },
+    }
+    host.emit('error', exhausted)
+    host.emit('error', exhausted)
+
+    expect(host.calls.filter((call) => call.method === 'turn/start')).toHaveLength(1)
+    const secondHandle = await second.started
+    await expect(first.completed).resolves.toMatchObject({ terminalEvent: { type: 'turn.interrupted' } })
+    expect(secondHandle.turnId).not.toBe(firstHandle.turnId)
+    expect(host.calls.filter((call) => call.method === 'turn/interrupt')).toHaveLength(1)
+    expect(host.calls.filter((call) => call.method === 'turn/start')).toHaveLength(2)
+    expect(events.filter((event) => event.type === 'turn.disconnected')).toHaveLength(1)
+
+    host.emit('error', exhausted)
+    expect(events.filter((event) => event.type === 'turn.disconnected')).toHaveLength(1)
+    expect(host.calls.filter((call) => call.method === 'turn/interrupt')).toHaveLength(1)
+    await manager.dispose()
+  })
+
+  it('uses native read terminal authority even when the interrupt RPC fails', async () => {
+    const host = new FakeHost()
+    host.failTurnInterrupt = 'interrupt transport failed'
+    const manager = new CodexSessionManager({ host, turnStopReconcileAttempts: 1, turnStopReconcileDelayMs: 0 })
+    await manager.create('conversation-1', context)
+    const submission = manager.submit('conversation-1', {
+      input: [{ type: 'text', text: 'stop through reconciliation', text_elements: [] }],
+    })
+    const handle = await submission.started
+    host.threadReadTurns = [{ id: handle.turnId, status: 'failed', items: [], error: { message: 'native failure' } }]
+
+    await expect(manager.interrupt('conversation-1')).resolves.toBe(true)
+    await expect(submission.completed).resolves.toMatchObject({ terminalEvent: { type: 'turn.failed' } })
+    expect(manager.snapshot('conversation-1')?.quarantinedReason).toBe('')
+    expect(host.calls.filter((call) => call.method === 'turn/interrupt')).toHaveLength(1)
+    await manager.dispose()
+  })
+
+  it('coalesces repeated explicit interrupts for the same native Turn', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host, turnStopReconcileAttempts: 1, turnStopReconcileDelayMs: 0 })
+    await manager.create('conversation-1', context)
+    const submission = manager.submit('conversation-1', {
+      input: [{ type: 'text', text: 'stop once', text_elements: [] }],
+    })
+    const handle = await submission.started
+    host.threadReadTurns = [{ id: handle.turnId, status: 'interrupted', items: [], error: null }]
+
+    await expect(Promise.all([
+      manager.interrupt('conversation-1'),
+      manager.interrupt('conversation-1'),
+    ])).resolves.toEqual([true, true])
+    await expect(submission.completed).resolves.toMatchObject({ terminalEvent: { type: 'turn.interrupted' } })
+    expect(host.calls.filter((call) => call.method === 'turn/interrupt')).toHaveLength(1)
+    await manager.dispose()
+  })
+
   it('fails a legacy upstream stream when its bounded reconnect attempts are exhausted', async () => {
     const host = new FakeHost()
     const manager = new CodexSessionManager({ host })
@@ -822,6 +902,29 @@ describe('CodexSessionManager', () => {
     await manager.dispose()
   })
 
+  it('shares one native stop flight between inactivity and an explicit interrupt', async () => {
+    vi.useFakeTimers()
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({
+      host,
+      turnInactivityTimeoutMs: 1_000,
+      turnStopReconcileAttempts: 1,
+      turnStopReconcileDelayMs: 0,
+    })
+    await manager.create('conversation-1', context)
+    const submission = manager.submit('conversation-1', {
+      input: [{ type: 'text', text: 'silent task', text_elements: [] }],
+    })
+    const handle = await submission.started
+    host.threadReadTurns = [{ id: handle.turnId, status: 'interrupted', items: [], error: null }]
+
+    vi.advanceTimersByTime(1_001)
+    await expect(manager.interrupt('conversation-1')).resolves.toBe(true)
+    await expect(submission.completed).resolves.toMatchObject({ terminalEvent: { type: 'turn.interrupted' } })
+    expect(host.calls.filter((call) => call.method === 'turn/interrupt')).toHaveLength(1)
+    await manager.dispose()
+  })
+
   it('emits one authoritative terminal failure after true turn inactivity', async () => {
     vi.useFakeTimers()
     const host = new FakeHost()
@@ -859,6 +962,9 @@ describe('CodexSessionManager', () => {
     await manager.create('conversation-1', context)
     const first = manager.submit('conversation-1', { input: [{ type: 'text', text: 'first', text_elements: [] }] })
     const handle = await first.started
+    const alreadyQueued = manager.submit('conversation-1', {
+      input: [{ type: 'text', text: 'already queued', text_elements: [] }],
+    }, 'queue', 'already-queued')
 
     host.emit('error', {
       threadId: 'thread-1', turnId: handle.turnId, willRetry: false,
@@ -866,6 +972,7 @@ describe('CodexSessionManager', () => {
     })
 
     await expect(first.completed).rejects.toThrow('could not be confirmed stopped')
+    await expect(alreadyQueued.started).rejects.toThrow('quarantined')
     expect(manager.snapshot('conversation-1')?.quarantinedReason).toContain('quarantined')
     await expect(manager.send('conversation-1', { input: [{ type: 'text', text: 'second', text_elements: [] }] })).rejects.toThrow('quarantined')
     expect(host.calls.filter((call) => call.method === 'turn/start')).toHaveLength(1)

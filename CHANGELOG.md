@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.37.6
+
+- Ignore late response-stream disconnect notifications after a native Turn already reached its authoritative terminal state.
+- Cover duplicate upstream failures, stop/read settlement, explicit-interrupt races, inactivity races and quarantine queue barriers.
+
 ## 0.37.5
 
 - Keep empty maintenance Turns in diagnostic state without rendering `Worked`, `Stopped`, or failure rows in the user conversation.

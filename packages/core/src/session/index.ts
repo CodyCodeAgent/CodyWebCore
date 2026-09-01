@@ -583,7 +583,10 @@ export class CodexSessionManager {
       if (existing) return existing
     }
     if (input.type === 'turn.disconnected' && input.turnId) {
-      const existing = this.operationalFailures.get(this.turnKey(input.threadId, input.turnId))
+      const key = this.turnKey(input.threadId, input.turnId)
+      const terminal = this.terminalEvents.get(key)
+      if (terminal) return terminal
+      const existing = this.operationalFailures.get(key)
       if (existing) return existing
     }
     const event: CodexEvent = {
