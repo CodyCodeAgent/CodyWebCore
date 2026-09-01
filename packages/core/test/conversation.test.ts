@@ -145,7 +145,7 @@ describe('conversation core', () => {
 
     expect(conversationTranscriptFromState(state).map((message) => [message.text, message.messageType])).toEqual([
       ['first', undefined],
-      ['first answer', undefined],
+      ['first answer', 'agentMessage'],
       ['Worked for 1s', 'worked'],
       ['second', 'userMessage.optimistic'],
     ])
@@ -523,6 +523,17 @@ describe('conversation core', () => {
     expect(state.timeline).toContainEqual(expect.objectContaining({ kind: 'reasoning', text: 'Inspecting' }))
   })
 
+  it('uses the timeline as the single visible owner of live reasoning', () => {
+    const base = { threadId: 'thread-1', turnId: 'turn-1', itemId: 'reasoning-1', atIso: '2026-01-01T00:00:00.000Z' }
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { ...base, id: 'start', type: 'turn.started', data: {} },
+      { ...base, id: 'reasoning', type: 'reasoning.delta', data: { text: 'Inspecting' } },
+    ])
+
+    expect(state.timeline).toContainEqual(expect.objectContaining({ kind: 'reasoning', text: 'Inspecting' }))
+    expect(conversationLiveOverlayFromState(state)?.reasoningText).toBeUndefined()
+  })
+
   it('owns plan lifecycle and live overlay presentation state', () => {
     const base = { threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:00.000Z' }
     const active = reduceConversationEvents(createConversationState('thread-1'), [
@@ -601,6 +612,13 @@ describe('conversation core', () => {
     expect(reconcilePersistedMessages(overlay, persisted)).toEqual(persisted)
   })
 
+  it('reconciles a terminal realtime assistant arriving after durable history', () => {
+    const persisted = [{ id: 'msg_9', turnId: 'turn-1', role: 'assistant' as const, text: 'Same answer' }]
+    const terminalRealtime = [{ id: 'agent:item-9', turnId: 'turn-1', role: 'assistant' as const, text: 'Same answer', messageType: 'agentMessage' }]
+
+    expect(mergeMessages(persisted, terminalRealtime, { preserveMissing: true })).toEqual(persisted)
+  })
+
   it('reconciles repeated terminal text one-to-one within a turn', () => {
     const persisted = [
       { id: 'msg_1', turnId: 'turn-1', role: 'assistant' as const, text: 'Repeated answer' },
@@ -669,7 +687,7 @@ describe('conversation core', () => {
     expect(conversationTranscriptFromState(state).map((message) => [message.messageType, message.text])).toEqual([
       [undefined, 'Inspect'],
       ['tool.command', ''],
-      [undefined, 'Done'],
+      ['agentMessage', 'Done'],
       ['worked', 'Worked for 3s'],
     ])
   })

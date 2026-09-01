@@ -523,6 +523,7 @@ export function reduceConversationEvent(previous, event) {
                     turnId: event.turnId,
                     role: 'assistant',
                     text,
+                    messageType: 'agentMessage',
                 }], { preserveMissing: true }),
             presentation: appendPresentation(state.presentation, { id: messageId, kind: 'message', turnId: event.turnId }, (row) => row.kind === 'message' && row.turnId === event.turnId && row.id.startsWith('live:')),
         };
@@ -541,15 +542,29 @@ export function reduceConversationEvent(previous, event) {
         }
         return {
             ...state,
-            reasoningText: `${state.reasoningText}${delta}`,
+            // Reasoning is part of the canonical timeline. Keeping a second text
+            // buffer made CodyWeb render the same content both in the transcript and
+            // in its live overlay.
+            reasoningText: '',
             timeline,
             presentation: appendPresentation(state.presentation, { id: `reasoning:${itemId}`, kind: 'timeline', turnId: event.turnId }),
         };
     }
     if (event.type === 'reasoning.break') {
-        return state.reasoningText && !state.reasoningText.endsWith('\n\n')
-            ? { ...state, reasoningText: `${state.reasoningText}\n\n` }
-            : state;
+        let index = -1;
+        for (let cursor = state.timeline.length - 1; cursor >= 0; cursor -= 1) {
+            const entry = state.timeline[cursor];
+            if (entry?.kind === 'reasoning' && (!event.turnId || entry.turnId === event.turnId)) {
+                index = cursor;
+                break;
+            }
+        }
+        const current = index >= 0 ? state.timeline[index] : undefined;
+        if (!current || current.kind !== 'reasoning' || current.text.endsWith('\n\n'))
+            return state;
+        const timeline = [...state.timeline];
+        timeline[index] = { ...current, text: `${current.text}\n\n` };
+        return { ...state, reasoningText: '', timeline };
     }
     if (event.type === 'plan.delta' || event.type === 'plan.replaced') {
         const text = eventText(event.data);

@@ -229,7 +229,11 @@ function insertAtProtocolPosition(base, rows, incoming) {
     return result;
 }
 export function mergeMessages(previous, incoming, options = {}) {
-    const dedupedIncoming = removeDuplicateMessageIds(incoming);
+    // Reconciliation must be symmetric. During a slow history read the durable
+    // assistant row can become `previous` while a completed realtime overlay is
+    // replayed as `incoming`; discard that overlay just as we do in the opposite
+    // direction instead of appending a duplicate response.
+    const dedupedIncoming = removeDuplicateMessageIds(removeRedundantLiveAssistantMessages(incoming, previous));
     const previousById = new Map(previous.map((message) => [message.id, message]));
     const incomingById = new Map(dedupedIncoming.map((message) => [message.id, message]));
     const stableIncoming = dedupedIncoming.map((message) => {

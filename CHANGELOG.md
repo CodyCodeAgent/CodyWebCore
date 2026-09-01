@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.37.10
+
+- Reconcile completed assistant overlays symmetrically when native history wins the refresh race, preventing duplicate final responses with different item IDs.
+- Use the canonical reasoning timeline as the only visible reasoning owner instead of rendering the same reasoning again in a product live overlay.
+
 ## 0.37.9
 
 - Keep owner terminal corrections in attachment snapshots so refresh and reconnect cannot turn an upstream failure back into a misleading interruption.

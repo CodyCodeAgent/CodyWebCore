@@ -21,6 +21,7 @@ Framework-neutral Codex App Server primitives shared by CodyWebUI and CodyWork.
 
 | Core | Codex App Server boundary | Product migration |
 | --- | --- | --- |
+| 0.37.10 | Symmetric assistant reconciliation and single-owner reasoning projection | Recommended; slow history reads cannot duplicate terminal replies and reasoning renders through one feed |
 | 0.37.9 | Owner terminal corrections, monotonic Turn lifecycle, and command-identity-safe retries | Recommended; refresh/reconnect preserve the canonical terminal result and same-text retries remain distinct |
 | 0.37.8 | Native-history-derived failed outbox state and explicit terminal retry | Recommended; transient recovery never exposes retry and durable user items remain retryable after terminal failure |
 | 0.37.7 | Operational-failure terminal semantics and native stop reconciliation | Supported; safety interrupts remain failures while explicit user stops remain interrupted |
