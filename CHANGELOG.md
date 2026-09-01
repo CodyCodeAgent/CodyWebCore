@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.37.19
+
+- Keep a typed terminal Turn receipt after every message, tool, plan, and request in that Turn when a late native-history assistant item arrives after `turn.completed`.
+
 ## 0.37.18
 
 - Removed the legacy transcript projection that turned typed terminal Turn states into synthetic `Worked`, `Stopped`, and failure messages.

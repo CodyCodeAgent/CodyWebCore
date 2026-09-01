@@ -840,7 +840,17 @@ function orderConversationFeedByTurn(state, feed) {
     }
     const ordered = [
         ...leading,
-        ...turnIds.flatMap((turnId) => byTurn.get(turnId) ?? []),
+        ...turnIds.flatMap((turnId) => {
+            const items = byTurn.get(turnId) ?? [];
+            // Native history and realtime notifications can report a terminal Turn
+            // before the final assistant item is materialized. A terminal receipt is
+            // a boundary for its Turn, never content that belongs before that Turn's
+            // last message/tool/plan/request. Preserve the protocol order of every
+            // non-terminal entry, then pin the single terminal entry to the end.
+            const content = items.filter((item) => item.kind !== 'turn');
+            const terminal = items.filter((item) => item.kind === 'turn');
+            return [...content, ...terminal];
+        }),
         ...[...byTurn.entries()]
             .filter(([turnId]) => !state.turns[turnId])
             .flatMap(([, items]) => items),
