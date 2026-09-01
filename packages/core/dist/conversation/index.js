@@ -669,6 +669,13 @@ export function conversationStateFromRegistry(registry, threadId) {
 }
 export function conversationLiveOverlayFromState(state) {
     const activeTurn = state.activeTurnId ? state.turns[state.activeTurnId] : undefined;
+    // A live overlay is a projection of one currently active native Turn.  The
+    // App Server may still deliver an item/activity notification after the
+    // terminal event (and a reconnect can replay that suffix independently of
+    // history).  Never let that residual activity render below a completed
+    // transcript: only the active Turn may own the live suffix.
+    if (!activeTurn)
+        return null;
     const errorText = activeTurn?.lifecycle === 'disconnected'
         ? activeTurn.error ?? ''
         : '';

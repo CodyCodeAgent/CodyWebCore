@@ -541,6 +541,26 @@ describe('conversation core', () => {
     expect(conversationLiveOverlayFromState(state)).toBeNull()
   })
 
+  it('never renders a residual activity after its turn is no longer active', () => {
+    // This is the defensive presentation boundary for reconnect/snapshot
+    // races: a terminal turn must not regain a visible "Writing response"
+    // suffix even if an old activity record survives an older projection.
+    const state = {
+      ...createConversationState('thread-1'),
+      turns: {
+        'turn-1': {
+          id: 'turn-1', lifecycle: 'completed' as const,
+          startedAtIso: '2026-01-01T00:00:00.000Z', completedAtIso: '2026-01-01T00:00:02.000Z',
+        },
+      },
+      activity: {
+        turnId: 'turn-1', label: 'Writing response', details: [], updatedAtIso: '2026-01-01T00:00:03.000Z',
+      },
+    }
+
+    expect(conversationLiveOverlayFromState(state)).toBeNull()
+  })
+
   it('keeps a newer turn activity when an older turn reaches its terminal state', () => {
     const base = { threadId: 'thread-1', atIso: '2026-01-01T00:00:00.000Z' }
     const state = reduceConversationEvents(createConversationState('thread-1'), [
