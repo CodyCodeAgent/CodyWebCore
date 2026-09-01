@@ -183,6 +183,21 @@ export class CodexSessionManager {
         await this.options.host.ensureInitialized();
         return this.catalog.listCollaborationModes();
     }
+    async listSkills(cwds) {
+        this.requireUsable();
+        await this.options.host.ensureInitialized();
+        return this.catalog.listSkills(cwds);
+    }
+    async listSkillCatalog(cwds) {
+        this.requireUsable();
+        await this.options.host.ensureInitialized();
+        return this.catalog.listSkillCatalog(cwds);
+    }
+    async setSkillEnabled(path, enabled) {
+        this.requireUsable();
+        await this.options.host.ensureInitialized();
+        await this.catalog.setSkillEnabled(path, enabled);
+    }
     async renameThread(threadId, name) {
         this.requireUsable();
         await this.options.host.ensureInitialized();

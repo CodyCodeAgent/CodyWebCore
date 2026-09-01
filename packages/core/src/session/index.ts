@@ -25,6 +25,8 @@ import {
   CodexSessionCatalog,
   type CodexCollaborationModeOption,
   type CodexModelOption,
+  type CodexSkillCatalogGroup,
+  type CodexSkillOption,
   type CodexThreadSummary,
   type ListCodexThreadsOptions,
 } from './catalog.js'
@@ -344,6 +346,24 @@ export class CodexSessionManager {
     this.requireUsable()
     await this.options.host.ensureInitialized()
     return this.catalog.listCollaborationModes()
+  }
+
+  async listSkills(cwds: string[]): Promise<CodexSkillOption[]> {
+    this.requireUsable()
+    await this.options.host.ensureInitialized()
+    return this.catalog.listSkills(cwds)
+  }
+
+  async listSkillCatalog(cwds: string[]): Promise<CodexSkillCatalogGroup[]> {
+    this.requireUsable()
+    await this.options.host.ensureInitialized()
+    return this.catalog.listSkillCatalog(cwds)
+  }
+
+  async setSkillEnabled(path: string, enabled: boolean): Promise<void> {
+    this.requireUsable()
+    await this.options.host.ensureInitialized()
+    await this.catalog.setSkillEnabled(path, enabled)
   }
 
   async renameThread(threadId: string, name: string): Promise<void> {

@@ -27,6 +27,11 @@ class FakeHost implements AppServerHost {
       }],
       nextCursor: null,
     } as T
+    if (method === 'skills/list') return { data: [{
+      cwd: '/repo',
+      skills: [{ name: 'docs', path: '/repo/.agents/docs/SKILL.md', description: 'Read the docs', scope: 'repo', enabled: true }],
+      errors: [],
+    }] } as T
     if (method === 'thread/resume') return { thread: { id: 'thread-1' } } as T
     if (method === 'thread/read') return { thread: {
       id: 'thread-1', extra: null, sessionId: 'session-1', forkedFromId: null, parentThreadId: null,
@@ -250,13 +255,21 @@ describe('CodexSessionManager', () => {
     await expect(manager.listThreads()).resolves.toEqual([
       expect.objectContaining({ threadId: 'thread-1', name: 'Existing thread' }),
     ])
+    await expect(manager.listSkills(['/repo'])).resolves.toEqual([
+      expect.objectContaining({ name: 'docs', path: '/repo/.agents/docs/SKILL.md' }),
+    ])
+    await expect(manager.listSkillCatalog(['/repo'])).resolves.toEqual([
+      expect.objectContaining({ cwd: '/repo', skills: [expect.objectContaining({ name: 'docs' })] }),
+    ])
+    await manager.setSkillEnabled(' /repo/.agents/docs/SKILL.md ', false)
     await manager.renameThread(' thread-1 ', ' Renamed ')
     await expect(manager.forkThread(' thread-1 ')).resolves.toBe('thread-fork')
     await manager.compactThread(' thread-1 ')
     await manager.archiveThread(' thread-1 ')
 
     expect(host.calls.map(({ method }) => method)).toEqual([
-      'thread/start', 'thread/list', 'thread/name/set', 'thread/fork', 'thread/compact/start', 'thread/archive',
+      'thread/start', 'thread/list', 'skills/list', 'skills/list', 'skills/config/write',
+      'thread/name/set', 'thread/fork', 'thread/compact/start', 'thread/archive',
     ])
     expect(manager.snapshot('thread-1')).toMatchObject({ bindingId: 'thread-1', threadId: 'thread-1', attached: true })
     await manager.dispose()

@@ -1,8 +1,8 @@
 # Changelog
 
-## 0.37.16
+## 0.37.17
 
-- Make native thread creation, catalog reads and thread mutations explicit Core owner operations.
+- Make native thread creation, catalog reads, skills and thread mutations explicit Core owner operations.
 - Keep browser clients out of the generic native thread/turn RPC path.
 
 ## 0.37.14

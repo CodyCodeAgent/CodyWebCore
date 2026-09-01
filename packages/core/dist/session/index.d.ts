@@ -1,7 +1,7 @@
 import type { AppServerHost, ServerRequestReply } from '../runtime/index.js';
 import { type CodexEvent } from '../conversation/index.js';
 import type { ExecutionContext, TurnInput } from './turn-input.js';
-import { type CodexCollaborationModeOption, type CodexModelOption, type CodexThreadSummary, type ListCodexThreadsOptions } from './catalog.js';
+import { type CodexCollaborationModeOption, type CodexModelOption, type CodexSkillCatalogGroup, type CodexSkillOption, type CodexThreadSummary, type ListCodexThreadsOptions } from './catalog.js';
 export * from './token-usage.js';
 export * from './turn-input.js';
 export * from './catalog.js';
@@ -145,6 +145,9 @@ export declare class CodexSessionManager {
     listThreads(options?: ListCodexThreadsOptions): Promise<CodexThreadSummary[]>;
     listModels(): Promise<CodexModelOption[]>;
     listCollaborationModes(): Promise<CodexCollaborationModeOption[]>;
+    listSkills(cwds: string[]): Promise<CodexSkillOption[]>;
+    listSkillCatalog(cwds: string[]): Promise<CodexSkillCatalogGroup[]>;
+    setSkillEnabled(path: string, enabled: boolean): Promise<void>;
     renameThread(threadId: string, name: string): Promise<void>;
     forkThread(threadId: string): Promise<string>;
     compactThread(threadId: string): Promise<void>;
