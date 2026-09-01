@@ -252,14 +252,16 @@ describe('ConversationController', () => {
 
   it('shows a queued user message before turn/start or history responds, then replaces it with the native item', async () => {
     const history = deferred<CodexEvent[]>()
+    const admission = deferred<{ clientCommandId: string }>()
     const transport: ConversationTransport = {
       read: () => history.promise,
       subscribe: () => () => undefined,
+      submit: () => admission.promise,
     }
-    const controller = createConversationController('thread-1', transport)
+    const controller = createConversationController('thread-1', transport, { createClientCommandId: () => 'local-1' })
     const start = controller.start()
 
-    controller.enqueueUserMessage({ id: 'local-1', text: '先检查当前分支' })
+    const submitted = controller.submitUserMessage({ text: '先检查当前分支' }, { mode: 'queue', input: {} })
     expect(controller.getState().messages).toMatchObject([
       { id: 'user:local-1', text: '先检查当前分支', messageType: 'userMessage.optimistic', outbox: { status: 'queued' } },
     ])
@@ -269,6 +271,8 @@ describe('ConversationController', () => {
       itemId: 'native-user-1',
     }])
     await start
+    admission.resolve({ clientCommandId: 'local-1' })
+    await submitted
 
     expect(controller.getState().messages).toMatchObject([
       { id: 'user:native-user-1', text: '先检查当前分支' },
@@ -283,8 +287,8 @@ describe('ConversationController', () => {
       read: async () => [],
       subscribe: () => () => undefined,
       submit: () => admission.promise,
-    })
-    const submitted = controller.submitUserMessage({ id: 'command-1', text: '立即可见' }, {
+    }, { createClientCommandId: () => 'command-1' })
+    const submitted = controller.submitUserMessage({ text: '立即可见' }, {
       mode: 'queue', input: { input: [{ type: 'text', text: '立即可见' }] },
     })
     expect(controller.getState().messages).toMatchObject([
@@ -304,9 +308,9 @@ describe('ConversationController', () => {
       read: async () => [],
       subscribe: (_threadId, next) => { listener = next; return () => undefined },
       submit: () => admission.promise,
-    })
+    }, { createClientCommandId: () => 'command-1' })
     await controller.start()
-    const submitted = controller.submitUserMessage({ id: 'command-1', text: 'run once' }, {
+    const submitted = controller.submitUserMessage({ text: 'run once' }, {
       mode: 'queue', input: { input: [{ type: 'text', text: 'run once' }] },
     })
     listener?.({
@@ -321,13 +325,17 @@ describe('ConversationController', () => {
     ])
   })
 
-  it('discards a queued command without touching native history rows', () => {
+  it('discards an explicitly failed command without touching native history rows', async () => {
+    const admission = deferred<{ clientCommandId: string }>()
     const controller = createConversationController('thread-1', {
       read: async () => [],
       subscribe: () => () => undefined,
-    })
-    controller.enqueueUserMessage({ id: 'discard-me', text: 'queued draft' })
-    controller.discardQueuedUserMessage('discard-me')
+      submit: () => admission.promise,
+    }, { createClientCommandId: () => 'discard-me' })
+    const submitted = controller.submitUserMessage({ text: 'queued draft' }, { mode: 'queue', input: {} })
+    admission.reject(new Error('owner unavailable'))
+    await expect(submitted).rejects.toThrow('owner unavailable')
+    controller.discardFailedUserMessage('user:discard-me')
     expect(controller.getState().messages).toEqual([])
     expect(controller.getState().presentation).toEqual([])
   })
@@ -338,10 +346,11 @@ describe('ConversationController', () => {
     const transport: ConversationTransport = {
       read: async () => snapshot,
       subscribe: (_threadId, next) => { listener = next; return () => undefined },
+      submit: async (command) => ({ clientCommandId: command.clientCommandId }),
     }
-    const controller = createConversationController('thread-1', transport)
+    const controller = createConversationController('thread-1', transport, { createClientCommandId: () => 'command-1' })
     await controller.start()
-    controller.enqueueUserMessage({ id: 'command-1', text: '检查分支' })
+    await controller.submitUserMessage({ text: '检查分支' }, { mode: 'queue', input: {} })
     listener?.({ type: 'event', event: { ...event('queued', 'command.queued', { text: '检查分支' }), itemId: 'command-1', turnId: undefined } })
     listener?.({ type: 'event', event: { ...event('bound', 'command.bound'), itemId: 'command-1', turnId: 'turn-1' } })
 
@@ -361,25 +370,29 @@ describe('ConversationController', () => {
     const controller = createConversationController('thread-1', {
       read: async () => [],
       subscribe: (_threadId, next) => { listener = next; return () => undefined },
-    })
+      submit: async (command) => ({ clientCommandId: command.clientCommandId }),
+    }, { createClientCommandId: () => 'command-1' })
     await controller.start()
-    controller.enqueueUserMessage({ id: 'command-1', text: 'same command' })
+    await controller.submitUserMessage({ text: 'same command' }, { mode: 'queue', input: {} })
     listener?.({ type: 'event', event: {
       ...event('native-user', 'user.completed', { text: 'same command' }),
       itemId: 'native-user-1',
     } })
-    controller.bindQueuedUserMessage('command-1', 'turn-1')
+    listener?.({ type: 'event', event: { ...event('bound', 'command.bound'), itemId: 'command-1', turnId: 'turn-1', data: { clientCommandId: 'command-1' } } })
     expect(controller.getState().messages).toMatchObject([{ id: 'user:native-user-1', text: 'same command' }])
     expect(controller.getState().messages).toHaveLength(1)
   })
 
-  it('keeps a failed queued user message visible for an explicit retry', () => {
+  it('keeps a failed queued user message visible for an explicit retry', async () => {
+    const admission = deferred<{ clientCommandId: string }>()
     const controller = createConversationController('thread-1', {
       read: async () => [],
       subscribe: () => () => undefined,
-    })
-    controller.enqueueUserMessage({ id: 'local-1', text: '执行检查' })
-    controller.failQueuedUserMessage('local-1', 'request timed out')
+      submit: () => admission.promise,
+    }, { createClientCommandId: () => 'local-1' })
+    const submitted = controller.submitUserMessage({ text: '执行检查' }, { mode: 'queue', input: {} })
+    admission.reject(new Error('request timed out'))
+    await expect(submitted).rejects.toThrow('request timed out')
 
     expect(controller.getState().messages).toMatchObject([
       { id: 'user:local-1', messageType: 'userMessage.optimistic', outbox: { status: 'failed', lastError: 'request timed out' } },
@@ -389,11 +402,12 @@ describe('ConversationController', () => {
   it('keeps 100 turns protocol ordered and duplicate-free through repeated history/live reconciliation', async () => {
     let listener: ((value: ConversationSubscriptionEvent) => void) | undefined
     const history: CodexEvent[] = []
+    let commandIndex = 0
     const controller = createConversationController('thread-1', {
       read: async () => history,
       submit: async (command) => ({ clientCommandId: command.clientCommandId }),
       subscribe: (_threadId, next) => { listener = next; return () => undefined },
-    })
+    }, { createClientCommandId: () => `command-${String(++commandIndex)}` })
     await controller.start()
 
     for (let index = 1; index <= 100; index += 1) {
@@ -401,7 +415,7 @@ describe('ConversationController', () => {
       const commandId = `command-${String(index)}`
       const atIso = new Date(index * 1_000).toISOString()
       const completionIso = new Date(index * 1_000 + 100).toISOString()
-      await controller.submitUserMessage({ id: commandId, text: `task ${String(index)}` }, {
+      await controller.submitUserMessage({ text: `task ${String(index)}` }, {
         mode: 'queue', input: { input: [{ type: 'text', text: `task ${String(index)}` }] },
       })
       const started = { id: `start-${String(index)}`, type: 'turn.started' as const, threadId: 'thread-1', turnId, atIso, data: {} }

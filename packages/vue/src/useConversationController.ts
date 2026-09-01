@@ -9,13 +9,13 @@ import {
 export interface UseConversationController {
   readonly state: ComputedRef<ConversationState>
   connect(threadId: string, transport: ConversationTransport): Promise<void>
-  enqueueUserMessage(input: { id: string; text: string; images?: string[]; skills?: Array<{ name: string; path: string; displayName?: string }> }): void
   submitUserMessage(
-    input: { id: string; text: string; images?: string[]; skills?: Array<{ name: string; path: string; displayName?: string }> },
+    input: { text: string; images?: string[]; skills?: Array<{ name: string; path: string; displayName?: string }> },
     command: Parameters<ConversationController['submitUserMessage']>[1],
   ): Promise<{ clientCommandId: string }>
-  bindQueuedUserMessage(id: string, turnId: string): void
-  failQueuedUserMessage(id: string, error: string): void
+  retryFailedUserMessage(messageId: string, command: Parameters<ConversationController['retryFailedUserMessage']>[1]): Promise<{ clientCommandId: string }>
+  discardFailedUserMessage(messageId: string): void
+  interrupt(): Promise<void>
   refresh(): Promise<void>
   reset(threadId?: string): void
   dispose(): void
@@ -56,13 +56,19 @@ export function useConversationController(): UseConversationController {
     await controller?.refresh()
   }
 
-  const enqueueUserMessage: UseConversationController['enqueueUserMessage'] = (input) => controller?.enqueueUserMessage(input)
   const submitUserMessage: UseConversationController['submitUserMessage'] = async (input, command) => {
     if (!controller) throw new Error('Conversation controller is not connected.')
     return controller.submitUserMessage(input, command)
   }
-  const bindQueuedUserMessage: UseConversationController['bindQueuedUserMessage'] = (id, turnId) => controller?.bindQueuedUserMessage(id, turnId)
-  const failQueuedUserMessage: UseConversationController['failQueuedUserMessage'] = (id, error) => controller?.failQueuedUserMessage(id, error)
+  const retryFailedUserMessage: UseConversationController['retryFailedUserMessage'] = async (messageId, command) => {
+    if (!controller) throw new Error('Conversation controller is not connected.')
+    return controller.retryFailedUserMessage(messageId, command)
+  }
+  const discardFailedUserMessage: UseConversationController['discardFailedUserMessage'] = (messageId) => controller?.discardFailedUserMessage(messageId)
+  const interrupt: UseConversationController['interrupt'] = async () => {
+    if (!controller) throw new Error('Conversation controller is not connected.')
+    await controller.interrupt()
+  }
 
   const reset = (threadId = ''): void => {
     release()
@@ -78,10 +84,10 @@ export function useConversationController(): UseConversationController {
   return {
     state: computed(() => state.value),
     connect,
-    enqueueUserMessage,
     submitUserMessage,
-    bindQueuedUserMessage,
-    failQueuedUserMessage,
+    retryFailedUserMessage,
+    discardFailedUserMessage,
+    interrupt,
     refresh,
     reset,
     dispose,

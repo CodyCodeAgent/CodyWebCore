@@ -31,6 +31,9 @@ export interface ConversationTransport {
     submit?(command: ConversationCommand): Promise<{
         clientCommandId: string;
     }>;
+    /** Requests interruption through the process-wide owner. The owner, not a
+     * browser product, decides the authoritative terminal transition. */
+    interrupt?(threadId: string): Promise<void>;
 }
 export type ConversationCommand = {
     threadId: string;
@@ -40,7 +43,6 @@ export type ConversationCommand = {
     context?: unknown;
 };
 export type ConversationOptimisticMessage = {
-    id: string;
     text: string;
     images?: string[];
     skills?: Array<{
@@ -49,23 +51,27 @@ export type ConversationOptimisticMessage = {
         displayName?: string;
     }>;
 };
+export type ConversationControllerOptions = {
+    /** Test hook only. Product code must never manufacture command ids. */
+    createClientCommandId?: () => string;
+};
 export type ConversationController = {
     getState(): ConversationState;
     subscribe(listener: (state: ConversationState) => void): () => void;
-    /**
-     * Adds a local user row before the transport has acknowledged turn/start.
-     * The row is reconciled with the native user item rather than appended again.
-     */
-    enqueueUserMessage(input: ConversationOptimisticMessage): void;
     /** The single browser command entrypoint: optimistic projection first,
      * process-owner admission second, and an explicit failed outbox on transport
      * rejection. Products must not coordinate turn/start themselves. */
     submitUserMessage(input: ConversationOptimisticMessage, command: Omit<ConversationCommand, 'threadId' | 'clientCommandId'>): Promise<{
         clientCommandId: string;
     }>;
-    bindQueuedUserMessage(id: string, turnId: string): void;
-    failQueuedUserMessage(id: string, error: string): void;
-    discardQueuedUserMessage(id: string): void;
+    /** Replays one explicitly failed local command as a new command. */
+    retryFailedUserMessage(messageId: string, command: Omit<ConversationCommand, 'threadId' | 'clientCommandId'>): Promise<{
+        clientCommandId: string;
+    }>;
+    /** Removes a pre-admission failed command. Native history is never touched. */
+    discardFailedUserMessage(messageId: string): void;
+    /** Delegates an interrupt intent to the process-wide owner. */
+    interrupt(): Promise<void>;
     /** Applies a product-originated normalized event without creating a second message store. */
     ingestEvent(event: CodexEvent): void;
     start(): Promise<void>;
@@ -76,7 +82,7 @@ export type ConversationController = {
  * Browser-neutral controller used by both products. Native history is authoritative;
  * realtime events are overlays and every reconnect is reconciled through read().
  */
-export declare function createConversationController(threadId: string, transport: ConversationTransport): ConversationController;
+export declare function createConversationController(threadId: string, transport: ConversationTransport, options?: ConversationControllerOptions): ConversationController;
 export type ReconnectingSocket = {
     close(): void;
     /** Sends a small control frame on the current socket generation. Returns

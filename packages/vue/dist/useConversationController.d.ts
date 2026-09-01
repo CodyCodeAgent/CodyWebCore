@@ -4,18 +4,7 @@ import { type ConversationController, type ConversationTransport } from '@codyco
 export interface UseConversationController {
     readonly state: ComputedRef<ConversationState>;
     connect(threadId: string, transport: ConversationTransport): Promise<void>;
-    enqueueUserMessage(input: {
-        id: string;
-        text: string;
-        images?: string[];
-        skills?: Array<{
-            name: string;
-            path: string;
-            displayName?: string;
-        }>;
-    }): void;
     submitUserMessage(input: {
-        id: string;
         text: string;
         images?: string[];
         skills?: Array<{
@@ -26,8 +15,11 @@ export interface UseConversationController {
     }, command: Parameters<ConversationController['submitUserMessage']>[1]): Promise<{
         clientCommandId: string;
     }>;
-    bindQueuedUserMessage(id: string, turnId: string): void;
-    failQueuedUserMessage(id: string, error: string): void;
+    retryFailedUserMessage(messageId: string, command: Parameters<ConversationController['retryFailedUserMessage']>[1]): Promise<{
+        clientCommandId: string;
+    }>;
+    discardFailedUserMessage(messageId: string): void;
+    interrupt(): Promise<void>;
     refresh(): Promise<void>;
     reset(threadId?: string): void;
     dispose(): void;

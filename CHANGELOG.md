@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.37.13
+
+- Made the shared client controller the only browser command lifecycle owner: it now creates command identifiers, inserts optimistic user messages, reconciles native admission, retains only failed pre-admission outbox rows, retries them, and delegates interruption to the process owner.
+- Removed product-facing APIs for manually queueing, binding, failing, or discarding conversation rows, closing the path that allowed product UIs to manufacture a second command or terminal projection.
+- Kept reconnect reconciliation in the Core controller and removed the CodyWeb product-level reconnect refresh that could race the canonical native-history-plus-realtime-suffix projection.
+
 ## 0.37.12
 
 - Added a small, generation-safe control-frame API to the shared reconnecting WebSocket transport so products can replay their desired subscription set after reconnect.

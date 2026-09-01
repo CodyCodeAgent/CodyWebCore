@@ -3,7 +3,7 @@ import { createConversationState, reduceConversationEvent, reduceConversationEve
  * Browser-neutral controller used by both products. Native history is authoritative;
  * realtime events are overlays and every reconnect is reconciled through read().
  */
-export function createConversationController(threadId, transport) {
+export function createConversationController(threadId, transport, options = {}) {
     let state = createConversationState(threadId);
     let readRevision = 0;
     let unsubscribeTransport = null;
@@ -16,6 +16,14 @@ export function createConversationController(threadId, transport) {
     const admittedCommandIds = new Set();
     const listeners = new Set();
     const MAX_REALTIME_JOURNAL_EVENTS = 10_000;
+    let generatedCommandSequence = 0;
+    const nextClientCommandId = () => {
+        generatedCommandSequence += 1;
+        const random = typeof globalThis.crypto?.randomUUID === 'function'
+            ? globalThis.crypto.randomUUID()
+            : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+        return options.createClientCommandId?.() || `command:${threadId}:${random}:${String(generatedCommandSequence)}`;
+    };
     const publish = (next) => {
         if (next === state)
             return;
@@ -188,14 +196,17 @@ export function createConversationController(threadId, transport) {
     return {
         getState: () => state,
         subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
-        enqueueUserMessage(input) {
-            if (!input.id || !input.text.trim())
-                return;
+        async submitUserMessage(input, command) {
+            if (!transport.submit)
+                throw new Error('Conversation transport does not support command submission.');
+            if (!input.text.trim())
+                throw new Error('Conversation command requires a non-empty user message.');
+            const commandId = nextClientCommandId();
             const event = {
-                id: `local-outbox:${input.id}`,
+                id: `local-outbox:${commandId}`,
                 type: 'user.completed',
                 threadId,
-                itemId: input.id,
+                itemId: commandId,
                 atIso: new Date().toISOString(),
                 data: {
                     text: input.text,
@@ -205,74 +216,62 @@ export function createConversationController(threadId, transport) {
                     localOutbox: 'queued',
                 },
             };
-            localOutboxJournal = [...localOutboxJournal.filter((row) => row.itemId !== input.id), event];
+            localOutboxJournal = [...localOutboxJournal.filter((row) => row.itemId !== commandId), event];
             publish(reduceConversationEvent(state, event));
-        },
-        async submitUserMessage(input, command) {
-            if (!transport.submit)
-                throw new Error('Conversation transport does not support command submission.');
-            if (!input.id || !input.text.trim())
-                throw new Error('Conversation command requires a non-empty user message.');
-            this.enqueueUserMessage(input);
             try {
-                return await transport.submit({
+                await transport.submit({
                     ...command,
                     threadId,
-                    clientCommandId: input.id,
+                    clientCommandId: commandId,
                 });
+                return { clientCommandId: commandId };
             }
             catch (error) {
                 // A proxy can lose the HTTP 202 after the owner has already emitted
                 // command.queued over realtime. That owner event is stronger evidence
                 // than the failed response path; preserve the admitted command and let
                 // its native events drive the lifecycle.
-                if (admittedCommandIds.has(input.id))
-                    return { clientCommandId: input.id };
-                this.failQueuedUserMessage(input.id, error instanceof Error ? error.message : String(error));
+                if (admittedCommandIds.has(commandId))
+                    return { clientCommandId: commandId };
+                const message = error instanceof Error ? error.message : String(error);
+                const failed = localOutboxJournal.find((row) => row.itemId === commandId);
+                if (failed) {
+                    const failedEvent = {
+                        ...failed,
+                        id: `local-outbox-failed:${commandId}:${Date.now().toString(36)}`,
+                        atIso: new Date().toISOString(),
+                        data: { ...failed.data, optimistic: false, localOutbox: 'failed', error: message },
+                    };
+                    localOutboxJournal = localOutboxJournal.map((row) => row.itemId === commandId ? failedEvent : row);
+                    publish(reduceConversationEvent(state, failedEvent));
+                }
                 throw error;
             }
         },
-        bindQueuedUserMessage(id, turnId) {
-            if (!id || !turnId)
-                return;
-            localOutboxJournal = localOutboxJournal.map((event) => event.itemId === id ? { ...event, turnId } : event);
-            publish(reduceConversationEvent(state, {
-                id: `local-command-bound:${id}:${turnId}`,
-                type: 'command.bound',
-                threadId,
-                turnId,
-                itemId: id,
-                atIso: new Date().toISOString(),
-                data: { clientCommandId: id },
-            }));
+        async retryFailedUserMessage(messageId, command) {
+            const failed = state.messages.find((message) => message.id === messageId && message.role === 'user' && message.outbox?.status === 'failed');
+            if (!failed)
+                throw new Error('Only a failed local command can be retried.');
+            return this.submitUserMessage({ text: failed.text, images: failed.images, skills: failed.skills }, command);
         },
-        failQueuedUserMessage(id, error) {
-            if (!id)
+        discardFailedUserMessage(messageId) {
+            const failed = state.messages.find((message) => message.id === messageId && message.role === 'user' && message.outbox?.status === 'failed');
+            if (!failed)
                 return;
-            const current = localOutboxJournal.find((event) => event.itemId === id);
-            if (!current)
-                return;
-            const failed = {
-                ...current,
-                id: `local-outbox-failed:${id}:${Date.now().toString(36)}`,
-                atIso: new Date().toISOString(),
-                data: { ...current.data, optimistic: false, localOutbox: 'failed', error },
-            };
-            localOutboxJournal = localOutboxJournal.map((event) => event.itemId === id ? failed : event);
-            publish(reduceConversationEvent(state, failed));
-        },
-        discardQueuedUserMessage(id) {
-            if (!id)
-                return;
-            localOutboxJournal = localOutboxJournal.filter((event) => event.itemId !== id);
-            const messageId = queuedMessageId(id);
-            if (!state.messages.some((message) => message.id === messageId))
-                return;
+            const commandId = messageId.startsWith('user:') ? messageId.slice('user:'.length) : messageId;
+            localOutboxJournal = localOutboxJournal.filter((event) => event.itemId !== commandId);
             publish({
                 ...state,
-                messages: state.messages.filter((message) => message.id !== messageId),
-                presentation: state.presentation.filter((row) => row.id !== messageId),
+                messages: state.messages.filter((message) => message.id !== failed.id),
+                presentation: state.presentation.filter((row) => row.id !== failed.id),
             });
+        },
+        async interrupt() {
+            if (!transport.interrupt)
+                throw new Error('Conversation transport does not support interruption.');
+            if (!state.activeTurnId)
+                return;
+            await transport.interrupt(threadId);
         },
         ingestEvent(event) {
             applyRealtimeEvent(event);
