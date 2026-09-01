@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createConversationController, createReconnectingConversationSocket, type ConversationSubscriptionEvent, type ConversationTransport } from '../src/client/index.js'
+import {
+  conversationBrowserTransportStateFromEvent,
+  createConversationController,
+  createReconnectingConversationSocket,
+  initialConversationBrowserTransportState,
+  type ConversationSubscriptionEvent,
+  type ConversationTransport,
+} from '../src/client/index.js'
 import { conversationFeedFromState, type CodexEvent } from '../src/conversation/index.js'
 
 function event(id: string, type: CodexEvent['type'], data: Record<string, unknown> = {}): CodexEvent {
@@ -16,6 +23,18 @@ function deferred<T>() {
 afterEach(() => vi.useRealTimers())
 
 describe('ConversationController', () => {
+  it('shares one browser transport projection for retryable and terminal closes', () => {
+    const retrying = conversationBrowserTransportStateFromEvent(initialConversationBrowserTransportState(), {
+      type: 'disconnected', closeCode: 1005, reconnectAttempt: 1, retryInMs: 500, willReconnect: true,
+    })
+    expect(retrying).toMatchObject({ status: 'reconnecting', reconnectAttempt: 1, willReconnect: true })
+
+    const terminal = conversationBrowserTransportStateFromEvent(retrying, {
+      type: 'disconnected', closeCode: 4404, closeReason: 'conversation deleted', willReconnect: false,
+    })
+    expect(terminal).toMatchObject({ status: 'disconnected', closeCode: 4404, willReconnect: false })
+  })
+
   it('reads native history then overlays one current owner attachment snapshot', async () => {
     const calls: string[] = []
     const controller = createConversationController('thread-1', {

@@ -1,4 +1,30 @@
 import { createConversationState, reduceConversationEvent, reduceConversationEvents, } from '../conversation/index.js';
+export const initialConversationBrowserTransportState = () => ({
+    status: 'connecting',
+    reconnectAttempt: 0,
+    closeCode: null,
+    closeReason: '',
+    retryInMs: null,
+    willReconnect: true,
+});
+/** Single shared presentation policy for browser socket lifecycle events. */
+export function conversationBrowserTransportStateFromEvent(previous, event) {
+    if (event.type === 'connected') {
+        return {
+            status: 'connected', reconnectAttempt: 0, closeCode: null,
+            closeReason: '', retryInMs: null, willReconnect: true,
+        };
+    }
+    const willReconnect = event.willReconnect !== false;
+    return {
+        status: willReconnect ? 'reconnecting' : 'disconnected',
+        reconnectAttempt: event.reconnectAttempt ?? Math.max(1, previous.reconnectAttempt + 1),
+        closeCode: event.closeCode ?? null,
+        closeReason: event.closeReason ?? event.error ?? '',
+        retryInMs: event.retryInMs ?? null,
+        willReconnect,
+    };
+}
 /**
  * Browser-neutral controller used by both products. Native history is authoritative;
  * realtime events are overlays and every reconnect is reconciled through read().
@@ -144,10 +170,19 @@ export function createConversationController(threadId, transport, options = {}) 
                     return;
                 }
                 if (value.type === 'connected') {
+                    const transportConnection = conversationBrowserTransportStateFromEvent({
+                        status: state.transportConnection.status === 'idle' ? 'connecting' : state.transportConnection.status,
+                        reconnectAttempt: state.transportConnection.reconnectAttempt,
+                        closeCode: state.transportConnection.closeCode,
+                        closeReason: state.transportConnection.closeReason,
+                        retryInMs: null,
+                        willReconnect: state.transportConnection.status !== 'disconnected',
+                    }, value);
                     publish({
                         ...state,
                         transportConnection: {
-                            status: 'connected', reconnectAttempt: 0, closeCode: null, closeReason: '',
+                            status: transportConnection.status, reconnectAttempt: transportConnection.reconnectAttempt,
+                            closeCode: transportConnection.closeCode, closeReason: transportConnection.closeReason,
                             updatedAtIso: value.atIso ?? new Date().toISOString(),
                         },
                     });
@@ -155,13 +190,21 @@ export function createConversationController(threadId, transport, options = {}) 
                         void refresh().catch(() => undefined);
                     return;
                 }
+                const transportConnection = conversationBrowserTransportStateFromEvent({
+                    status: state.transportConnection.status === 'idle' ? 'connecting' : state.transportConnection.status,
+                    reconnectAttempt: state.transportConnection.reconnectAttempt,
+                    closeCode: state.transportConnection.closeCode,
+                    closeReason: state.transportConnection.closeReason,
+                    retryInMs: null,
+                    willReconnect: state.transportConnection.status !== 'disconnected',
+                }, value);
                 publish({
                     ...state,
                     transportConnection: {
-                        status: value.willReconnect === false ? 'disconnected' : 'reconnecting',
-                        reconnectAttempt: value.reconnectAttempt ?? state.transportConnection.reconnectAttempt + 1,
-                        closeCode: value.closeCode ?? null,
-                        closeReason: value.closeReason ?? value.error ?? '',
+                        status: transportConnection.status,
+                        reconnectAttempt: transportConnection.reconnectAttempt,
+                        closeCode: transportConnection.closeCode,
+                        closeReason: transportConnection.closeReason,
                         updatedAtIso: value.atIso ?? new Date().toISOString(),
                     },
                 });

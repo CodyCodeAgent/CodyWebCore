@@ -16,6 +16,25 @@ export type ConversationSubscriptionEvent = {
     closeReason?: string;
     willReconnect?: boolean;
 };
+/**
+ * Browser transport is deliberately separate from the native App Server and
+ * Turn lifecycles.  Both products use this projection so a retryable browser
+ * close (Safari background tabs commonly report 1005) is never presented as a
+ * failed Codex Turn or an offline App Server.
+ */
+export type ConversationBrowserTransportState = {
+    status: 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
+    reconnectAttempt: number;
+    closeCode: number | null;
+    closeReason: string;
+    retryInMs: number | null;
+    willReconnect: boolean;
+};
+export declare const initialConversationBrowserTransportState: () => ConversationBrowserTransportState;
+/** Single shared presentation policy for browser socket lifecycle events. */
+export declare function conversationBrowserTransportStateFromEvent(previous: ConversationBrowserTransportState, event: Exclude<ConversationSubscriptionEvent, {
+    type: 'event';
+}>): ConversationBrowserTransportState;
 export type ConversationAttachment = {
     /** Current owner state that is not guaranteed to exist in native history
      * yet (for example, a Turn that is still running). */

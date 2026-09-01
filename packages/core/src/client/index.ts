@@ -11,6 +11,52 @@ export type ConversationSubscriptionEvent =
   | { type: 'connected'; atIso?: string }
   | { type: 'disconnected'; error?: string; atIso?: string; reconnectAttempt?: number; retryInMs?: number | null; closeCode?: number | null; closeReason?: string; willReconnect?: boolean }
 
+/**
+ * Browser transport is deliberately separate from the native App Server and
+ * Turn lifecycles.  Both products use this projection so a retryable browser
+ * close (Safari background tabs commonly report 1005) is never presented as a
+ * failed Codex Turn or an offline App Server.
+ */
+export type ConversationBrowserTransportState = {
+  status: 'connecting' | 'connected' | 'reconnecting' | 'disconnected'
+  reconnectAttempt: number
+  closeCode: number | null
+  closeReason: string
+  retryInMs: number | null
+  willReconnect: boolean
+}
+
+export const initialConversationBrowserTransportState = (): ConversationBrowserTransportState => ({
+  status: 'connecting',
+  reconnectAttempt: 0,
+  closeCode: null,
+  closeReason: '',
+  retryInMs: null,
+  willReconnect: true,
+})
+
+/** Single shared presentation policy for browser socket lifecycle events. */
+export function conversationBrowserTransportStateFromEvent(
+  previous: ConversationBrowserTransportState,
+  event: Exclude<ConversationSubscriptionEvent, { type: 'event' }>,
+): ConversationBrowserTransportState {
+  if (event.type === 'connected') {
+    return {
+      status: 'connected', reconnectAttempt: 0, closeCode: null,
+      closeReason: '', retryInMs: null, willReconnect: true,
+    }
+  }
+  const willReconnect = event.willReconnect !== false
+  return {
+    status: willReconnect ? 'reconnecting' : 'disconnected',
+    reconnectAttempt: event.reconnectAttempt ?? Math.max(1, previous.reconnectAttempt + 1),
+    closeCode: event.closeCode ?? null,
+    closeReason: event.closeReason ?? event.error ?? '',
+    retryInMs: event.retryInMs ?? null,
+    willReconnect,
+  }
+}
+
 export type ConversationAttachment = {
   /** Current owner state that is not guaranteed to exist in native history
    * yet (for example, a Turn that is still running). */
@@ -238,23 +284,40 @@ export function createConversationController(
           return
         }
         if (value.type === 'connected') {
+          const transportConnection = conversationBrowserTransportStateFromEvent({
+            status: state.transportConnection.status === 'idle' ? 'connecting' : state.transportConnection.status,
+            reconnectAttempt: state.transportConnection.reconnectAttempt,
+            closeCode: state.transportConnection.closeCode,
+            closeReason: state.transportConnection.closeReason,
+            retryInMs: null,
+            willReconnect: state.transportConnection.status !== 'disconnected',
+          }, value)
           publish({
             ...state,
             transportConnection: {
-              status: 'connected', reconnectAttempt: 0, closeCode: null, closeReason: '',
+              status: transportConnection.status, reconnectAttempt: transportConnection.reconnectAttempt,
+              closeCode: transportConnection.closeCode, closeReason: transportConnection.closeReason,
               updatedAtIso: value.atIso ?? new Date().toISOString(),
             },
           })
           if (initialReadSettled) void refresh().catch(() => undefined)
           return
         }
+        const transportConnection = conversationBrowserTransportStateFromEvent({
+          status: state.transportConnection.status === 'idle' ? 'connecting' : state.transportConnection.status,
+          reconnectAttempt: state.transportConnection.reconnectAttempt,
+          closeCode: state.transportConnection.closeCode,
+          closeReason: state.transportConnection.closeReason,
+          retryInMs: null,
+          willReconnect: state.transportConnection.status !== 'disconnected',
+        }, value)
         publish({
           ...state,
           transportConnection: {
-            status: value.willReconnect === false ? 'disconnected' : 'reconnecting',
-            reconnectAttempt: value.reconnectAttempt ?? state.transportConnection.reconnectAttempt + 1,
-            closeCode: value.closeCode ?? null,
-            closeReason: value.closeReason ?? value.error ?? '',
+            status: transportConnection.status,
+            reconnectAttempt: transportConnection.reconnectAttempt,
+            closeCode: transportConnection.closeCode,
+            closeReason: transportConnection.closeReason,
             updatedAtIso: value.atIso ?? new Date().toISOString(),
           },
         })
