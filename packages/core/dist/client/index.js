@@ -403,6 +403,17 @@ export function createReconnectingConversationSocket(options) {
             socket?.close();
             socket = null;
         },
+        send(data) {
+            if (closed || !socket || socket.readyState !== 1)
+                return false;
+            try {
+                socket.send(data);
+                return true;
+            }
+            catch {
+                return false;
+            }
+        },
     };
 }
 //# sourceMappingURL=index.js.map

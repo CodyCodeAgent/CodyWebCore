@@ -525,6 +525,29 @@ describe('ReconnectingConversationSocket', () => {
     transport.close()
   })
 
+  it('sends control frames only on the current open socket generation', () => {
+    class FakeSocket {
+      readonly listeners = new Map<string, Array<(event: any) => void>>()
+      readyState = 1
+      sent: string[] = []
+      addEventListener(type: string, listener: (event: any) => void) {
+        this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener])
+      }
+      send(value: string) { this.sent.push(value) }
+      close(code = 1000, reason = '') { this.emit('close', { code, reason }) }
+      emit(type: string, event: any = {}) { for (const listener of this.listeners.get(type) ?? []) listener(event) }
+    }
+    const socket = new FakeSocket()
+    const transport = createReconnectingConversationSocket({
+      url: 'ws://example.test', createSocket: () => socket as unknown as WebSocket,
+      parse: () => null, listener: () => undefined,
+    })
+    expect(transport.send('{"type":"subscribe"}')).toBe(true)
+    expect(socket.sent).toEqual(['{"type":"subscribe"}'])
+    transport.close()
+    expect(transport.send('{"type":"subscribe"}')).toBe(false)
+  })
+
   it('ignores late messages from a socket generation after it is closed', () => {
     class FakeSocket {
       readonly listeners = new Map<string, Array<(event: any) => void>>()

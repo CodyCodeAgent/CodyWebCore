@@ -79,6 +79,10 @@ export type ConversationController = {
 export declare function createConversationController(threadId: string, transport: ConversationTransport): ConversationController;
 export type ReconnectingSocket = {
     close(): void;
+    /** Sends a small control frame on the current socket generation. Returns
+     * false while the socket is reconnecting so callers can safely replay their
+     * desired subscription set when the next open event arrives. */
+    send(data: string): boolean;
 };
 export type ReconnectingSocketOptions = {
     url: string | (() => string);

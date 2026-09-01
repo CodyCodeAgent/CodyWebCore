@@ -360,6 +360,10 @@ export function createConversationController(threadId: string, transport: Conver
 
 export type ReconnectingSocket = {
   close(): void
+  /** Sends a small control frame on the current socket generation. Returns
+   * false while the socket is reconnecting so callers can safely replay their
+   * desired subscription set when the next open event arrives. */
+  send(data: string): boolean
 }
 
 export type ReconnectingSocketOptions = {
@@ -479,6 +483,15 @@ export function createReconnectingConversationSocket(options: ReconnectingSocket
       reconnectTimer = null
       socket?.close()
       socket = null
+    },
+    send(data) {
+      if (closed || !socket || socket.readyState !== 1) return false
+      try {
+        socket.send(data)
+        return true
+      } catch {
+        return false
+      }
     },
   }
 }

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.37.12
+
+- Added a small, generation-safe control-frame API to the shared reconnecting WebSocket transport so products can replay their desired subscription set after reconnect.
+- Kept browser projection subscriptions separate from the shared runtime owner; products can now scope each tab to the native threads it is actively rendering.
+
 ## 0.37.10
 
 - Reconcile completed assistant overlays symmetrically when native history wins the refresh race, preventing duplicate final responses with different item IDs.
