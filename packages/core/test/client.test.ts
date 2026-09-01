@@ -441,6 +441,56 @@ describe('ConversationController', () => {
     ])
   })
 
+  it('keeps two browser tabs on one owner-ordered feed through submit, live events, and snapshot refresh', async () => {
+    const history: CodexEvent[] = []
+    const listeners = new Set<(value: ConversationSubscriptionEvent) => void>()
+    let ownerRevision = 0
+    const transport: ConversationTransport = {
+      snapshot: async () => ({ events: [...history], watermark: ownerRevision }),
+      read: async () => [...history],
+      submit: async (command) => ({ clientCommandId: command.clientCommandId }),
+      subscribe: (_threadId, listener) => {
+        listeners.add(listener)
+        return () => listeners.delete(listener)
+      },
+    }
+    const publish = (next: CodexEvent, durable = false): void => {
+      ownerRevision += 1
+      if (durable) history.push(next)
+      for (const listener of listeners) listener({ type: 'event', event: next, ownerRevision })
+    }
+
+    const firstTab = createConversationController('thread-1', transport, { createClientCommandId: () => 'command-shared' })
+    const secondTab = createConversationController('thread-1', transport, { createClientCommandId: () => 'command-second-tab' })
+    await Promise.all([firstTab.start(), secondTab.start()])
+
+    await firstTab.submitUserMessage({ text: 'same owner, two tabs' }, { mode: 'queue', input: {} })
+    const started = { ...event('turn-started', 'turn.started'), turnId: 'turn-shared' }
+    const queued = { ...event('command-queued', 'command.queued', { text: 'same owner, two tabs', clientCommandId: 'command-shared' }), itemId: 'command-shared', turnId: undefined }
+    const bound = { ...event('command-bound', 'command.bound', { clientCommandId: 'command-shared' }), itemId: 'command-shared', turnId: 'turn-shared' }
+    const user = { ...event('native-user', 'user.completed', { text: 'same owner, two tabs' }), itemId: 'native-user', turnId: 'turn-shared' }
+    const assistant = { ...event('native-assistant', 'assistant.completed', { text: 'one answer' }), itemId: 'native-assistant', turnId: 'turn-shared' }
+    const completed = { ...event('turn-completed', 'turn.completed', { durationMs: 25 }), turnId: 'turn-shared' }
+    publish(queued)
+    publish(bound)
+    publish(started, true)
+    publish(user, true)
+    publish(assistant, true)
+    publish(completed, true)
+    await Promise.all([firstTab.refresh(), secondTab.refresh()])
+
+    for (const controller of [firstTab, secondTab]) {
+      const feed = conversationFeedFromState(controller.getState())
+      const messages = feed.filter((entry) => entry.kind === 'message').map((entry) => entry.message)
+      expect(messages).toEqual([
+        expect.objectContaining({ role: 'user', id: 'user:native-user', turnId: 'turn-shared', text: 'same owner, two tabs' }),
+        expect.objectContaining({ role: 'assistant', id: 'agent:native-assistant', turnId: 'turn-shared', text: 'one answer' }),
+      ])
+      expect(feed.filter((entry) => entry.kind === 'turn' && entry.status === 'completed')).toHaveLength(1)
+      expect(new Set(feed.map((entry) => entry.id)).size).toBe(feed.length)
+    }
+  })
+
   it('keeps 100 turns protocol ordered and duplicate-free through repeated history/live reconciliation', async () => {
     let listener: ((value: ConversationSubscriptionEvent) => void) | undefined
     const history: CodexEvent[] = []
