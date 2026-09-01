@@ -6,7 +6,6 @@ import {
   conversationOverlayMessagesFromState,
   latestTerminalTurnEvent,
   conversationStateFromRegistry,
-  conversationTranscriptFromState,
   compactConversationMessages,
   createConversationState,
   dataAuthorityFor,
@@ -143,11 +142,11 @@ describe('conversation core', () => {
       { ...base, id: 'turn-a-done', type: 'turn.completed', turnId: 'turn-a', atIso: '2026-01-01T00:00:01.000Z', data: { durationMs: 1_000 } },
     ])
 
-    expect(conversationTranscriptFromState(state).map((message) => [message.text, message.messageType])).toEqual([
-      ['first', undefined],
-      ['first answer', 'agentMessage'],
-      ['Worked for 1s', 'worked'],
-      ['second', 'userMessage.optimistic'],
+    expect(conversationFeedFromState(state).map((entry) => [entry.kind, entry.id])).toEqual([
+      ['message', 'user:user-a'],
+      ['message', 'agent:answer-a'],
+      ['turn', 'worked:turn-a'],
+      ['message', 'user:command-b'],
     ])
   })
 
@@ -164,8 +163,12 @@ describe('conversation core', () => {
       { ...base, id: 'answer-b', type: 'assistant.completed', turnId: 'turn-b', itemId: 'answer-b', data: { text: 'second answer' } },
     ])
 
-    expect(conversationTranscriptFromState(state).map((message) => message.text)).toEqual([
-      'first', 'first answer', 'Worked for 1s', 'second', 'second answer',
+    const feed = conversationFeedFromState(state)
+    expect(feed.map((entry) => entry.id)).toEqual([
+      'user:user-a', 'agent:answer-a', 'worked:turn-a', 'user:command-b', 'agent:answer-b', 'activity:turn-b',
+    ])
+    expect(feed.filter((entry) => entry.kind === 'turn')).toEqual([
+      expect.objectContaining({ turnId: 'turn-a', status: 'completed' }),
     ])
   })
 
@@ -224,7 +227,7 @@ describe('conversation core', () => {
       { ...base, id: 'turn-2-done', type: 'turn.completed', turnId: 'turn-2', data: { durationMs: 1_000 } },
     ])
     expect(state.messages.filter(message => message.role === 'user')).toHaveLength(2)
-    expect(conversationTranscriptFromState(state).filter(message => message.text === 'retry')).toHaveLength(2)
+    expect(conversationFeedFromState(state).filter(entry => entry.kind === 'message' && entry.message.text === 'retry')).toHaveLength(2)
   })
 
   it('keeps realtime deltas in one row', () => {
@@ -253,8 +256,8 @@ describe('conversation core', () => {
     ])
     expect(state.turns['turn-1']).toMatchObject({ lifecycle: 'completed' })
     expect(state.activeTurnId).toBe('')
-    expect(conversationTranscriptFromState(state).filter(message => message.messageType === 'turn.failed')).toEqual([])
-    expect(conversationTranscriptFromState(state).filter(message => message.messageType === 'worked')).toHaveLength(1)
+    expect(conversationFeedFromState(state).filter(entry => entry.kind === 'turn' && entry.status === 'failed')).toEqual([])
+    expect(conversationFeedFromState(state).filter(entry => entry.kind === 'turn' && entry.status === 'completed')).toHaveLength(1)
   })
 
   it('owns transient activity, structured plans and context compaction state', () => {
@@ -439,8 +442,8 @@ describe('conversation core', () => {
       turnId: 'empty-turn',
       status: 'interrupted',
     }))
-    expect(conversationTranscriptFromState(state)).not.toContainEqual(expect.objectContaining({
-      messageType: 'turn.interrupted',
+    expect(conversationFeedFromState(state)).not.toContainEqual(expect.objectContaining({
+      kind: 'turn',
       turnId: 'empty-turn',
     }))
   })
@@ -455,8 +458,8 @@ describe('conversation core', () => {
       { id: 'empty-interrupt', type: 'turn.interrupted', threadId: 'thread-1', turnId: 'empty-turn', atIso: '2026-01-01T00:00:03.000Z', data: {} },
     ])
 
-    const stopped = conversationTranscriptFromState(state).filter((message) => message.messageType === 'turn.interrupted')
-    expect(stopped).toEqual([expect.objectContaining({ turnId: 'visible-turn', text: 'Stopped' })])
+    const stopped = conversationFeedFromState(state).filter((entry) => entry.kind === 'turn' && entry.status === 'interrupted')
+    expect(stopped).toEqual([expect.objectContaining({ turnId: 'visible-turn' })])
     expect(state.turns['empty-turn']).toMatchObject({ lifecycle: 'interrupted' })
   })
 
@@ -471,8 +474,8 @@ describe('conversation core', () => {
 
     expect(state.turns['completed-turn']).toMatchObject({ lifecycle: 'completed' })
     expect(state.turns['failed-turn']).toMatchObject({ lifecycle: 'failed', error: 'maintenance failed' })
-    expect(conversationTranscriptFromState(state)).not.toContainEqual(expect.objectContaining({ turnId: 'completed-turn' }))
-    expect(conversationTranscriptFromState(state)).not.toContainEqual(expect.objectContaining({ turnId: 'failed-turn' }))
+    expect(conversationFeedFromState(state)).not.toContainEqual(expect.objectContaining({ kind: 'turn', turnId: 'completed-turn' }))
+    expect(conversationFeedFromState(state)).not.toContainEqual(expect.objectContaining({ kind: 'turn', turnId: 'failed-turn' }))
   })
 
   it('does not clear a newer active turn when an older turn finishes late', () => {
@@ -554,10 +557,11 @@ describe('conversation core', () => {
     }])
     expect(failed.plan).toMatchObject({ lifecycle: 'ended', possiblyStale: true })
     expect(conversationLiveOverlayFromState(failed)).toBeNull()
-    expect(conversationTranscriptFromState(failed)).toContainEqual(expect.objectContaining({
+    expect(conversationFeedFromState(failed)).toContainEqual(expect.objectContaining({
+      kind: 'turn',
       turnId: 'turn-1',
-      messageType: 'turn.failed',
-      text: 'network failed',
+      status: 'failed',
+      error: 'network failed',
     }))
   })
 
@@ -591,7 +595,7 @@ describe('conversation core', () => {
       { ...base, id: 'answer', itemId: 'agent-1', type: 'assistant.completed', data: { text: 'Same answer' } },
       { ...base, id: 'done', type: 'turn.completed', atIso: '2026-01-01T00:00:02.000Z', data: {} },
     ])
-    const persisted = conversationTranscriptFromState(state)
+    const persisted = state.messages
     const overlay = conversationOverlayMessagesFromState(state)
     const displayed = compactConversationMessages([
       ...persisted,
@@ -601,7 +605,7 @@ describe('conversation core', () => {
     expect(displayed.filter((message) => message.role === 'assistant')).toEqual([
       expect.objectContaining({ id: 'agent:agent-1', turnId: 'turn-1', text: 'Same answer' }),
     ])
-    expect(displayed.filter((message) => message.messageType === 'worked')).toHaveLength(1)
+    expect(conversationFeedFromState(state).filter((entry) => entry.kind === 'turn' && entry.status === 'completed')).toHaveLength(1)
   })
 
   it('reconciles terminal overlays with a differently named durable item in the same turn', () => {
@@ -684,12 +688,6 @@ describe('conversation core', () => {
     expect(conversationFeedFromState(state).at(-1)).toMatchObject({
       kind: 'turn', status: 'completed', durationMs: 3_000,
     })
-    expect(conversationTranscriptFromState(state).map((message) => [message.messageType, message.text])).toEqual([
-      [undefined, 'Inspect'],
-      ['tool.command', ''],
-      ['agentMessage', 'Done'],
-      ['worked', 'Worked for 3s'],
-    ])
   })
 
   it('reduces a shared notification stream into isolated thread states', () => {

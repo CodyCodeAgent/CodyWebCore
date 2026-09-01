@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.37.18
+
+- Removed the legacy transcript projection that turned typed terminal Turn states into synthetic `Worked`, `Stopped`, and failure messages.
+- Kept message, tool, plan, request, activity, and terminal state on the canonical typed conversation feed so products cannot reintroduce terminal-message ordering or duplication races.
+
 ## 0.37.17
 
 - Make native thread creation, catalog reads, skills and thread mutations explicit Core owner operations.

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createConversationController, createReconnectingConversationSocket, type ConversationSubscriptionEvent, type ConversationTransport } from '../src/client/index.js'
-import { conversationTranscriptFromState, type CodexEvent } from '../src/conversation/index.js'
+import { conversationFeedFromState, type CodexEvent } from '../src/conversation/index.js'
 
 function event(id: string, type: CodexEvent['type'], data: Record<string, unknown> = {}): CodexEvent {
   return { id, type, threadId: 'thread-1', turnId: 'turn-1', atIso: new Date(0).toISOString(), data }
@@ -452,11 +452,12 @@ describe('ConversationController', () => {
       await controller.refresh()
     }
 
-    const messages = conversationTranscriptFromState(controller.getState())
+    const feed = conversationFeedFromState(controller.getState())
+    const messages = feed.filter((entry) => entry.kind === 'message').map((entry) => entry.message)
     expect(messages.filter(message => message.role === 'user')).toHaveLength(100)
     expect(messages.filter(message => message.role === 'assistant')).toHaveLength(100)
-    expect(messages.filter(message => message.messageType === 'worked')).toHaveLength(100)
-    expect(new Set(messages.map(message => message.id)).size).toBe(messages.length)
+    expect(feed.filter(entry => entry.kind === 'turn' && entry.status === 'completed')).toHaveLength(100)
+    expect(new Set(feed.map(entry => entry.id)).size).toBe(feed.length)
     expect(messages.filter(message => message.role === 'user').map(message => message.text)).toEqual(
       Array.from({ length: 100 }, (_value, index) => `task ${String(index + 1)}`),
     )

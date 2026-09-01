@@ -1040,37 +1040,3 @@ function orderConversationFeedByTurn(
   ]
   return ordered.every((item, index) => item === feed[index]) ? feed : ordered
 }
-
-/**
- * Flattens the shared feed into a transport-friendly transcript. Interactive
- * requests and transient activity stay in their typed state channels.
- */
-export function conversationTranscriptFromState(state: ConversationState): ConversationMessage[] {
-  return conversationFeedFromState(state).flatMap((item): ConversationMessage[] => {
-    if (item.kind === 'message') return [item.message]
-    if (item.kind === 'timeline') {
-      if (item.entry.kind === 'reasoning') return [{
-        id: item.id, turnId: item.turnId, role: 'system', text: item.entry.text, messageType: 'reasoning',
-      }]
-      return [{
-        id: item.id, turnId: item.turnId, role: 'system', text: '',
-        messageType: `tool.${item.entry.tool.kind}`, tool: item.entry.tool,
-      }]
-    }
-    if (item.kind === 'plan') return [{
-      id: item.id, turnId: item.turnId, role: 'assistant', text: item.plan.text, messageType: 'plan',
-    }]
-    if (item.kind !== 'turn') return []
-    if (item.status === 'failed') return [{
-      id: item.id, turnId: item.turnId, role: 'system', text: item.error || 'Codex failed to complete this turn.', messageType: 'turn.failed',
-    }]
-    if (item.status === 'interrupted') return [{
-      id: item.id, turnId: item.turnId, role: 'system', text: 'Stopped', messageType: 'turn.interrupted',
-    }]
-    if (item.durationMs === null) return []
-    return [{
-      id: item.id, turnId: item.turnId, role: 'system',
-      text: `Worked for ${formatTurnDuration(item.durationMs)}`, messageType: 'worked',
-    }]
-  })
-}
