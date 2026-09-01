@@ -1,6 +1,7 @@
 import type { AppServerHost, ServerRequestReply } from '../runtime/index.js';
 import { type CodexEvent } from '../conversation/index.js';
 import type { ExecutionContext, TurnInput } from './turn-input.js';
+import { type CodexCollaborationModeOption, type CodexModelOption, type CodexThreadSummary, type ListCodexThreadsOptions } from './catalog.js';
 export * from './token-usage.js';
 export * from './turn-input.js';
 export * from './catalog.js';
@@ -129,6 +130,25 @@ export declare class CodexSessionManager {
     listAttachmentEvents(bindingId: string): CodexEvent[];
     snapshot(bindingId: string): CodexSessionSnapshot | null;
     create(bindingId: string, context: ExecutionContext): Promise<ThreadBinding>;
+    /**
+     * Starts a native thread and binds it to itself in one owner operation.
+     *
+     * Browser clients never receive a window in which a new native thread exists
+     * without a Core binding.  Product navigation may use the returned id, but
+     * future read/submit/interrupt operations must come back through this
+     * manager.
+     */
+    startThread(context: ExecutionContext): Promise<ThreadBinding>;
+    /** Catalog and thread mutations are owner operations too.  Keeping them
+     * here prevents product browsers from using a generic RPC tunnel for the
+     * same native threads that this manager serializes. */
+    listThreads(options?: ListCodexThreadsOptions): Promise<CodexThreadSummary[]>;
+    listModels(): Promise<CodexModelOption[]>;
+    listCollaborationModes(): Promise<CodexCollaborationModeOption[]>;
+    renameThread(threadId: string, name: string): Promise<void>;
+    forkThread(threadId: string): Promise<string>;
+    compactThread(threadId: string): Promise<void>;
+    archiveThread(threadId: string): Promise<void>;
     resume(binding: ThreadBinding, context: ExecutionContext): Promise<void>;
     detach(bindingId: string): void;
     /** Updates product policy/settings for future turns without rebinding the native thread. */

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.37.16
+
+- Make native thread creation, catalog reads and thread mutations explicit Core owner operations.
+- Keep browser clients out of the generic native thread/turn RPC path.
+
 ## 0.37.14
 
 - Made the process owner return one bounded, normalized `TurnOutcome` containing the final assistant text and native Turn events, so product adapters no longer replay a second conversation reducer to infer terminal state or final output.

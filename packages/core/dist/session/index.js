@@ -2,7 +2,7 @@ import { asRecord, isApprovalRequestMethod, isToolUserInputRequestMethod, readIt
 import { latestAssistantTextFromEvents } from '../conversation/index.js';
 import { contentFromUserItem, normalizeCodexNotification, outputText, textFromError, } from './normalization.js';
 import { CodexThreadCommands } from './commands.js';
-import { CodexSessionCatalog } from './catalog.js';
+import { CodexSessionCatalog, } from './catalog.js';
 export * from './token-usage.js';
 export * from './turn-input.js';
 export * from './catalog.js';
@@ -144,6 +144,64 @@ export class CodexSessionManager {
         this.attachLocal(binding, context);
         this.emit({ type: 'thread.attached', threadId: binding.threadId, data: { bindingId, mode: 'created' } });
         return binding;
+    }
+    /**
+     * Starts a native thread and binds it to itself in one owner operation.
+     *
+     * Browser clients never receive a window in which a new native thread exists
+     * without a Core binding.  Product navigation may use the returned id, but
+     * future read/submit/interrupt operations must come back through this
+     * manager.
+     */
+    async startThread(context) {
+        this.requireUsable();
+        await this.options.host.ensureInitialized();
+        const threadId = await this.commands.startThread({
+            ...context.thread,
+            experimentalRawEvents: context.thread.experimentalRawEvents ?? false,
+        });
+        const binding = { id: threadId, threadId };
+        this.attachLocal(binding, context);
+        this.emit({ type: 'thread.attached', threadId, data: { bindingId: binding.id, mode: 'created' } });
+        return binding;
+    }
+    /** Catalog and thread mutations are owner operations too.  Keeping them
+     * here prevents product browsers from using a generic RPC tunnel for the
+     * same native threads that this manager serializes. */
+    async listThreads(options = {}) {
+        this.requireUsable();
+        await this.options.host.ensureInitialized();
+        return this.catalog.listThreads(options);
+    }
+    async listModels() {
+        this.requireUsable();
+        await this.options.host.ensureInitialized();
+        return this.catalog.listModels();
+    }
+    async listCollaborationModes() {
+        this.requireUsable();
+        await this.options.host.ensureInitialized();
+        return this.catalog.listCollaborationModes();
+    }
+    async renameThread(threadId, name) {
+        this.requireUsable();
+        await this.options.host.ensureInitialized();
+        await this.commands.renameThread(threadId, name);
+    }
+    async forkThread(threadId) {
+        this.requireUsable();
+        await this.options.host.ensureInitialized();
+        return this.commands.forkThread(threadId);
+    }
+    async compactThread(threadId) {
+        this.requireUsable();
+        await this.options.host.ensureInitialized();
+        await this.commands.compactThread(threadId);
+    }
+    async archiveThread(threadId) {
+        this.requireUsable();
+        await this.options.host.ensureInitialized();
+        await this.commands.archiveThread(threadId);
     }
     async resume(binding, context) {
         this.requireUsable();

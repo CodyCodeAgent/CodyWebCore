@@ -21,7 +21,13 @@ import {
 } from './normalization.js'
 import type { ExecutionContext, TurnInput } from './turn-input.js'
 import { CodexThreadCommands } from './commands.js'
-import { CodexSessionCatalog } from './catalog.js'
+import {
+  CodexSessionCatalog,
+  type CodexCollaborationModeOption,
+  type CodexModelOption,
+  type CodexThreadSummary,
+  type ListCodexThreadsOptions,
+} from './catalog.js'
 
 export * from './token-usage.js'
 export * from './turn-input.js'
@@ -296,6 +302,72 @@ export class CodexSessionManager {
     this.attachLocal(binding, context)
     this.emit({ type: 'thread.attached', threadId: binding.threadId, data: { bindingId, mode: 'created' } })
     return binding
+  }
+
+  /**
+   * Starts a native thread and binds it to itself in one owner operation.
+   *
+   * Browser clients never receive a window in which a new native thread exists
+   * without a Core binding.  Product navigation may use the returned id, but
+   * future read/submit/interrupt operations must come back through this
+   * manager.
+   */
+  async startThread(context: ExecutionContext): Promise<ThreadBinding> {
+    this.requireUsable()
+    await this.options.host.ensureInitialized()
+    const threadId = await this.commands.startThread({
+      ...context.thread,
+      experimentalRawEvents: context.thread.experimentalRawEvents ?? false,
+    } as ThreadStartParams)
+    const binding = { id: threadId, threadId }
+    this.attachLocal(binding, context)
+    this.emit({ type: 'thread.attached', threadId, data: { bindingId: binding.id, mode: 'created' } })
+    return binding
+  }
+
+  /** Catalog and thread mutations are owner operations too.  Keeping them
+   * here prevents product browsers from using a generic RPC tunnel for the
+   * same native threads that this manager serializes. */
+  async listThreads(options: ListCodexThreadsOptions = {}): Promise<CodexThreadSummary[]> {
+    this.requireUsable()
+    await this.options.host.ensureInitialized()
+    return this.catalog.listThreads(options)
+  }
+
+  async listModels(): Promise<CodexModelOption[]> {
+    this.requireUsable()
+    await this.options.host.ensureInitialized()
+    return this.catalog.listModels()
+  }
+
+  async listCollaborationModes(): Promise<CodexCollaborationModeOption[]> {
+    this.requireUsable()
+    await this.options.host.ensureInitialized()
+    return this.catalog.listCollaborationModes()
+  }
+
+  async renameThread(threadId: string, name: string): Promise<void> {
+    this.requireUsable()
+    await this.options.host.ensureInitialized()
+    await this.commands.renameThread(threadId, name)
+  }
+
+  async forkThread(threadId: string): Promise<string> {
+    this.requireUsable()
+    await this.options.host.ensureInitialized()
+    return this.commands.forkThread(threadId)
+  }
+
+  async compactThread(threadId: string): Promise<void> {
+    this.requireUsable()
+    await this.options.host.ensureInitialized()
+    await this.commands.compactThread(threadId)
+  }
+
+  async archiveThread(threadId: string): Promise<void> {
+    this.requireUsable()
+    await this.options.host.ensureInitialized()
+    await this.commands.archiveThread(threadId)
   }
 
   async resume(binding: ThreadBinding, context: ExecutionContext): Promise<void> {

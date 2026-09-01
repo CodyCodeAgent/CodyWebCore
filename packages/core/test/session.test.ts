@@ -18,6 +18,15 @@ class FakeHost implements AppServerHost {
   async call<T>(method: string, params?: unknown): Promise<T> {
     this.calls.push({ method, params })
     if (method === 'thread/start') return { thread: { id: 'thread-1' }, model: 'gpt', modelProvider: 'openai', cwd: '/repo', approvalPolicy: 'on-request', sandbox: { type: 'workspaceWrite', writableRoots: ['/repo'], networkAccess: false, excludeTmpdirEnvVar: true, excludeSlashTmp: true }, reasoningEffort: null } as T
+    if (method === 'thread/fork') return { thread: { id: 'thread-fork' } } as T
+    if (method === 'thread/list') return {
+      data: [{
+        id: 'thread-1', preview: 'Existing thread', name: 'Existing thread', cwd: '/repo', createdAt: 1,
+        updatedAt: 2, source: 'appServer', canAcceptDirectInput: true, sessionId: 'session-1',
+        parentThreadId: null, forkedFromId: null, status: { type: 'idle' }, ephemeral: false,
+      }],
+      nextCursor: null,
+    } as T
     if (method === 'thread/resume') return { thread: { id: 'thread-1' } } as T
     if (method === 'thread/read') return { thread: {
       id: 'thread-1', extra: null, sessionId: 'session-1', forkedFromId: null, parentThreadId: null,
@@ -233,6 +242,26 @@ const context = { thread: { cwd: '/repo', experimentalRawEvents: false } }
 afterEach(() => { vi.useRealTimers() })
 
 describe('CodexSessionManager', () => {
+  it('owns native thread creation, catalog reads and thread mutations behind one manager', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host })
+
+    await expect(manager.startThread(context)).resolves.toEqual({ id: 'thread-1', threadId: 'thread-1' })
+    await expect(manager.listThreads()).resolves.toEqual([
+      expect.objectContaining({ threadId: 'thread-1', name: 'Existing thread' }),
+    ])
+    await manager.renameThread(' thread-1 ', ' Renamed ')
+    await expect(manager.forkThread(' thread-1 ')).resolves.toBe('thread-fork')
+    await manager.compactThread(' thread-1 ')
+    await manager.archiveThread(' thread-1 ')
+
+    expect(host.calls.map(({ method }) => method)).toEqual([
+      'thread/start', 'thread/list', 'thread/name/set', 'thread/fork', 'thread/compact/start', 'thread/archive',
+    ])
+    expect(manager.snapshot('thread-1')).toMatchObject({ bindingId: 'thread-1', threadId: 'thread-1', attached: true })
+    await manager.dispose()
+  })
+
   it('accepts a client command immediately and binds it to the native turn without inventing a turn id', async () => {
     const host = new FakeHost()
     const manager = new CodexSessionManager({ host })
