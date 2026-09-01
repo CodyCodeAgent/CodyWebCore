@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createConversationController, createReconnectingConversationSocket, type ConversationSubscriptionEvent, type ConversationTransport } from '../src/client/index.js'
-import type { CodexEvent } from '../src/conversation/index.js'
+import { conversationTranscriptFromState, type CodexEvent } from '../src/conversation/index.js'
 
 function event(id: string, type: CodexEvent['type'], data: Record<string, unknown> = {}): CodexEvent {
   return { id, type, threadId: 'thread-1', turnId: 'turn-1', atIso: new Date(0).toISOString(), data }
@@ -384,6 +384,45 @@ describe('ConversationController', () => {
     expect(controller.getState().messages).toMatchObject([
       { id: 'user:local-1', messageType: 'userMessage.optimistic', outbox: { status: 'failed', lastError: 'request timed out' } },
     ])
+  })
+
+  it('keeps 100 turns protocol ordered and duplicate-free through repeated history/live reconciliation', async () => {
+    let listener: ((value: ConversationSubscriptionEvent) => void) | undefined
+    const history: CodexEvent[] = []
+    const controller = createConversationController('thread-1', {
+      read: async () => history,
+      submit: async (command) => ({ clientCommandId: command.clientCommandId }),
+      subscribe: (_threadId, next) => { listener = next; return () => undefined },
+    })
+    await controller.start()
+
+    for (let index = 1; index <= 100; index += 1) {
+      const turnId = `turn-${String(index)}`
+      const commandId = `command-${String(index)}`
+      const atIso = new Date(index * 1_000).toISOString()
+      const completionIso = new Date(index * 1_000 + 100).toISOString()
+      await controller.submitUserMessage({ id: commandId, text: `task ${String(index)}` }, {
+        mode: 'queue', input: { input: [{ type: 'text', text: `task ${String(index)}` }] },
+      })
+      const started = { id: `start-${String(index)}`, type: 'turn.started' as const, threadId: 'thread-1', turnId, atIso, data: {} }
+      const user = { id: `user-${String(index)}`, type: 'user.completed' as const, threadId: 'thread-1', turnId, itemId: `native-user-${String(index)}`, atIso, data: { text: `task ${String(index)}` } }
+      const assistant = { id: `assistant-${String(index)}`, type: 'assistant.completed' as const, threadId: 'thread-1', turnId, itemId: `native-assistant-${String(index)}`, atIso, data: { text: `result ${String(index)}` } }
+      const completed = { id: `done-${String(index)}`, type: 'turn.completed' as const, threadId: 'thread-1', turnId, atIso: completionIso, data: { durationMs: 100 } }
+      listener?.({ type: 'event', event: { id: `bound-${String(index)}`, type: 'command.bound', threadId: 'thread-1', turnId, itemId: commandId, atIso, data: { clientCommandId: commandId } } })
+      listener?.({ type: 'event', event: assistant })
+      listener?.({ type: 'event', event: completed })
+      history.push(started, user, assistant, completed)
+      await controller.refresh()
+    }
+
+    const messages = conversationTranscriptFromState(controller.getState())
+    expect(messages.filter(message => message.role === 'user')).toHaveLength(100)
+    expect(messages.filter(message => message.role === 'assistant')).toHaveLength(100)
+    expect(messages.filter(message => message.messageType === 'worked')).toHaveLength(100)
+    expect(new Set(messages.map(message => message.id)).size).toBe(messages.length)
+    expect(messages.filter(message => message.role === 'user').map(message => message.text)).toEqual(
+      Array.from({ length: 100 }, (_value, index) => `task ${String(index + 1)}`),
+    )
   })
 })
 
