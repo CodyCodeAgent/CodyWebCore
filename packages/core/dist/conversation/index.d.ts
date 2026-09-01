@@ -66,6 +66,9 @@ export type ConversationPlanState = {
     possiblyStale: boolean;
 };
 export type ConversationActivityState = {
+    /** Native Turn that owns this transient activity. Activity must never
+     * survive the terminal transition of that Turn. */
+    turnId?: string;
     label: string;
     details: string[];
     updatedAtIso: string;

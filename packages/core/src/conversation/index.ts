@@ -102,6 +102,9 @@ export type ConversationPlanState = {
 }
 
 export type ConversationActivityState = {
+  /** Native Turn that owns this transient activity. Activity must never
+   * survive the terminal transition of that Turn. */
+  turnId?: string
   label: string
   details: string[]
   updatedAtIso: string
@@ -402,6 +405,12 @@ function endConversationPlan(plan: ConversationPlanState | null, turnId: string)
   }
 }
 
+function clearActivityForTurn(activity: ConversationActivityState | null, turnId: string): ConversationActivityState | null {
+  // A thread normally has one active Turn, but preserving ownership here keeps
+  // an older terminal notification from clearing the activity of a newer Turn.
+  return !activity || !activity.turnId || activity.turnId === turnId ? null : activity
+}
+
 export function createConversationState(threadId = ''): ConversationState {
   return {
     threadId,
@@ -516,10 +525,17 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
     }
   }
   if (event.type === 'turn.activity') {
+    const turnId = event.turnId || state.activeTurnId
+    // App Server notifications are not guaranteed to arrive in causal order.
+    // In particular, item/started can race behind turn/completed. An activity
+    // is only meaningful while its owning Turn is still active; never let a
+    // delayed activity resurrect a terminal "Writing response" overlay.
+    if (!turnId || turnId !== state.activeTurnId || hasTerminalTurn(state, { ...event, turnId })) return state
     const label = typeof event.data.label === 'string' ? event.data.label : ''
     return {
       ...state,
       activity: label ? {
+        turnId,
         label,
         details: Array.isArray(event.data.details) ? event.data.details.filter((value): value is string => typeof value === 'string') : [],
         updatedAtIso: event.atIso,
@@ -538,7 +554,7 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
       timeline: terminalizeTurnTools(updated.timeline, turnId, 'failed'),
       pendingRequests: updated.pendingRequests.filter((request) => request.turnId !== turnId),
       reasoningText: '',
-      activity: null,
+      activity: clearActivityForTurn(updated.activity, turnId),
       plan: endConversationPlan(updated.plan, turnId),
     }
   }
@@ -551,7 +567,7 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
     const presentation = event.data.durationKnown === false
       ? updated.presentation
       : appendPresentation(updated.presentation, { id: `worked:${turnId}`, kind: 'worked', turnId })
-    return { ...updated, messages: settleTurnOutboxMessages(updated.messages, turnId), timeline, presentation, pendingRequests: updated.pendingRequests.filter((request) => request.turnId !== turnId), reasoningText: '', activity: null, plan: endConversationPlan(updated.plan, turnId) }
+    return { ...updated, messages: settleTurnOutboxMessages(updated.messages, turnId), timeline, presentation, pendingRequests: updated.pendingRequests.filter((request) => request.turnId !== turnId), reasoningText: '', activity: clearActivityForTurn(updated.activity, turnId), plan: endConversationPlan(updated.plan, turnId) }
   }
   if (event.type === 'turn.failed') {
     if (hasTerminalTurn(state, event) && !isTerminalCorrection(event)) return state
@@ -567,7 +583,7 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
       : state
     const updated = updateTurn(correctionBase, event, 'failed')
     return turnId
-      ? { ...updated, messages: retainOutboxForRetry ? failLatestTurnUserMessage(updated.messages, turnId, eventText(event.data, 'Codex failed to complete this turn.')) : settleTurnOutboxMessages(updated.messages, turnId), timeline: terminalizeTurnTools(updated.timeline, turnId, 'failed'), presentation: appendPresentation(updated.presentation, { id: `failure:${turnId}`, kind: 'failure', turnId }), pendingRequests: updated.pendingRequests.filter((request) => request.turnId !== turnId), reasoningText: '', activity: null, plan: endConversationPlan(updated.plan, turnId) }
+      ? { ...updated, messages: retainOutboxForRetry ? failLatestTurnUserMessage(updated.messages, turnId, eventText(event.data, 'Codex failed to complete this turn.')) : settleTurnOutboxMessages(updated.messages, turnId), timeline: terminalizeTurnTools(updated.timeline, turnId, 'failed'), presentation: appendPresentation(updated.presentation, { id: `failure:${turnId}`, kind: 'failure', turnId }), pendingRequests: updated.pendingRequests.filter((request) => request.turnId !== turnId), reasoningText: '', activity: clearActivityForTurn(updated.activity, turnId), plan: endConversationPlan(updated.plan, turnId) }
       : { ...updated, activity: null }
   }
   if (event.type === 'turn.interrupted') {
@@ -576,7 +592,7 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
     const retainOutboxForRetry = turnId ? state.turns[turnId]?.lifecycle === 'disconnected' : false
     const updated = updateTurn(state, event, 'interrupted')
     return turnId
-      ? { ...updated, messages: retainOutboxForRetry ? failLatestTurnUserMessage(updated.messages, turnId, state.turns[turnId]?.error || 'Codex upstream response stream disconnected.') : settleTurnOutboxMessages(updated.messages, turnId), timeline: terminalizeTurnTools(updated.timeline, turnId, 'cancelled'), presentation: appendPresentation(updated.presentation, { id: `interrupted:${turnId}`, kind: 'interrupted', turnId }), pendingRequests: updated.pendingRequests.filter((request) => request.turnId !== turnId), reasoningText: '', activity: null, plan: endConversationPlan(updated.plan, turnId) }
+      ? { ...updated, messages: retainOutboxForRetry ? failLatestTurnUserMessage(updated.messages, turnId, state.turns[turnId]?.error || 'Codex upstream response stream disconnected.') : settleTurnOutboxMessages(updated.messages, turnId), timeline: terminalizeTurnTools(updated.timeline, turnId, 'cancelled'), presentation: appendPresentation(updated.presentation, { id: `interrupted:${turnId}`, kind: 'interrupted', turnId }), pendingRequests: updated.pendingRequests.filter((request) => request.turnId !== turnId), reasoningText: '', activity: clearActivityForTurn(updated.activity, turnId), plan: endConversationPlan(updated.plan, turnId) }
       : { ...updated, activity: null }
   }
 

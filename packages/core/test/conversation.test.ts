@@ -526,6 +526,34 @@ describe('conversation core', () => {
     expect(state.timeline).toContainEqual(expect.objectContaining({ kind: 'reasoning', text: 'Inspecting' }))
   })
 
+  it('does not resurrect a completed turn when its delayed activity arrives after the terminal event', () => {
+    const base = { threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:00.000Z' }
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { ...base, id: 'start', type: 'turn.started', data: {} },
+      { ...base, id: 'answer', itemId: 'agent-1', type: 'assistant.completed', data: { text: 'Done' } },
+      { ...base, id: 'complete', type: 'turn.completed', atIso: '2026-01-01T00:00:02.000Z', data: {} },
+      // App Server can deliver item/started after the terminal Turn event.
+      { ...base, id: 'late-writing', type: 'turn.activity', atIso: '2026-01-01T00:00:03.000Z', data: { label: 'Writing response', details: [] } },
+    ])
+
+    expect(state.turns['turn-1']).toMatchObject({ lifecycle: 'completed' })
+    expect(state.activity).toBeNull()
+    expect(conversationLiveOverlayFromState(state)).toBeNull()
+  })
+
+  it('keeps a newer turn activity when an older turn reaches its terminal state', () => {
+    const base = { threadId: 'thread-1', atIso: '2026-01-01T00:00:00.000Z' }
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { ...base, id: 'start-a', type: 'turn.started', turnId: 'turn-a', data: {} },
+      { ...base, id: 'start-b', type: 'turn.started', turnId: 'turn-b', atIso: '2026-01-01T00:00:01.000Z', data: {} },
+      { ...base, id: 'activity-b', type: 'turn.activity', turnId: 'turn-b', atIso: '2026-01-01T00:00:02.000Z', data: { label: 'Writing response', details: [] } },
+      { ...base, id: 'done-a', type: 'turn.completed', turnId: 'turn-a', atIso: '2026-01-01T00:00:03.000Z', data: {} },
+    ])
+
+    expect(state.activeTurnId).toBe('turn-b')
+    expect(state.activity).toMatchObject({ turnId: 'turn-b', label: 'Writing response' })
+  })
+
   it('uses the timeline as the single visible owner of live reasoning', () => {
     const base = { threadId: 'thread-1', turnId: 'turn-1', itemId: 'reasoning-1', atIso: '2026-01-01T00:00:00.000Z' }
     const state = reduceConversationEvents(createConversationState('thread-1'), [
