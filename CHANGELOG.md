@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.37.8
+
+- Derive retryable failed user messages from the native Turn after optimistic reconciliation, including after a page refresh.
+- Keep transient response-stream recovery distinct from terminal failure and expose one explicit shared retry action only after the Turn has failed.
+
 ## 0.37.7
 
 - Preserve response-stream and inactivity failures when the owner interrupts a native Turn for safety, instead of misreporting them as user-initiated `Stopped` receipts.

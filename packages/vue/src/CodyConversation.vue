@@ -11,9 +11,10 @@
           <ul v-if="entry.message.skills?.length" class="cody-message-skills"><li v-for="skill in entry.message.skills" :key="`${skill.name}:${skill.path}`">${{ skill.displayName || skill.name }}</li></ul>
           <div v-if="entry.message.text" class="cody-message-body"><slot name="markdown" :message="entry.message"><CodyMarkdown :text="entry.message.text" @open-file="emit('openFile', $event)" /></slot></div>
           <div v-if="entry.message.images?.length" class="cody-message-images"><img v-for="image in entry.message.images" :key="image" :src="image" alt="对话图片" loading="lazy"></div>
-          <p v-if="entry.message.outbox" :class="['cody-message-outbox', entry.message.outbox.status]" role="status">
-            {{ entry.message.outbox.status === 'failed' ? `发送失败${entry.message.outbox.lastError ? `：${entry.message.outbox.lastError}` : ''}` : entry.message.outbox.status === 'queued' ? '已加入发送队列' : '正在发送…' }}
-          </p>
+          <div v-if="entry.message.outbox" :class="['cody-message-outbox', entry.message.outbox.status]" role="status">
+            <span>{{ entry.message.outbox.status === 'failed' ? `发送失败${entry.message.outbox.lastError ? `：${entry.message.outbox.lastError}` : ''}` : entry.message.outbox.status === 'queued' ? '已加入发送队列' : '正在发送…' }}</span>
+            <button v-if="entry.message.outbox.status === 'failed'" class="cody-message-retry" type="button" @click="emit('retryMessage', entry.message)">重试此消息</button>
+          </div>
           <button v-if="entry.message.text" class="cody-copy-button" type="button" @click="emit('copy', entry.message.text)">复制</button>
         </div>
       </article>
@@ -50,7 +51,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import type { CodyConversationEntry } from './types.js'
+import type { CodyConversationEntry, CodyMessage } from './types.js'
 import {
   buildToolOutputPreview,
   isToolOutputTruncated,
@@ -66,6 +67,7 @@ withDefaults(defineProps<{ entries: CodyConversationEntry[]; loading?: boolean; 
 const emit = defineEmits<{
   copy: [text: string]
   openFile: [{ path: string; line: number }]
+  retryMessage: [message: CodyMessage]
   resolveApproval: [requestId: string, decision: 'accept' | 'decline']
   resolveQuestion: [requestId: string, answer: Record<string, { answers: string[] }>]
 }>()

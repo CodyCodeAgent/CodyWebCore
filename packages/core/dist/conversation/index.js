@@ -130,19 +130,29 @@ function settleTurnOutboxMessages(messages, turnId) {
     });
     return changed ? next : messages;
 }
-function failTurnOutboxMessages(messages, turnId, error) {
-    let changed = false;
-    const next = messages.map((message) => {
-        if (message.role !== 'user' || message.turnId !== turnId || !message.outbox)
-            return message;
-        changed = true;
-        return {
-            ...message,
-            messageType: 'userMessage.outbox.failed',
-            outbox: { status: 'failed', lastError: error },
-        };
-    });
-    return changed ? next : messages;
+function failLatestTurnUserMessage(messages, turnId, error) {
+    let messageIndex = -1;
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+        const candidate = messages[index];
+        if (candidate?.role === 'user' && candidate.turnId === turnId) {
+            messageIndex = index;
+            break;
+        }
+    }
+    if (messageIndex < 0)
+        return messages;
+    const message = messages[messageIndex];
+    if (message.messageType === 'userMessage.outbox.failed'
+        && message.outbox?.status === 'failed'
+        && message.outbox.lastError === error)
+        return messages;
+    const next = [...messages];
+    next[messageIndex] = {
+        ...message,
+        messageType: 'userMessage.outbox.failed',
+        outbox: { status: 'failed', lastError: error },
+    };
+    return next;
 }
 function updateTurn(state, event, lifecycle) {
     const turnId = event.turnId || state.activeTurnId;
@@ -325,7 +335,6 @@ export function reduceConversationEvent(previous, event) {
             return { ...updated, activity: null };
         return {
             ...updated,
-            messages: failTurnOutboxMessages(updated.messages, turnId, eventText(event.data, 'Codex upstream response stream disconnected.')),
             timeline: terminalizeTurnTools(updated.timeline, turnId, 'failed'),
             pendingRequests: updated.pendingRequests.filter((request) => request.turnId !== turnId),
             reasoningText: '',
@@ -354,7 +363,7 @@ export function reduceConversationEvent(previous, event) {
             || (turnId ? state.turns[turnId]?.lifecycle === 'disconnected' : false);
         const updated = updateTurn(state, event, 'failed');
         return turnId
-            ? { ...updated, messages: retainOutboxForRetry ? failTurnOutboxMessages(updated.messages, turnId, eventText(event.data, 'Codex failed to complete this turn.')) : settleTurnOutboxMessages(updated.messages, turnId), timeline: terminalizeTurnTools(updated.timeline, turnId, 'failed'), presentation: appendPresentation(updated.presentation, { id: `failure:${turnId}`, kind: 'failure', turnId }), pendingRequests: updated.pendingRequests.filter((request) => request.turnId !== turnId), reasoningText: '', activity: null, plan: endConversationPlan(updated.plan, turnId) }
+            ? { ...updated, messages: retainOutboxForRetry ? failLatestTurnUserMessage(updated.messages, turnId, eventText(event.data, 'Codex failed to complete this turn.')) : settleTurnOutboxMessages(updated.messages, turnId), timeline: terminalizeTurnTools(updated.timeline, turnId, 'failed'), presentation: appendPresentation(updated.presentation, { id: `failure:${turnId}`, kind: 'failure', turnId }), pendingRequests: updated.pendingRequests.filter((request) => request.turnId !== turnId), reasoningText: '', activity: null, plan: endConversationPlan(updated.plan, turnId) }
             : { ...updated, activity: null };
     }
     if (event.type === 'turn.interrupted') {
@@ -364,7 +373,7 @@ export function reduceConversationEvent(previous, event) {
         const retainOutboxForRetry = turnId ? state.turns[turnId]?.lifecycle === 'disconnected' : false;
         const updated = updateTurn(state, event, 'interrupted');
         return turnId
-            ? { ...updated, messages: retainOutboxForRetry ? failTurnOutboxMessages(updated.messages, turnId, state.turns[turnId]?.error || 'Codex upstream response stream disconnected.') : settleTurnOutboxMessages(updated.messages, turnId), timeline: terminalizeTurnTools(updated.timeline, turnId, 'cancelled'), presentation: appendPresentation(updated.presentation, { id: `interrupted:${turnId}`, kind: 'interrupted', turnId }), pendingRequests: updated.pendingRequests.filter((request) => request.turnId !== turnId), reasoningText: '', activity: null, plan: endConversationPlan(updated.plan, turnId) }
+            ? { ...updated, messages: retainOutboxForRetry ? failLatestTurnUserMessage(updated.messages, turnId, state.turns[turnId]?.error || 'Codex upstream response stream disconnected.') : settleTurnOutboxMessages(updated.messages, turnId), timeline: terminalizeTurnTools(updated.timeline, turnId, 'cancelled'), presentation: appendPresentation(updated.presentation, { id: `interrupted:${turnId}`, kind: 'interrupted', turnId }), pendingRequests: updated.pendingRequests.filter((request) => request.turnId !== turnId), reasoningText: '', activity: null, plan: endConversationPlan(updated.plan, turnId) }
             : { ...updated, activity: null };
     }
     if (event.type === 'command.queued') {

@@ -190,6 +190,21 @@ describe('shared conversation components', () => {
     expect(wrapper.find('.cody-failure-card').exists()).toBe(false)
   })
 
+  it('offers an explicit retry action for a failed user message', async () => {
+    const message = {
+      id: 'user:native-user-1', turnId: 'turn-1', role: 'user' as const, text: 'run it',
+      messageType: 'userMessage.outbox.failed',
+      outbox: { status: 'failed' as const, lastError: 'response stream timed out' },
+    }
+    const wrapper = mount(CodyConversation, {
+      props: { entries: [{ id: message.id, kind: 'message' as const, message }] },
+    })
+
+    expect(wrapper.text()).toContain('发送失败：response stream timed out')
+    await wrapper.get('.cody-message-retry').trigger('click')
+    expect(wrapper.emitted('retryMessage')).toEqual([[message]])
+  })
+
   it('does not render an interrupted receipt for an empty Turn', () => {
     const state = reduceConversationEvents(createConversationState('thread-1'), [
       { id: 'start', type: 'turn.started', threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-08-29T00:00:00.000Z', data: {} },

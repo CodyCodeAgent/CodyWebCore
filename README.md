@@ -21,7 +21,8 @@ Framework-neutral Codex App Server primitives shared by CodyWebUI and CodyWork.
 
 | Core | Codex App Server boundary | Product migration |
 | --- | --- | --- |
-| 0.37.7 | Operational-failure terminal semantics and native stop reconciliation | Recommended; safety interrupts remain failures while explicit user stops remain interrupted |
+| 0.37.8 | Native-history-derived failed outbox state and explicit terminal retry | Recommended; transient recovery never exposes retry and durable user items remain retryable after terminal failure |
+| 0.37.7 | Operational-failure terminal semantics and native stop reconciliation | Supported; safety interrupts remain failures while explicit user stops remain interrupted |
 | 0.37.6 | Terminal-first upstream failure deduplication and fully tested native stop settlement | Supported; late transport errors cannot reopen a terminal Turn |
 | 0.37.5 | Conversation-only terminal projection and active-Turn-only live overlays | Recommended; maintenance Turns remain diagnostic and terminal errors render once |
 | 0.37.4 | Refresh-safe owner snapshots, native stop reconciliation, session quarantine and stale-socket suppression | Recommended; consumers use one owner snapshot and never infer native terminal state |

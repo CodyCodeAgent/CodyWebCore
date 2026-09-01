@@ -364,6 +364,7 @@ describe('conversation core', () => {
       { ...base, id: 'queued', type: 'command.queued', itemId: 'command-1', turnId: undefined, data: { text: 'run it' } },
       { ...base, id: 'bound', type: 'command.bound', itemId: 'command-1', data: { clientCommandId: 'command-1' } },
       { ...base, id: 'started', type: 'turn.started', data: {} },
+      { ...base, id: 'native-user', type: 'user.completed', itemId: 'native-user-1', data: { text: 'run it' } },
       { ...base, id: 'disconnected', type: 'turn.disconnected', data: { error: 'response stream timed out' } },
       { ...base, id: 'failed', type: 'turn.failed', data: { error: 'response stream timed out' } },
     ])
@@ -371,10 +372,23 @@ describe('conversation core', () => {
     expect(state.activeTurnId).toBe('')
     expect(state.turns['turn-1']).toMatchObject({ lifecycle: 'failed', error: 'response stream timed out' })
     expect(state.messages).toMatchObject([{
-      id: 'user:command-1', turnId: 'turn-1', messageType: 'userMessage.outbox.failed',
+      id: 'user:native-user-1', turnId: 'turn-1', messageType: 'userMessage.outbox.failed',
       outbox: { status: 'failed', lastError: 'response stream timed out' },
     }])
     expect(state.presentation.filter((row) => row.kind === 'failure')).toHaveLength(1)
+  })
+
+  it('does not offer retry while an upstream response stream is still recovering', () => {
+    const base = { threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:00.000Z' }
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { ...base, id: 'started', type: 'turn.started', data: {} },
+      { ...base, id: 'native-user', type: 'user.completed', itemId: 'native-user-1', data: { text: 'run it' } },
+      { ...base, id: 'disconnected', type: 'turn.disconnected', data: { error: 'response stream timed out' } },
+    ])
+
+    expect(state.messages[0]).toMatchObject({ id: 'user:native-user-1', text: 'run it' })
+    expect(state.messages[0]?.outbox).toBeUndefined()
+    expect(state.turns['turn-1']).toMatchObject({ lifecycle: 'disconnected' })
   })
 
   it('keeps an empty interrupted Turn diagnostic out of the visible transcript', () => {

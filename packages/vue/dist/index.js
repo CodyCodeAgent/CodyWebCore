@@ -1,7 +1,7 @@
-import { defineComponent as G, computed as O, ref as z, watch as ae, onMounted as be, onBeforeUnmount as he, openBlock as r, createElementBlock as d, Fragment as T, createElementVNode as p, nextTick as fe, reactive as $e, toDisplayString as $, renderList as E, createCommentVNode as q, createTextVNode as ne, normalizeClass as le, withDirectives as we, withKeys as Se, vModelDynamic as Ce, renderSlot as W, createVNode as H, unref as B, h as oe, useId as xe, withModifiers as ie, createBlock as re, shallowRef as Ae, getCurrentScope as qe, onScopeDispose as Me } from "vue";
-import { buildApprovalRiskSummary as Le, toolStatusTone as de, buildToolOutputPreview as Te, isToolOutputTruncated as De, toolOutputToggleLabel as Re } from "@codycodeagent/cody-web-core/presentation";
+import { defineComponent as G, computed as O, ref as z, watch as ae, onMounted as be, onBeforeUnmount as he, openBlock as r, createElementBlock as d, Fragment as T, createElementVNode as m, nextTick as fe, reactive as $e, toDisplayString as $, renderList as E, createCommentVNode as q, createTextVNode as ne, normalizeClass as le, withDirectives as we, withKeys as Se, vModelDynamic as Ce, renderSlot as W, createVNode as H, unref as B, h as oe, useId as xe, withModifiers as ie, createBlock as re, shallowRef as Ae, getCurrentScope as qe, onScopeDispose as Me } from "vue";
+import { buildApprovalRiskSummary as Le, toolStatusTone as de, buildToolOutputPreview as Te, isToolOutputTruncated as De, toolOutputToggleLabel as _e } from "@codycodeagent/cody-web-core/presentation";
 import ve from "dompurify";
-import _e from "markdown-it";
+import Re from "markdown-it";
 import Oe from "markdown-it-footnote";
 import Ue from "markdown-it-task-lists";
 import { conversationFeedFromState as Be, formatTurnDuration as Ee, createConversationState as se } from "@codycodeagent/cody-web-core/conversation";
@@ -25,9 +25,9 @@ const X = {
   lineCount: (t) => `${String(t)} 行`,
   expandCode: (t) => `展开全部 · 共 ${String(t)} 行`,
   collapseCode: "收起代码"
-}, R = new _e({ breaks: !0, html: !1, linkify: !0, typographer: !1 });
-R.use(Ue, { enabled: !1, label: !0, labelAfter: !0 });
-R.use(Oe);
+}, _ = new Re({ breaks: !0, html: !1, linkify: !0, typographer: !1 });
+_.use(Ue, { enabled: !1, label: !0, labelAfter: !0 });
+_.use(Oe);
 function U(t, n) {
   return `<button type="button" class="markdown-tool-button" data-markdown-action="${t}" aria-label="${n}" title="${n}">${n}</button>`;
 }
@@ -35,40 +35,40 @@ function ke(t, n = "", i = X) {
   const u = n.toLowerCase();
   if (u === "mermaid" || u === "plantuml" || u === "puml") {
     const L = u === "mermaid" ? "mermaid" : "plantuml";
-    return `<div class="markdown-diagram-shell" data-diagram-engine="${L}"><header class="markdown-diagram-toolbar"><span>${L}</span><span class="markdown-diagram-actions">${U("diagram-zoom-out", i.zoomOut)}${U("diagram-fit", i.fit)}${U("diagram-zoom-in", i.zoomIn)}${U("diagram-source", i.source)}${U("diagram-fullscreen", i.fullscreen)}${U("diagram-export-svg", "SVG")}${U("diagram-export-png", "PNG")}</span></header><div class="markdown-diagram-stage" role="img" aria-label="${i.diagramAria(L)}"><p class="markdown-diagram-status">${i.rendering(L)}</p></div><pre class="markdown-diagram-source" hidden><code>${R.utils.escapeHtml(t)}</code></pre></div>
+    return `<div class="markdown-diagram-shell" data-diagram-engine="${L}"><header class="markdown-diagram-toolbar"><span>${L}</span><span class="markdown-diagram-actions">${U("diagram-zoom-out", i.zoomOut)}${U("diagram-fit", i.fit)}${U("diagram-zoom-in", i.zoomIn)}${U("diagram-source", i.source)}${U("diagram-fullscreen", i.fullscreen)}${U("diagram-export-svg", "SVG")}${U("diagram-export-png", "PNG")}</span></header><div class="markdown-diagram-stage" role="img" aria-label="${i.diagramAria(L)}"><p class="markdown-diagram-status">${i.rendering(L)}</p></div><pre class="markdown-diagram-source" hidden><code>${_.utils.escapeHtml(t)}</code></pre></div>
 `;
   }
   const e = t.replace(/\n$/u, "").split(`
-`), m = e.length <= 2 && e.every((L) => L.length <= 96), b = e.length > 10, g = n || "text", v = [m ? "is-compact-code" : "", /^[A-Za-z0-9_-]+$/u.test(n) ? `language-${n}` : ""].filter(Boolean).join(" "), s = v ? ` class="${v}"` : "", S = [m ? "is-compact" : "", b ? "is-collapsible is-collapsed" : ""].filter(Boolean).join(" "), w = b ? `${g} · ${i.lineCount(e.length)}` : g, c = b ? `<button type="button" class="markdown-tool-button markdown-code-collapse" data-markdown-action="toggle-code" aria-label="${i.collapseCode}" title="${i.collapseCode}" aria-expanded="false">${i.collapseCode}</button>` : "", C = b ? `<div class="markdown-code-expand"><button type="button" data-markdown-action="toggle-code" aria-expanded="false">${i.expandCode(e.length)}</button></div>` : "";
-  return `<div class="markdown-code-host"><div class="markdown-code-shell${S ? ` ${S}` : ""}" data-language="${g}" data-code-lines="${String(e.length)}"><header class="markdown-code-toolbar"><span>${w}</span><span class="markdown-code-actions">${c}${U("wrap-code", i.wrap)}${U("copy-code", i.copy)}${U("save-code", i.save)}</span></header><pre class="markdown-code-block${m ? " is-compact" : ""}"><code${s}>${R.utils.escapeHtml(t)}</code></pre>${C}</div></div>
+`), p = e.length <= 2 && e.every((L) => L.length <= 96), b = e.length > 10, g = n || "text", v = [p ? "is-compact-code" : "", /^[A-Za-z0-9_-]+$/u.test(n) ? `language-${n}` : ""].filter(Boolean).join(" "), s = v ? ` class="${v}"` : "", S = [p ? "is-compact" : "", b ? "is-collapsible is-collapsed" : ""].filter(Boolean).join(" "), w = b ? `${g} · ${i.lineCount(e.length)}` : g, c = b ? `<button type="button" class="markdown-tool-button markdown-code-collapse" data-markdown-action="toggle-code" aria-label="${i.collapseCode}" title="${i.collapseCode}" aria-expanded="false">${i.collapseCode}</button>` : "", C = b ? `<div class="markdown-code-expand"><button type="button" data-markdown-action="toggle-code" aria-expanded="false">${i.expandCode(e.length)}</button></div>` : "";
+  return `<div class="markdown-code-host"><div class="markdown-code-shell${S ? ` ${S}` : ""}" data-language="${g}" data-code-lines="${String(e.length)}"><header class="markdown-code-toolbar"><span>${w}</span><span class="markdown-code-actions">${c}${U("wrap-code", i.wrap)}${U("copy-code", i.copy)}${U("save-code", i.save)}</span></header><pre class="markdown-code-block${p ? " is-compact" : ""}"><code${s}>${_.utils.escapeHtml(t)}</code></pre>${C}</div></div>
 `;
 }
-R.renderer.rules.fence = (t, n, i, u) => {
+_.renderer.rules.fence = (t, n, i, u) => {
   const e = t[n];
   return ke(e.content, e.info.trim().split(/\s+/u)[0] ?? "", u.labels);
 };
-R.renderer.rules.code_block = (t, n, i, u) => ke(t[n].content, "", u.labels);
-R.renderer.rules.table_open = (t, n, i, u) => {
+_.renderer.rules.code_block = (t, n, i, u) => ke(t[n].content, "", u.labels);
+_.renderer.rules.table_open = (t, n, i, u) => {
   const e = u.labels ?? X;
   return `<section class="markdown-table-shell" role="region" aria-label="${e.dataTable}" tabindex="0"><header class="markdown-table-toolbar">${U("copy-table", e.copyCsv)}</header><div class="markdown-table-scroll"><table>
 `;
 };
-R.renderer.rules.table_close = () => `</table></div></section>
+_.renderer.rules.table_close = () => `</table></div></section>
 `;
-const ue = R.renderer.rules.code_inline;
-R.renderer.rules.code_inline = (t, n, i, u, e) => {
-  const m = t[n].content, b = m.match(/^(.+?\.[A-Za-z0-9_-]{1,12})(?::(\d+))?$/u);
-  if (!b || /\s/u.test(m)) return ue ? ue(t, n, i, u, e) : e.renderToken(t, n, i);
-  const g = R.utils.escapeHtml(b[1]), v = b[2] ?? "", s = u.labels ?? X;
-  return `<button type="button" class="markdown-file-link" data-markdown-action="open-file" data-file-path="${g}" data-file-line="${v}" title="${s.openFile(g)}"><code>${R.utils.escapeHtml(m)}</code></button>`;
+const ue = _.renderer.rules.code_inline;
+_.renderer.rules.code_inline = (t, n, i, u, e) => {
+  const p = t[n].content, b = p.match(/^(.+?\.[A-Za-z0-9_-]{1,12})(?::(\d+))?$/u);
+  if (!b || /\s/u.test(p)) return ue ? ue(t, n, i, u, e) : e.renderToken(t, n, i);
+  const g = _.utils.escapeHtml(b[1]), v = b[2] ?? "", s = u.labels ?? X;
+  return `<button type="button" class="markdown-file-link" data-markdown-action="open-file" data-file-path="${g}" data-file-line="${v}" title="${s.openFile(g)}"><code>${_.utils.escapeHtml(p)}</code></button>`;
 };
-const ce = R.renderer.rules.link_open;
-R.renderer.rules.link_open = (t, n, i, u, e) => {
-  const m = t[n];
-  return /^https?:\/\//u.test(m.attrGet("href") ?? "") && (m.attrSet("target", "_blank"), m.attrSet("rel", "noopener noreferrer")), ce ? ce(t, n, i, u, e) : e.renderToken(t, n, i);
+const ce = _.renderer.rules.link_open;
+_.renderer.rules.link_open = (t, n, i, u, e) => {
+  const p = t[n];
+  return /^https?:\/\//u.test(p.attrGet("href") ?? "") && (p.attrSet("target", "_blank"), p.attrSet("rel", "noopener noreferrer")), ce ? ce(t, n, i, u, e) : e.renderToken(t, n, i);
 };
 function me(t, n = X) {
-  return ve.sanitize(R.render(t, { labels: n }), {
+  return ve.sanitize(_.render(t, { labels: n }), {
     ADD_ATTR: ["target"],
     ADD_TAGS: ["table", "thead", "tbody", "tr", "th", "td", "h1", "h2", "h3", "h4", "h5", "h6"],
     FORBID_TAGS: ["script", "style", "iframe", "object", "embed"]
@@ -93,7 +93,7 @@ const Fe = ["innerHTML"], Ve = ["src"], ge = /* @__PURE__ */ G({
   },
   emits: ["openFile"],
   setup(t, { emit: n }) {
-    const i = t, u = n, e = O(() => i.labels ?? X), m = z(null), b = z(null), g = z(me(pe(i.text), e.value)), v = z(""), s = /* @__PURE__ */ new Set();
+    const i = t, u = n, e = O(() => i.labels ?? X), p = z(null), b = z(null), g = z(me(pe(i.text), e.value)), v = z(""), s = /* @__PURE__ */ new Set();
     let S = 0, w = 0;
     const c = {
       javascript: () => import("highlight.js/lib/languages/javascript"),
@@ -112,28 +112,28 @@ const Fe = ["innerHTML"], Ve = ["src"], ge = /* @__PURE__ */ G({
     }
     async function L() {
       var a, o, l, k, y, D;
-      for (const x of Array.from(((a = m.value) == null ? void 0 : a.querySelectorAll("td")) ?? []))
+      for (const x of Array.from(((a = p.value) == null ? void 0 : a.querySelectorAll("td")) ?? []))
         /^-?[\d,.]+%?$/u.test(((o = x.textContent) == null ? void 0 : o.trim()) ?? "") && (x.dataset.numeric = "true");
-      for (const x of Array.from(((l = m.value) == null ? void 0 : l.querySelectorAll("img")) ?? []))
+      for (const x of Array.from(((l = p.value) == null ? void 0 : l.querySelectorAll("img")) ?? []))
         x.addEventListener("error", () => {
           x.alt = x.alt || "图片加载失败", x.classList.add("is-load-error");
         }, { once: !0 });
       j();
-      for (const [x, A] of Array.from(((k = m.value) == null ? void 0 : k.querySelectorAll(".markdown-code-shell")) ?? []).entries()) {
+      for (const [x, A] of Array.from(((k = p.value) == null ? void 0 : k.querySelectorAll(".markdown-code-shell")) ?? []).entries()) {
         A.dataset.codeIndex = String(x), A.classList.contains("is-collapsible") && s.has(x) && A.classList.remove("is-collapsed");
         for (const M of Array.from(A.querySelectorAll('[data-markdown-action="toggle-code"]')))
           M.setAttribute("aria-expanded", String(!A.classList.contains("is-collapsed")));
-        const _ = A.querySelector("pre"), P = A.querySelector('[data-markdown-action="wrap-code"]');
-        _ && P && (P.hidden = _.scrollWidth <= _.clientWidth + 2, P.setAttribute("aria-pressed", String(A.classList.contains("is-wrapped"))));
+        const R = A.querySelector("pre"), P = A.querySelector('[data-markdown-action="wrap-code"]');
+        R && P && (P.hidden = R.scrollWidth <= R.clientWidth + 2, P.setAttribute("aria-pressed", String(A.classList.contains("is-wrapped"))));
       }
       await I();
-      const f = Array.from(((y = m.value) == null ? void 0 : y.querySelectorAll('pre code[class*="language-"]')) ?? []);
+      const f = Array.from(((y = p.value) == null ? void 0 : y.querySelectorAll('pre code[class*="language-"]')) ?? []);
       if (f.length === 0) return;
       const h = (await import("highlight.js/lib/core")).default;
       for (const x of f) {
-        const A = ((D = Array.from(x.classList).find((M) => M.startsWith("language-"))) == null ? void 0 : D.slice(9)) ?? "", _ = c[A];
-        if (!_ || x.dataset.highlighted === "yes") continue;
-        const P = await _();
+        const A = ((D = Array.from(x.classList).find((M) => M.startsWith("language-"))) == null ? void 0 : D.slice(9)) ?? "", R = c[A];
+        if (!R || x.dataset.highlighted === "yes") continue;
+        const P = await R();
         h.getLanguage(A) || h.registerLanguage(A, P.default), x.innerHTML = h.highlight(x.textContent ?? "", { language: A }).value, x.dataset.highlighted = "yes";
       }
     }
@@ -141,7 +141,7 @@ const Fe = ["innerHTML"], Ve = ["src"], ge = /* @__PURE__ */ G({
       var h;
       if (!i.resolveAssetUrl) return;
       const f = /\.(?:svg|png|jpe?g|gif|webp)(?:[?#].*)?$/iu;
-      for (const a of Array.from(((h = m.value) == null ? void 0 : h.querySelectorAll("a[href]")) ?? [])) {
+      for (const a of Array.from(((h = p.value) == null ? void 0 : h.querySelectorAll("a[href]")) ?? [])) {
         const o = a.getAttribute("href") ?? "";
         if (!f.test(o) || /^(?:data|blob):/iu.test(o)) continue;
         const l = i.resolveAssetUrl(o);
@@ -150,7 +150,7 @@ const Fe = ["innerHTML"], Ve = ["src"], ge = /* @__PURE__ */ G({
     }
     async function I() {
       var h, a, o, l;
-      const f = Array.from(((h = m.value) == null ? void 0 : h.querySelectorAll(".markdown-diagram-shell:not([data-rendered])")) ?? []);
+      const f = Array.from(((h = p.value) == null ? void 0 : h.querySelectorAll(".markdown-diagram-shell:not([data-rendered])")) ?? []);
       for (const k of f) {
         k.dataset.rendered = "loading";
         const y = k.dataset.diagramEngine === "plantuml" ? "plantuml" : "mermaid", D = ((a = k.querySelector("code")) == null ? void 0 : a.textContent) ?? "", x = k.querySelector(".markdown-diagram-stage");
@@ -158,8 +158,8 @@ const Fe = ["innerHTML"], Ve = ["src"], ge = /* @__PURE__ */ G({
           try {
             let A = await ((o = i.renderDiagram) == null ? void 0 : o.call(i, { engine: y, source: D, dark: i.dark }));
             if (!A && y === "mermaid") {
-              const { default: _ } = await import("mermaid");
-              _.initialize({ startOnLoad: !1, securityLevel: "strict", theme: i.dark ? "dark" : "default", htmlLabels: !1, flowchart: { htmlLabels: !1, useMaxWidth: !1 } }), A = (await _.render(`cody-diagram-${String(++w)}`, D)).svg;
+              const { default: R } = await import("mermaid");
+              R.initialize({ startOnLoad: !1, securityLevel: "strict", theme: i.dark ? "dark" : "default", htmlLabels: !1, flowchart: { htmlLabels: !1, useMaxWidth: !1 } }), A = (await R.render(`cody-diagram-${String(++w)}`, D)).svg;
             }
             if (!A) throw new Error(y === "plantuml" ? "当前环境未配置 PlantUML 渲染器" : "图表渲染失败");
             x.innerHTML = F(A), J(x), k.dataset.rendered = "yes", k.style.setProperty("--diagram-scale", "1");
@@ -218,7 +218,7 @@ const Fe = ["innerHTML"], Ve = ["src"], ge = /* @__PURE__ */ G({
 `);
     }
     function ee(f) {
-      var D, x, A, _, P;
+      var D, x, A, R, P;
       const h = f.target, a = h.closest("img");
       if (a) {
         v.value = a.currentSrc || a.src, (D = b.value) == null || D.showModal();
@@ -237,7 +237,7 @@ const Fe = ["innerHTML"], Ve = ["src"], ge = /* @__PURE__ */ G({
         for (const te of Array.from(l.querySelectorAll('[data-markdown-action="toggle-code"]'))) te.setAttribute("aria-expanded", String(N));
       }
       if (k === "copy-table" && Y(Z((l == null ? void 0 : l.querySelector("table")) ?? null), o), k === "open-file") {
-        const M = o.dataset.filePath ?? "", N = ((_ = i.cwd) == null ? void 0 : _.replace(/\/$/u, "")) ?? "", te = M.startsWith("/") && N && M.startsWith(`${N}/`) ? M.slice(N.length + 1) : M.replace(/^\.\//u, "");
+        const M = o.dataset.filePath ?? "", N = ((R = i.cwd) == null ? void 0 : R.replace(/\/$/u, "")) ?? "", te = M.startsWith("/") && N && M.startsWith(`${N}/`) ? M.slice(N.length + 1) : M.replace(/^\.\//u, "");
         u("openFile", { path: te, line: Number(o.dataset.fileLine || 0) || 1 });
       }
       const y = o.closest(".markdown-diagram-shell");
@@ -259,25 +259,25 @@ const Fe = ["innerHTML"], Ve = ["src"], ge = /* @__PURE__ */ G({
     }, { deep: !0 }), be(() => {
       L();
     }), he(() => window.clearTimeout(S)), (f, h) => (r(), d(T, null, [
-      p("div", {
+      m("div", {
         ref_key: "rootRef",
-        ref: m,
+        ref: p,
         class: "cody-markdown cody-markdown-renderer",
         innerHTML: g.value,
         onClick: ee
       }, null, 8, Fe),
-      p("dialog", {
+      m("dialog", {
         ref_key: "imageDialogRef",
         ref: b,
         class: "cody-markdown-image-dialog",
         onClick: K
       }, [
-        p("button", {
+        m("button", {
           type: "button",
           "aria-label": "关闭图片预览",
           onClick: K
         }, "×"),
-        p("img", {
+        m("img", {
           src: v.value,
           alt: "Markdown 图片预览"
         }, null, 8, Ve)
@@ -290,15 +290,15 @@ function ye(t) {
   const n = t;
   return (Array.isArray(n.questions) ? n.questions : []).flatMap((u, e) => {
     if (!u || typeof u != "object") return [];
-    const m = u, b = typeof m.question == "string" ? m.question.trim() : "";
+    const p = u, b = typeof p.question == "string" ? p.question.trim() : "";
     if (!b) return [];
-    const g = Array.isArray(m.options) ? m.options : [];
+    const g = Array.isArray(p.options) ? p.options : [];
     return [{
-      id: typeof m.id == "string" && m.id.trim() ? m.id.trim() : `question-${String(e + 1)}`,
-      header: typeof m.header == "string" ? m.header.trim() : "",
+      id: typeof p.id == "string" && p.id.trim() ? p.id.trim() : `question-${String(e + 1)}`,
+      header: typeof p.header == "string" ? p.header.trim() : "",
       question: b,
-      isOther: m.isOther === !0,
-      isSecret: m.isSecret === !0,
+      isOther: p.isOther === !0,
+      isSecret: p.isSecret === !0,
       options: g.flatMap((v) => {
         if (!v || typeof v != "object") return [];
         const s = v, S = typeof s.label == "string" ? s.label.trim() : "";
@@ -313,7 +313,7 @@ function Ne(t) {
   const n = t, i = n.reason ?? n.question ?? n.command;
   return typeof i == "string" && i.trim() ? i : ((u = ye(t)[0]) == null ? void 0 : u.question) ?? "Codex 请求执行一项受保护操作。";
 }
-function eo(t) {
+function to(t) {
   var u;
   const n = [], i = (e) => {
     if (e.kind === "reasoning") {
@@ -325,10 +325,10 @@ function eo(t) {
       n.push({ id: e.id, kind: "tool", tool: e.tool });
       return;
     }
-    const m = `file-group:${e.turnId ?? e.id}`, b = n.at(-1);
-    if (!b || b.kind !== "tool" || b.id !== m) {
+    const p = `file-group:${e.turnId ?? e.id}`, b = n.at(-1);
+    if (!b || b.kind !== "tool" || b.id !== p) {
       const s = [...new Set(e.tool.details)], S = {
-        id: m,
+        id: p,
         kind: "tool",
         tool: {
           ...e.tool,
@@ -356,7 +356,7 @@ function eo(t) {
     e.kind === "message" ? n.push({ id: e.id, kind: "message", message: e.message }) : e.kind === "timeline" ? i(e.entry) : e.kind === "plan" ? n.push({ id: e.id, kind: "plan", text: e.plan.text }) : e.kind === "request" ? n.push({ id: e.id, kind: "request", request: e.request }) : e.kind === "turn" && e.status === "failed" ? n.push({ id: e.id, kind: "failure", text: e.error }) : e.kind === "turn" && e.status === "interrupted" ? n.push({ id: e.id, kind: "interrupted", text: "本次回复已停止" }) : e.kind === "turn" && e.status === "completed" ? n.push({ id: e.id, kind: "worked", label: `Worked for ${Ee(e.durationMs ?? 0)}` }) : e.kind === "activity" && n.push({
       id: e.id,
       kind: "activity",
-      title: e.status === "waiting" ? ((u = t.pendingRequests.find((m) => !m.turnId || m.turnId === e.turnId)) == null ? void 0 : u.kind) === "approval" ? "等待你的审批" : "等待你的回答" : e.label,
+      title: e.status === "waiting" ? ((u = t.pendingRequests.find((p) => !p.turnId || p.turnId === e.turnId)) == null ? void 0 : u.kind) === "approval" ? "等待你的审批" : "等待你的回答" : e.label,
       detail: e.status === "waiting" ? "处理后 Codex 会继续本次回复" : e.status === "retrying" ? t.connection.status === "disconnected" ? "连接已中断，等待恢复" : "正在恢复本次回复" : t.connection.status === "connected" ? "实时更新中" : "等待恢复连接",
       tone: e.status
     });
@@ -381,7 +381,7 @@ const He = ["data-kind"], Qe = { class: "cody-request-heading" }, Ke = { key: 0 
   },
   emits: ["resolveApproval", "resolveQuestion"],
   setup(t, { emit: n }) {
-    const i = t, u = n, e = $e({}), m = O(() => ye(i.request.params)), b = O(() => Ne(i.request.params)), g = O(() => i.request.kind === "approval" ? Le({ method: i.request.method, params: i.request.params }) : null), v = O(() => m.value.length > 0 && m.value.every((S) => {
+    const i = t, u = n, e = $e({}), p = O(() => ye(i.request.params)), b = O(() => Ne(i.request.params)), g = O(() => i.request.kind === "approval" ? Le({ method: i.request.method, params: i.request.params }) : null), v = O(() => p.value.length > 0 && p.value.every((S) => {
       var w;
       return !!((w = e[S.id]) != null && w.trim());
     }));
@@ -389,22 +389,22 @@ const He = ["data-kind"], Qe = { class: "cody-request-heading" }, Ke = { key: 0 
       for (const S of Object.keys(e)) delete e[S];
     });
     function s() {
-      v.value && u("resolveQuestion", i.request.id, Object.fromEntries(m.value.map((S) => [S.id, { answers: [e[S.id].trim()] }])));
+      v.value && u("resolveQuestion", i.request.id, Object.fromEntries(p.value.map((S) => [S.id, { answers: [e[S.id].trim()] }])));
     }
     return (S, w) => (r(), d("article", {
       class: "cody-request-card",
       "data-kind": t.request.kind
     }, [
-      p("div", Qe, [
-        p("strong", null, $(t.request.kind === "approval" ? "需要你的确认" : "Codex 需要补充信息"), 1),
-        w[2] || (w[2] = p("small", null, "Agent 已暂停等待", -1))
+      m("div", Qe, [
+        m("strong", null, $(t.request.kind === "approval" ? "需要你的确认" : "Codex 需要补充信息"), 1),
+        w[2] || (w[2] = m("small", null, "Agent 已暂停等待", -1))
       ]),
-      t.request.kind === "question" && m.value.length ? (r(), d(T, { key: 0 }, [
-        (r(!0), d(T, null, E(m.value, (c) => (r(), d("fieldset", {
+      t.request.kind === "question" && p.value.length ? (r(), d(T, { key: 0 }, [
+        (r(!0), d(T, null, E(p.value, (c) => (r(), d("fieldset", {
           key: c.id,
           class: "cody-question-field"
         }, [
-          p("legend", null, [
+          m("legend", null, [
             c.header ? (r(), d("span", Ke, $(c.header), 1)) : q("", !0),
             ne($(c.question), 1)
           ]),
@@ -415,7 +415,7 @@ const He = ["data-kind"], Qe = { class: "cody-request-heading" }, Ke = { key: 0 
               class: le({ selected: e[c.id] === C.label }),
               onClick: (L) => e[c.id] = C.label
             }, [
-              p("strong", null, $(C.label), 1),
+              m("strong", null, $(C.label), 1),
               C.description ? (r(), d("small", Xe, $(C.description), 1)) : q("", !0)
             ], 10, Ge))), 128))
           ])) : q("", !0),
@@ -429,8 +429,8 @@ const He = ["data-kind"], Qe = { class: "cody-request-heading" }, Ke = { key: 0 
             [Ce, e[c.id]]
           ]) : q("", !0)
         ]))), 128)),
-        p("div", Ze, [
-          p("button", {
+        m("div", Ze, [
+          m("button", {
             type: "button",
             disabled: !v.value,
             onClick: s
@@ -438,34 +438,34 @@ const He = ["data-kind"], Qe = { class: "cody-request-heading" }, Ke = { key: 0 
         ])
       ], 64)) : (r(), d(T, { key: 1 }, [
         g.value ? (r(), d(T, { key: 0 }, [
-          p("div", et, [
-            p("div", null, [
-              p("strong", null, $(g.value.title), 1),
-              p("p", null, $(g.value.description), 1)
+          m("div", et, [
+            m("div", null, [
+              m("strong", null, $(g.value.title), 1),
+              m("p", null, $(g.value.description), 1)
             ]),
-            p("span", {
+            m("span", {
               class: "cody-approval-risk-level",
               "data-level": g.value.level
             }, $(g.value.level), 9, tt)
           ]),
-          p("code", ot, $(g.value.subject), 1),
+          m("code", ot, $(g.value.subject), 1),
           g.value.riskLabels.length ? (r(), d("ul", st, [
             (r(!0), d(T, null, E(g.value.riskLabels, (c) => (r(), d("li", { key: c }, $(c), 1))), 128))
           ])) : q("", !0),
           g.value.impacts.length ? (r(), d("details", at, [
-            w[3] || (w[3] = p("summary", null, "查看影响", -1)),
-            p("ul", null, [
+            w[3] || (w[3] = m("summary", null, "查看影响", -1)),
+            m("ul", null, [
               (r(!0), d(T, null, E(g.value.impacts, (c) => (r(), d("li", { key: c }, $(c), 1))), 128))
             ])
           ])) : q("", !0),
-          p("p", nt, $(g.value.recommendation), 1)
+          m("p", nt, $(g.value.recommendation), 1)
         ], 64)) : (r(), d("p", lt, $(b.value), 1)),
         t.request.kind === "approval" ? (r(), d("div", it, [
-          p("button", {
+          m("button", {
             type: "button",
             onClick: w[0] || (w[0] = (c) => u("resolveApproval", t.request.id, "accept"))
           }, "允许一次"),
-          p("button", {
+          m("button", {
             type: "button",
             "data-tone": "danger",
             onClick: w[1] || (w[1] = (c) => u("resolveApproval", t.request.id, "decline"))
@@ -493,28 +493,28 @@ const He = ["data-kind"], Qe = { class: "cody-request-heading" }, Ke = { key: 0 
 }, bt = {
   key: 2,
   class: "cody-message-images"
-}, ht = ["src"], $t = ["onClick"], wt = ["data-tone", "open"], St = { key: 0 }, Ct = ["onClick"], xt = {
+}, ht = ["src"], $t = ["onClick"], wt = ["onClick"], St = ["data-tone", "open"], Ct = { key: 0 }, xt = ["onClick"], At = {
   key: 3,
   class: "cody-reasoning-card"
-}, At = {
+}, qt = {
   key: 4,
   class: "cody-plan-card",
   open: ""
-}, qt = {
+}, Mt = {
   key: 6,
   class: "cody-failure-card"
-}, Mt = {
+}, Lt = {
   key: 7,
   class: "cody-interrupted-card",
   role: "status"
-}, Lt = ["data-tone"], to = /* @__PURE__ */ G({
+}, Tt = ["data-tone"], oo = /* @__PURE__ */ G({
   __name: "CodyConversation",
   props: {
     entries: {},
     loading: { type: Boolean },
     variant: { default: "standalone" }
   },
-  emits: ["copy", "openFile", "resolveApproval", "resolveQuestion"],
+  emits: ["copy", "openFile", "retryMessage", "resolveApproval", "resolveQuestion"],
   setup(t, { emit: n }) {
     const i = n, u = z({});
     function e(g) {
@@ -523,7 +523,7 @@ const He = ["data-kind"], Qe = { class: "cody-request-heading" }, Ke = { key: 0 
         [g]: u.value[g] !== !0
       };
     }
-    function m(g, v) {
+    function p(g, v) {
       i("resolveApproval", g, v);
     }
     function b(g, v) {
@@ -544,18 +544,18 @@ const He = ["data-kind"], Qe = { class: "cody-request-heading" }, Ke = { key: 0 
           key: s.id
         }, [
           s.kind === "worked" ? (r(), d("div", mt, [
-            p("span", null, $(s.label), 1)
+            m("span", null, $(s.label), 1)
           ])) : s.kind === "message" ? (r(), d("article", {
             key: 1,
             class: "cody-message",
             "data-role": s.message.role
           }, [
-            p("div", {
+            m("div", {
               class: "cody-message-identity",
               "data-role": s.message.role
             }, $(s.message.role === "user" ? "你" : "CW"), 9, gt),
-            p("div", ft, [
-              p("div", vt, $(s.message.role === "user" ? "你" : s.message.role === "assistant" ? "Codex Agent" : "系统"), 1),
+            m("div", ft, [
+              m("div", vt, $(s.message.role === "user" ? "你" : s.message.role === "assistant" ? "Codex Agent" : "系统"), 1),
               (S = s.message.skills) != null && S.length ? (r(), d("ul", kt, [
                 (r(!0), d(T, null, E(s.message.skills, (c) => (r(), d("li", {
                   key: `${c.name}:${c.path}`
@@ -579,17 +579,25 @@ const He = ["data-kind"], Qe = { class: "cody-request-heading" }, Ke = { key: 0 
                   loading: "lazy"
                 }, null, 8, ht))), 128))
               ])) : q("", !0),
-              s.message.outbox ? (r(), d("p", {
+              s.message.outbox ? (r(), d("div", {
                 key: 3,
                 class: le(["cody-message-outbox", s.message.outbox.status]),
                 role: "status"
-              }, $(s.message.outbox.status === "failed" ? `发送失败${s.message.outbox.lastError ? `：${s.message.outbox.lastError}` : ""}` : s.message.outbox.status === "queued" ? "已加入发送队列" : "正在发送…"), 3)) : q("", !0),
+              }, [
+                m("span", null, $(s.message.outbox.status === "failed" ? `发送失败${s.message.outbox.lastError ? `：${s.message.outbox.lastError}` : ""}` : s.message.outbox.status === "queued" ? "已加入发送队列" : "正在发送…"), 1),
+                s.message.outbox.status === "failed" ? (r(), d("button", {
+                  key: 0,
+                  class: "cody-message-retry",
+                  type: "button",
+                  onClick: (c) => i("retryMessage", s.message)
+                }, "重试此消息", 8, $t)) : q("", !0)
+              ], 2)) : q("", !0),
               s.message.text ? (r(), d("button", {
                 key: 4,
                 class: "cody-copy-button",
                 type: "button",
                 onClick: (c) => i("copy", s.message.text)
-              }, "复制", 8, $t)) : q("", !0)
+              }, "复制", 8, wt)) : q("", !0)
             ])
           ], 8, pt)) : s.kind === "tool" ? (r(), d("details", {
             key: 2,
@@ -597,29 +605,29 @@ const He = ["data-kind"], Qe = { class: "cody-request-heading" }, Ke = { key: 0 
             "data-tone": B(de)(s.tool.status),
             open: B(de)(s.tool.status) === "working"
           }, [
-            p("summary", null, [
-              v[3] || (v[3] = p("span", null, "⌁", -1)),
-              p("strong", null, $(s.tool.title), 1),
-              p("small", null, $(s.tool.status), 1)
+            m("summary", null, [
+              v[3] || (v[3] = m("span", null, "⌁", -1)),
+              m("strong", null, $(s.tool.title), 1),
+              m("small", null, $(s.tool.status), 1)
             ]),
-            p("p", null, $(s.tool.summary), 1),
-            s.tool.details.length ? (r(), d("ul", St, [
+            m("p", null, $(s.tool.summary), 1),
+            s.tool.details.length ? (r(), d("ul", Ct, [
               (r(!0), d(T, null, E(s.tool.details, (c) => (r(), d("li", { key: c }, $(c), 1))), 128))
             ])) : q("", !0),
             s.tool.output ? (r(), d(T, { key: 1 }, [
-              p("pre", null, $(u.value[s.id] ? s.tool.output : B(Te)(s.tool.output)), 1),
+              m("pre", null, $(u.value[s.id] ? s.tool.output : B(Te)(s.tool.output)), 1),
               B(De)(s.tool.output) ? (r(), d("button", {
                 key: 0,
                 class: "cody-tool-output-toggle",
                 type: "button",
                 onClick: (c) => e(s.id)
-              }, $(B(Re)(u.value[s.id] === !0)), 9, Ct)) : q("", !0)
+              }, $(B(_e)(u.value[s.id] === !0)), 9, xt)) : q("", !0)
             ], 64)) : q("", !0)
-          ], 8, wt)) : s.kind === "reasoning" ? (r(), d("details", xt, [
-            p("summary", null, "✦ " + $(s.title || "推理过程"), 1),
-            p("pre", null, $(s.text), 1)
-          ])) : s.kind === "plan" ? (r(), d("details", At, [
-            v[4] || (v[4] = p("summary", null, "计划", -1)),
+          ], 8, St)) : s.kind === "reasoning" ? (r(), d("details", At, [
+            m("summary", null, "✦ " + $(s.title || "推理过程"), 1),
+            m("pre", null, $(s.text), 1)
+          ])) : s.kind === "plan" ? (r(), d("details", qt, [
+            v[4] || (v[4] = m("summary", null, "计划", -1)),
             H(ge, {
               text: s.text,
               onOpenFile: v[1] || (v[1] = (c) => i("openFile", c))
@@ -629,47 +637,47 @@ const He = ["data-kind"], Qe = { class: "cody-request-heading" }, Ke = { key: 0 
           }, () => [
             H(rt, {
               request: s.request,
-              onResolveApproval: m,
+              onResolveApproval: p,
               onResolveQuestion: b
             }, null, 8, ["request"])
-          ], void 0, 5) : s.kind === "failure" ? (r(), d("details", qt, [
-            v[5] || (v[5] = p("summary", null, "本次回复失败", -1)),
-            p("p", null, $(s.text), 1)
-          ])) : s.kind === "interrupted" ? (r(), d("article", Mt, $(s.text), 1)) : s.kind === "activity" ? (r(), d("article", {
+          ], void 0, 5) : s.kind === "failure" ? (r(), d("details", Mt, [
+            v[5] || (v[5] = m("summary", null, "本次回复失败", -1)),
+            m("p", null, $(s.text), 1)
+          ])) : s.kind === "interrupted" ? (r(), d("article", Lt, $(s.text), 1)) : s.kind === "activity" ? (r(), d("article", {
             key: 8,
             class: "cody-conversation-activity",
             "data-tone": s.tone,
             role: "status",
             "aria-live": "polite"
           }, [
-            v[6] || (v[6] = p("span", {
+            v[6] || (v[6] = m("span", {
               class: "cody-activity-pulse",
               "aria-hidden": "true"
             }, null, -1)),
-            p("strong", null, $(s.title), 1),
-            p("small", null, $(s.detail), 1)
-          ], 8, Lt)) : q("", !0)
+            m("strong", null, $(s.title), 1),
+            m("small", null, $(s.detail), 1)
+          ], 8, Tt)) : q("", !0)
         ], 64);
       }), 128))
     ], 8, dt));
   }
-}), Tt = ["data-variant"], Dt = { class: "cody-composer-shell" }, Rt = {
+}), Dt = ["data-variant"], _t = { class: "cody-composer-shell" }, Rt = {
   key: 0,
   class: "cody-composer-selected",
   "aria-label": "已引用 Skills"
-}, _t = ["disabled", "aria-label", "onClick"], Ot = ["value", "disabled", "placeholder", "aria-expanded", "aria-controls", "aria-activedescendant"], Ut = {
+}, Ot = ["disabled", "aria-label", "onClick"], Ut = ["value", "disabled", "placeholder", "aria-expanded", "aria-controls", "aria-activedescendant"], Bt = {
   key: 0,
   class: "cody-composer-skill-status"
-}, Bt = ["id", "aria-selected", "onMouseenter", "onMousedown"], Et = { class: "cody-composer-skill-option-name" }, It = {
+}, Et = ["id", "aria-selected", "onMouseenter", "onMousedown"], It = { class: "cody-composer-skill-option-name" }, zt = {
   key: 0,
   class: "cody-composer-skill-option-description"
-}, zt = { class: "cody-composer-controls" }, Pt = {
+}, Pt = { class: "cody-composer-controls" }, jt = {
   class: "cody-composer-settings",
   "aria-label": "运行设置"
-}, jt = { class: "cody-composer-actions" }, Ft = ["disabled"], Vt = ["disabled", "aria-label", "title"], Nt = {
+}, Ft = { class: "cody-composer-actions" }, Vt = ["disabled"], Nt = ["disabled", "aria-label", "title"], Ht = {
   key: 2,
   class: "cody-composer-policy"
-}, oo = /* @__PURE__ */ G({
+}, so = /* @__PURE__ */ G({
   __name: "CodyComposer",
   props: {
     draft: {},
@@ -701,7 +709,7 @@ const He = ["data-kind"], Qe = { class: "cody-request-heading" }, Ke = { key: 0 
           oe("select", { value: a.modelValue, disabled: a.disabled, "aria-label": a.label, onChange: (l) => o("update:modelValue", l.target.value) }, a.options.map((l) => oe("option", { value: l.value }, l.label)))
         ]);
       }
-    }), u = t, e = n, m = z(null), b = z(u.draft), g = z(null), v = z(0), s = xe(), S = `${s}-skill-menu`, w = O(() => {
+    }), u = t, e = n, p = z(null), b = z(u.draft), g = z(null), v = z(0), s = xe(), S = `${s}-skill-menu`, w = O(() => {
       const a = g.value;
       return a ? u.skills.filter((o) => !u.selectedSkills.includes(o.value)).filter((o) => a.query ? `${o.label}
 ${o.description ?? ""}`.toLowerCase().includes(a.query) : !0).slice(0, 8) : [];
@@ -741,9 +749,9 @@ ${o.description ?? ""}`.toLowerCase().includes(a.query) : !0).slice(0, 8) : [];
     function K(a) {
       const o = g.value;
       if (!o) return;
-      const l = m.value, k = (l == null ? void 0 : l.value) || b.value, y = ze(k, o);
+      const l = p.value, k = (l == null ? void 0 : l.value) || b.value, y = ze(k, o);
       u.selectedSkills.includes(a) || e("update:selected-skills", [...u.selectedSkills, a]), e("update:draft", y.text), b.value = y.text, g.value = null, fe(() => {
-        const D = m.value;
+        const D = p.value;
         D == null || D.focus(), D == null || D.setSelectionRange(y.cursor, y.cursor);
       });
     }
@@ -775,24 +783,24 @@ ${o.description ?? ""}`.toLowerCase().includes(a.query) : !0).slice(0, 8) : [];
       "data-cody-component": "composer-surface",
       onSubmit: ie(h, ["prevent"])
     }, [
-      p("div", Dt, [
+      m("div", _t, [
         t.selectedSkills.length ? (r(), d("div", Rt, [
           (r(!0), d(T, null, E(t.selectedSkills, (l) => (r(), d("span", {
             key: l,
             class: "cody-composer-chip"
           }, [
             ne(" $" + $(F(t.skills, l)) + " ", 1),
-            p("button", {
+            m("button", {
               type: "button",
               disabled: t.disabled,
               "aria-label": `移除 Skill ${F(t.skills, l)}`,
               onClick: (k) => J(l)
-            }, "×", 8, _t)
+            }, "×", 8, Ot)
           ]))), 128))
         ])) : q("", !0),
-        p("textarea", {
+        m("textarea", {
           ref_key: "draftInputRef",
-          ref: m,
+          ref: p,
           value: t.draft,
           rows: "1",
           disabled: t.disabled,
@@ -806,7 +814,7 @@ ${o.description ?? ""}`.toLowerCase().includes(a.query) : !0).slice(0, 8) : [];
           onKeyup: Z,
           onBlur: ee,
           onKeydown: f
-        }, null, 40, Ot),
+        }, null, 40, Ut),
         c.value ? (r(), d("div", {
           key: 1,
           id: S,
@@ -814,7 +822,7 @@ ${o.description ?? ""}`.toLowerCase().includes(a.query) : !0).slice(0, 8) : [];
           role: "listbox",
           "aria-label": "可引用 Skills"
         }, [
-          w.value.length === 0 ? (r(), d("p", Ut, "没有匹配的 Skill")) : (r(!0), d(T, { key: 1 }, E(w.value, (l, k) => (r(), d("button", {
+          w.value.length === 0 ? (r(), d("p", Bt, "没有匹配的 Skill")) : (r(!0), d(T, { key: 1 }, E(w.value, (l, k) => (r(), d("button", {
             id: V(k),
             key: l.value,
             class: le(["cody-composer-skill-option", { active: k === v.value }]),
@@ -824,12 +832,12 @@ ${o.description ?? ""}`.toLowerCase().includes(a.query) : !0).slice(0, 8) : [];
             onMouseenter: (y) => v.value = k,
             onMousedown: ie((y) => K(l.value), ["prevent"])
           }, [
-            p("span", Et, "$" + $(l.label), 1),
-            l.description ? (r(), d("span", It, $(l.description), 1)) : q("", !0)
-          ], 42, Bt))), 128))
+            m("span", It, "$" + $(l.label), 1),
+            l.description ? (r(), d("span", zt, $(l.description), 1)) : q("", !0)
+          ], 42, Et))), 128))
         ])) : q("", !0),
-        p("div", zt, [
-          p("div", Pt, [
+        m("div", Pt, [
+          m("div", jt, [
             W(a.$slots, "leading"),
             t.collaborationModes.length ? (r(), re(B(i), {
               key: 0,
@@ -870,7 +878,7 @@ ${o.description ?? ""}`.toLowerCase().includes(a.query) : !0).slice(0, 8) : [];
             }, null, 8, ["model-value", "options", "disabled"]),
             W(a.$slots, "controls")
           ]),
-          p("div", jt, [
+          m("div", Ft, [
             t.isRunning ? (r(), d("button", {
               key: 0,
               class: "cody-composer-stop",
@@ -880,38 +888,38 @@ ${o.description ?? ""}`.toLowerCase().includes(a.query) : !0).slice(0, 8) : [];
               title: "停止当前回复",
               onClick: o[5] || (o[5] = (l) => e("stop"))
             }, [...o[6] || (o[6] = [
-              p("span", {
+              m("span", {
                 class: "cody-composer-stop-icon",
                 "aria-hidden": "true"
               }, null, -1)
-            ])], 8, Ft)) : q("", !0),
-            p("button", {
+            ])], 8, Vt)) : q("", !0),
+            m("button", {
               class: "cody-composer-send",
               type: "submit",
               disabled: !j.value,
               "aria-label": I.value,
               title: I.value
             }, [...o[7] || (o[7] = [
-              p("svg", {
+              m("svg", {
                 viewBox: "0 0 24 24",
                 "aria-hidden": "true"
               }, [
-                p("path", { d: "M12 19V5m0 0-6 6m6-6 6 6" })
+                m("path", { d: "M12 19V5m0 0-6 6m6-6 6 6" })
               ], -1)
-            ])], 8, Vt)
+            ])], 8, Nt)
           ])
         ]),
-        L.value ? (r(), d("p", Nt, $(L.value), 1)) : q("", !0)
+        L.value ? (r(), d("p", Ht, $(L.value), 1)) : q("", !0)
       ])
-    ], 40, Tt));
+    ], 40, Dt));
   }
 });
-function so() {
+function ao() {
   const t = Ae(se());
   let n = null, i = null, u = 0;
   const e = () => {
     u += 1, i == null || i(), i = null, n == null || n.dispose(), n = null;
-  }, m = async (C, L) => {
+  }, p = async (C, L) => {
     e(), t.value = se(C);
     const j = u, I = je(C, L);
     n = I, i = I.subscribe((F) => {
@@ -929,7 +937,7 @@ function so() {
   };
   return qe() && Me(c), {
     state: O(() => t.value),
-    connect: m,
+    connect: p,
     enqueueUserMessage: g,
     submitUserMessage: v,
     bindQueuedUserMessage: s,
@@ -940,15 +948,15 @@ function so() {
   };
 }
 export {
-  oo as CodyComposer,
-  to as CodyConversation,
+  so as CodyComposer,
+  oo as CodyConversation,
   ge as CodyMarkdown,
   rt as CodyRequestCard,
   X as DEFAULT_CODY_MARKDOWN_LABELS,
-  eo as conversationEntriesFromState,
+  to as conversationEntriesFromState,
   ye as questionFieldsFromParams,
   me as renderCodyMarkdown,
   Ne as requestSummary,
   pe as stabilizeStreamingMarkdown,
-  so as useConversationController
+  ao as useConversationController
 };

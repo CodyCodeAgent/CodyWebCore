@@ -26,6 +26,7 @@ declare const __VLS_component: import("vue").DefineComponent<__VLS_Props, {}, {}
     resolveQuestion: (requestId: string, answer: Record<string, {
         answers: string[];
     }>) => any;
+    retryMessage: (message: import("@codycodeagent/cody-web-core/conversation", { with: { "resolution-mode": "import" } }).ConversationMessage) => any;
 }, string, import("vue").PublicProps, Readonly<__VLS_Props> & Readonly<{
     onOpenFile?: ((args_0: {
         path: string;
@@ -36,6 +37,7 @@ declare const __VLS_component: import("vue").DefineComponent<__VLS_Props, {}, {}
     onResolveQuestion?: ((requestId: string, answer: Record<string, {
         answers: string[];
     }>) => any) | undefined;
+    onRetryMessage?: ((message: import("@codycodeagent/cody-web-core/conversation", { with: { "resolution-mode": "import" } }).ConversationMessage) => any) | undefined;
 }>, {
     variant: "standalone" | "embedded";
 }, {}, {}, {}, string, import("vue").ComponentProvideOptions, false, {}, any>;
