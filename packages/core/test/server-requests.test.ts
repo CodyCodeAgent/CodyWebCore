@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { NormalizedServerRequest } from '../src/presentation/index.js'
+import type { ConversationRequest } from '../src/conversation/index.js'
 import {
   GLOBAL_SERVER_REQUEST_SCOPE,
   TOOL_CALL_REQUEST_METHOD,
@@ -15,6 +16,7 @@ import {
   isServerApprovalRequest,
   isServerApprovalRequestKind,
   normalizeServerRequest,
+  normalizeConversationRequest,
   pruneServerRequestsToThreads,
   readResolvedServerRequestId,
   removeServerRequestById,
@@ -42,6 +44,20 @@ function request(overrides: Partial<NormalizedServerRequest> = {}): NormalizedSe
 }
 
 describe('server request normalization and store', () => {
+  it('projects Core-owned conversation requests without a second browser request store', () => {
+    const request: ConversationRequest = {
+      id: '42', kind: 'approval', threadId: 'thread-1', turnId: 'turn-1', itemId: 'item-1',
+      method: 'item/commandExecution/requestApproval',
+      params: { command: 'pnpm test' }, requestedAtIso: '2026-07-07T12:00:00.000Z',
+    }
+    expect(normalizeConversationRequest(request)).toEqual({
+      id: 42, method: 'item/commandExecution/requestApproval', threadId: 'thread-1', turnId: 'turn-1', itemId: 'item-1',
+      receivedAtIso: '2026-07-07T12:00:00.000Z',
+      params: { command: 'pnpm test', threadId: 'thread-1', turnId: 'turn-1', itemId: 'item-1' },
+    })
+    expect(normalizeConversationRequest({ ...request, id: 'not-a-number' })).toBeNull()
+  })
+
   it('normalizes camel- and snake-case protocol fields and preserves policy evidence', () => {
     const commandPolicy = { status: 'blocked' as const, reason: 'outside writable roots' }
     expect(normalizeServerRequest({

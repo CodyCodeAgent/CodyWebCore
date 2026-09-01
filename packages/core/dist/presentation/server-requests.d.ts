@@ -1,5 +1,6 @@
 import { TOOL_CALL_REQUEST_METHOD, TOOL_USER_INPUT_REQUEST_METHOD } from '../protocol/index.js';
 import { type ApprovalDecision, type ApprovalDecisionScope, type ApprovalRiskSummary, type ApprovalRiskTranslator, type CommandPolicyEvaluation, type FileChangePolicyEvaluation } from './approval-risk.js';
+import type { ConversationRequest } from '../conversation/index.js';
 export { TOOL_CALL_REQUEST_METHOD, TOOL_USER_INPUT_REQUEST_METHOD };
 export declare const GLOBAL_SERVER_REQUEST_SCOPE = "__global__";
 export type NormalizedServerRequest = {
@@ -38,6 +39,13 @@ export type ServerRequestsByThreadId<TRequest extends NormalizedServerRequest = 
 export declare function normalizeServerRequest(value: unknown, options?: {
     receivedAtIso?: string;
 }): NormalizedServerRequest | null;
+/**
+ * Projects an approval/question already owned by the conversation reducer into
+ * the UI card contract. Products must not rebuild a second pending-request
+ * store from a separate polling endpoint: the request in ConversationState is
+ * the one that is ordered and cleared with its Turn.
+ */
+export declare function normalizeConversationRequest(request: ConversationRequest): NormalizedServerRequest | null;
 export declare function readResolvedServerRequestId(value: unknown): number | null;
 export declare function upsertServerRequest<TRequest extends NormalizedServerRequest>(requestsByThreadId: ServerRequestsByThreadId<TRequest>, request: TRequest): ServerRequestsByThreadId<TRequest>;
 export declare function removeServerRequestById<TRequest extends NormalizedServerRequest>(requestsByThreadId: ServerRequestsByThreadId<TRequest>, requestId: number): ServerRequestsByThreadId<TRequest>;

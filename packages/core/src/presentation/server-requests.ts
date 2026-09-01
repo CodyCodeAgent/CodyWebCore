@@ -19,6 +19,7 @@ import {
   type CommandPolicyEvaluation,
   type FileChangePolicyEvaluation,
 } from './approval-risk.js'
+import type { ConversationRequest } from '../conversation/index.js'
 
 export { TOOL_CALL_REQUEST_METHOD, TOOL_USER_INPUT_REQUEST_METHOD }
 
@@ -90,6 +91,30 @@ export function normalizeServerRequest(
     ...(commandPolicy ? { commandPolicy } : {}),
     ...(fileChangePolicy ? { fileChangePolicy } : {}),
   }
+}
+
+/**
+ * Projects an approval/question already owned by the conversation reducer into
+ * the UI card contract. Products must not rebuild a second pending-request
+ * store from a separate polling endpoint: the request in ConversationState is
+ * the one that is ordered and cleared with its Turn.
+ */
+export function normalizeConversationRequest(request: ConversationRequest): NormalizedServerRequest | null {
+  const id = Number(request.id)
+  if (!Number.isInteger(id)) return null
+  const source = asRecord(request.params)
+  const params = {
+    ...(source ?? {}),
+    threadId: request.threadId,
+    ...(request.turnId ? { turnId: request.turnId } : {}),
+    ...(request.itemId ? { itemId: request.itemId } : {}),
+  }
+  return normalizeServerRequest({
+    id,
+    method: request.method,
+    receivedAtIso: request.requestedAtIso,
+    params,
+  })
 }
 
 export function readResolvedServerRequestId(value: unknown): number | null {
