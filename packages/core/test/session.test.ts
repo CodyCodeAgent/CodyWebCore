@@ -633,7 +633,7 @@ describe('CodexSessionManager', () => {
     await manager.dispose()
   })
 
-  it('coalesces duplicate exhausted errors and keeps the next command behind native stop settlement', async () => {
+  it('coalesces duplicate exhausted errors and preserves their failure cause after native stop settlement', async () => {
     const host = new FakeHost()
     const manager = new CodexSessionManager({ host, turnStopReconcileAttempts: 2, turnStopReconcileDelayMs: 0 })
     await manager.create('conversation-1', context)
@@ -660,11 +660,22 @@ describe('CodexSessionManager', () => {
 
     expect(host.calls.filter((call) => call.method === 'turn/start')).toHaveLength(1)
     const secondHandle = await second.started
-    await expect(first.completed).resolves.toMatchObject({ terminalEvent: { type: 'turn.interrupted' } })
+    await expect(first.completed).resolves.toMatchObject({
+      terminalEvent: {
+        type: 'turn.failed',
+        data: expect.objectContaining({
+          cause: 'upstream_response_stream_unrecoverable',
+          retainOutboxForRetry: true,
+          interruptedAfterOperationalFailure: true,
+        }),
+      },
+    })
     expect(secondHandle.turnId).not.toBe(firstHandle.turnId)
     expect(host.calls.filter((call) => call.method === 'turn/interrupt')).toHaveLength(1)
     expect(host.calls.filter((call) => call.method === 'turn/start')).toHaveLength(2)
     expect(events.filter((event) => event.type === 'turn.disconnected')).toHaveLength(1)
+    expect(events.filter((event) => event.type === 'turn.failed')).toHaveLength(1)
+    expect(events.filter((event) => event.type === 'turn.interrupted')).toHaveLength(0)
 
     host.emit('error', exhausted)
     expect(events.filter((event) => event.type === 'turn.disconnected')).toHaveLength(1)
@@ -902,7 +913,7 @@ describe('CodexSessionManager', () => {
     await manager.dispose()
   })
 
-  it('shares one native stop flight between inactivity and an explicit interrupt', async () => {
+  it('shares one native stop flight while keeping an inactivity stop classified as failed', async () => {
     vi.useFakeTimers()
     const host = new FakeHost()
     const manager = new CodexSessionManager({
@@ -920,7 +931,16 @@ describe('CodexSessionManager', () => {
 
     vi.advanceTimersByTime(1_001)
     await expect(manager.interrupt('conversation-1')).resolves.toBe(true)
-    await expect(submission.completed).resolves.toMatchObject({ terminalEvent: { type: 'turn.interrupted' } })
+    await expect(submission.completed).resolves.toMatchObject({
+      terminalEvent: {
+        type: 'turn.failed',
+        data: expect.objectContaining({
+          cause: 'inactivity_timeout',
+          retainOutboxForRetry: true,
+          interruptedAfterOperationalFailure: true,
+        }),
+      },
+    })
     expect(host.calls.filter((call) => call.method === 'turn/interrupt')).toHaveLength(1)
     await manager.dispose()
   })

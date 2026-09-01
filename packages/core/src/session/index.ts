@@ -578,21 +578,45 @@ export class CodexSessionManager {
   }
 
   private emit(input: Omit<CodexEvent, 'id' | 'atIso'> & { id?: string; atIso?: string }): CodexEvent {
-    if ((input.type === 'turn.completed' || input.type === 'turn.failed' || input.type === 'turn.interrupted') && input.turnId) {
-      const existing = this.terminalEvents.get(this.turnKey(input.threadId, input.turnId))
+    // An interrupt requested by the owner after an operational response-stream
+    // failure is a safety mechanism, not a user cancellation. Codex reports the
+    // resulting native terminal as `interrupted`; preserve the actual failure
+    // cause so products render one retryable failure instead of a misleading
+    // Stopped receipt. Explicit user interrupts have no operational failure and
+    // remain `turn.interrupted`.
+    const operationalFailure = input.turnId
+      ? this.operationalFailures.get(this.turnKey(input.threadId, input.turnId))
+      : undefined
+    const normalizedInput = input.type === 'turn.interrupted' && operationalFailure
+      ? {
+          ...input,
+          type: 'turn.failed' as const,
+          data: {
+            ...input.data,
+            error: textFromError(operationalFailure.data.error)
+              || textFromError(input.data.error)
+              || 'Codex upstream response stream failed.',
+            cause: operationalFailure.data.cause ?? 'operational_failure',
+            retainOutboxForRetry: true,
+            interruptedAfterOperationalFailure: true,
+          },
+        }
+      : input
+    if ((normalizedInput.type === 'turn.completed' || normalizedInput.type === 'turn.failed' || normalizedInput.type === 'turn.interrupted') && normalizedInput.turnId) {
+      const existing = this.terminalEvents.get(this.turnKey(normalizedInput.threadId, normalizedInput.turnId))
       if (existing) return existing
     }
-    if (input.type === 'turn.disconnected' && input.turnId) {
-      const key = this.turnKey(input.threadId, input.turnId)
+    if (normalizedInput.type === 'turn.disconnected' && normalizedInput.turnId) {
+      const key = this.turnKey(normalizedInput.threadId, normalizedInput.turnId)
       const terminal = this.terminalEvents.get(key)
       if (terminal) return terminal
       const existing = this.operationalFailures.get(key)
       if (existing) return existing
     }
     const event: CodexEvent = {
-      ...input,
-      id: input.id ?? this.eventId(input.type, input.threadId, input.turnId, input.itemId),
-      atIso: input.atIso ?? this.nowIso(),
+      ...normalizedInput,
+      id: normalizedInput.id ?? this.eventId(normalizedInput.type, normalizedInput.threadId, normalizedInput.turnId, normalizedInput.itemId),
+      atIso: normalizedInput.atIso ?? this.nowIso(),
     }
     if (event.turnId && event.type !== 'turn.completed' && event.type !== 'turn.failed' && event.type !== 'turn.interrupted') this.refreshTurnInactivity(event.threadId, event.turnId)
     if (event.type === 'turn.completed' || event.type === 'turn.failed' || event.type === 'turn.interrupted') this.finishTurn(event)

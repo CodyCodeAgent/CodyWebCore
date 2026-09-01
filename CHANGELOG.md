@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.37.7
+
+- Preserve response-stream and inactivity failures when the owner interrupts a native Turn for safety, instead of misreporting them as user-initiated `Stopped` receipts.
+- Keep failed user commands retryable while leaving explicit user interrupts classified as interrupted.
+
 ## 0.37.6
 
 - Ignore late response-stream disconnect notifications after a native Turn already reached its authoritative terminal state.
