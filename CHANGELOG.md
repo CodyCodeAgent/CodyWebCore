@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.37.20
+
+- Repair the runtime/package version contract for the typed conversation-feed release.
+
 ## 0.37.19
 
 - Keep a typed terminal Turn receipt after every message, tool, plan, and request in that Turn when a late native-history assistant item arrives after `turn.completed`.
