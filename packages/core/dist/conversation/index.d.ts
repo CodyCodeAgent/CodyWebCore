@@ -6,6 +6,9 @@ export type CodexEventType = 'thread.attached' | 'thread.context.updated' | 'thr
 /** Framework- and transport-neutral event emitted by the shared Codex session manager. */
 export type CodexEvent = {
     id: string;
+    /** Monotonic per-owner revision. It is assigned only by a live owner and
+     * lets a reconnect replay the exact suffix after an owner snapshot. */
+    ownerRevision?: number;
     type: CodexEventType;
     threadId: string;
     turnId?: string;

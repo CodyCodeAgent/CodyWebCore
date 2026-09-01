@@ -2,6 +2,7 @@ import { type CodexEvent, type ConversationState } from '../conversation/index.j
 export type ConversationSubscriptionEvent = {
     type: 'event';
     event: CodexEvent;
+    ownerRevision?: number;
 } | {
     type: 'connected';
     atIso?: string;
@@ -13,17 +14,27 @@ export type ConversationSubscriptionEvent = {
     retryInMs?: number | null;
     closeCode?: number | null;
     closeReason?: string;
+    willReconnect?: boolean;
 };
 export type ConversationAttachment = {
     /** Current owner state that is not guaranteed to exist in native history
      * yet (for example, a Turn that is still running). */
     events: CodexEvent[];
 };
+/** An owner-created cut of durable native history plus its live journal. The
+ * watermark is opaque to products: only events after it may be replayed. */
+export type ConversationSnapshot = {
+    events: CodexEvent[];
+    watermark: number;
+};
 export interface ConversationTransport {
     /** Registers the native thread with the process-wide owner. This is
      * idempotent and must never create a second App Server process. */
     attach?(threadId: string): Promise<ConversationAttachment | void>;
     read(threadId: string): Promise<CodexEvent[]>;
+    /** Preferred atomic projection read. Legacy adapters may provide read/attach
+     * while they are migrated, but products must not build their own watermark. */
+    snapshot?(threadId: string): Promise<ConversationSnapshot>;
     subscribe(threadId: string, listener: (event: ConversationSubscriptionEvent) => void): () => void;
     /** Accepts a command into the process-wide SessionManager. Native binding and
      * terminal state return through subscribe(); this call only acknowledges
@@ -73,7 +84,7 @@ export type ConversationController = {
     /** Delegates an interrupt intent to the process-wide owner. */
     interrupt(): Promise<void>;
     /** Applies a product-originated normalized event without creating a second message store. */
-    ingestEvent(event: CodexEvent): void;
+    ingestEvent(event: CodexEvent, ownerRevision?: number): void;
     start(): Promise<void>;
     refresh(): Promise<void>;
     dispose(): void;
@@ -104,8 +115,20 @@ export type ReconnectingSocketOptions = {
     heartbeatPayload?: string;
     /** Randomized reconnect spread prevents many tabs reconnecting in lockstep. */
     reconnectJitterRatio?: number;
+    /** A policy close (for example a deleted conversation) is final rather than
+     * a transient network failure. Products may extend this shared policy. */
+    shouldReconnect?: (close: {
+        code: number | null;
+        reason: string;
+    }) => boolean;
     random?: () => number;
 };
+/** 1012 is intentionally retryable: it is the standard service-restart code.
+ * Application close codes in the 44xx range are terminal conversation state. */
+export declare function shouldReconnectConversationSocket(close: {
+    code: number | null;
+    reason: string;
+}): boolean;
 /** Small shared WebSocket lifecycle with bounded exponential reconnect. */
 export declare function createReconnectingConversationSocket(options: ReconnectingSocketOptions): ReconnectingSocket;
 //# sourceMappingURL=index.d.ts.map

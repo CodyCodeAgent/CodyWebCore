@@ -142,6 +142,29 @@ describe('ConversationController', () => {
     expect(controller.getState().messages.map(message => message.text)).toEqual(['arrived during read'])
   })
 
+  it('uses the owner watermark to replay only the realtime suffix of an atomic snapshot', async () => {
+    let listener: ((value: ConversationSubscriptionEvent) => void) | undefined
+    const controller = createConversationController('thread-1', {
+      // The service has already included revision 7 in its snapshot. A second
+      // browser can receive the same event from the socket while its GET is in
+      // flight, so applying it again would create the old duplicate-at-bottom
+      // failure this contract exists to prevent.
+      snapshot: async () => ({
+        events: [event('assistant-7', 'assistant.completed', { text: 'from snapshot' })],
+        watermark: 7,
+      }),
+      read: async () => [],
+      subscribe: (_threadId, next) => { listener = next; return () => undefined },
+    })
+
+    const start = controller.start()
+    listener?.({ type: 'event', event: event('assistant-7', 'assistant.completed', { text: 'from snapshot' }), ownerRevision: 7 })
+    listener?.({ type: 'event', event: event('assistant-8', 'assistant.completed', { text: 'live suffix' }), ownerRevision: 8 })
+    await start
+
+    expect(controller.getState().messages.map(message => message.text)).toEqual(['from snapshot', 'live suffix'])
+  })
+
   it('preserves realtime events received before a background thread is started', async () => {
     let listener: ((value: ConversationSubscriptionEvent) => void) | undefined
     const controller = createConversationController('thread-1', {
@@ -510,6 +533,35 @@ describe('ReconnectingConversationSocket', () => {
     // stable timestamp from the previous socket.
     sockets[1]!.emit('close', { code: 1006, reason: 'connect failed' })
     expect(events.at(-1)).toMatchObject({ type: 'disconnected', reconnectAttempt: 2, retryInMs: 800 })
+    transport.close()
+  })
+
+  it('does not reconnect after a terminal application close code', () => {
+    vi.useFakeTimers()
+    class FakeSocket {
+      readonly listeners = new Map<string, Array<(event: any) => void>>()
+      readyState = 1
+      addEventListener(type: string, listener: (event: any) => void) {
+        this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener])
+      }
+      send() {}
+      close(code = 1000, reason = '') { this.emit('close', { code, reason }) }
+      emit(type: string, event: any = {}) { for (const listener of this.listeners.get(type) ?? []) listener(event) }
+    }
+    const sockets: FakeSocket[] = []
+    const events: ConversationSubscriptionEvent[] = []
+    const transport = createReconnectingConversationSocket({
+      url: 'ws://example.test',
+      createSocket: () => { const socket = new FakeSocket(); sockets.push(socket); return socket as unknown as WebSocket },
+      parse: () => null,
+      listener: event => events.push(event),
+    })
+    sockets[0]!.emit('open')
+    sockets[0]!.emit('close', { code: 4404, reason: 'conversation deleted' })
+
+    expect(events.at(-1)).toMatchObject({ type: 'disconnected', closeCode: 4404, willReconnect: false, retryInMs: null })
+    vi.runAllTimers()
+    expect(sockets).toHaveLength(1)
     transport.close()
   })
 

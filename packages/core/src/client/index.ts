@@ -7,9 +7,9 @@ import {
 } from '../conversation/index.js'
 
 export type ConversationSubscriptionEvent =
-  | { type: 'event'; event: CodexEvent }
+  | { type: 'event'; event: CodexEvent; ownerRevision?: number }
   | { type: 'connected'; atIso?: string }
-  | { type: 'disconnected'; error?: string; atIso?: string; reconnectAttempt?: number; retryInMs?: number | null; closeCode?: number | null; closeReason?: string }
+  | { type: 'disconnected'; error?: string; atIso?: string; reconnectAttempt?: number; retryInMs?: number | null; closeCode?: number | null; closeReason?: string; willReconnect?: boolean }
 
 export type ConversationAttachment = {
   /** Current owner state that is not guaranteed to exist in native history
@@ -17,11 +17,21 @@ export type ConversationAttachment = {
   events: CodexEvent[]
 }
 
+/** An owner-created cut of durable native history plus its live journal. The
+ * watermark is opaque to products: only events after it may be replayed. */
+export type ConversationSnapshot = {
+  events: CodexEvent[]
+  watermark: number
+}
+
 export interface ConversationTransport {
   /** Registers the native thread with the process-wide owner. This is
    * idempotent and must never create a second App Server process. */
   attach?(threadId: string): Promise<ConversationAttachment | void>
   read(threadId: string): Promise<CodexEvent[]>
+  /** Preferred atomic projection read. Legacy adapters may provide read/attach
+   * while they are migrated, but products must not build their own watermark. */
+  snapshot?(threadId: string): Promise<ConversationSnapshot>
   subscribe(threadId: string, listener: (event: ConversationSubscriptionEvent) => void): () => void
   /** Accepts a command into the process-wide SessionManager. Native binding and
    * terminal state return through subscribe(); this call only acknowledges
@@ -65,7 +75,7 @@ export type ConversationController = {
   /** Delegates an interrupt intent to the process-wide owner. */
   interrupt(): Promise<void>
   /** Applies a product-originated normalized event without creating a second message store. */
-  ingestEvent(event: CodexEvent): void
+  ingestEvent(event: CodexEvent, ownerRevision?: number): void
   start(): Promise<void>
   refresh(): Promise<void>
   dispose(): void
@@ -87,7 +97,7 @@ export function createConversationController(
   let initialReadSettled = false
   let initialReadPromise: Promise<void> | null = null
   let realtimeEventRevision = 0
-  let realtimeJournal: Array<{ revision: number; event: CodexEvent }> = []
+  let realtimeJournal: Array<{ revision: number; ownerRevision?: number; event: CodexEvent }> = []
   let localOutboxJournal: CodexEvent[] = []
   const admittedCommandIds = new Set<string>()
   const listeners = new Set<(value: ConversationState) => void>()
@@ -114,7 +124,7 @@ export function createConversationController(
     localOutboxJournal = localOutboxJournal.filter((event) => visibleIds.has(queuedMessageId(event.itemId || event.id)))
   }
 
-  const applyRealtimeEvent = (event: CodexEvent): void => {
+  const applyRealtimeEvent = (event: CodexEvent, ownerRevision = event.ownerRevision): void => {
     if (!event.id || event.threadId !== threadId) return
     const commandId = typeof event.data.clientCommandId === 'string'
       ? event.data.clientCommandId
@@ -138,7 +148,7 @@ export function createConversationController(
     realtimeEventRevision += 1
     realtimeJournal = [
       ...realtimeJournal,
-      { revision: realtimeEventRevision, event },
+      { revision: realtimeEventRevision, ...(ownerRevision === undefined ? {} : { ownerRevision }), event },
     ].slice(-MAX_REALTIME_JOURNAL_EVENTS)
     const next = reduceConversationEvent(state, event)
     pruneSettledOutbox(next)
@@ -150,7 +160,8 @@ export function createConversationController(
     const realtimeRevisionAtStart = realtimeBaseline
     publish({ ...state, history: { ...state.history, loading: true, requestRevision: revision, error: '' } })
     try {
-      const events = await transport.read(threadId)
+      const ownerSnapshot = transport.snapshot ? await transport.snapshot(threadId) : null
+      const events = ownerSnapshot?.events ?? await transport.read(threadId)
       if (revision !== readRevision) return
       // Native history is durable, but it can lag the process owner while a
       // command is queued or a Turn is still running. Re-read the owner's
@@ -158,7 +169,7 @@ export function createConversationController(
       // assuming that an earlier attachment has already reached thread/read.
       // This keeps refresh/reconnect and multi-tab projections on the same
       // authoritative command order without a browser-side durable outbox.
-      const attachment = transport.attach ? await transport.attach(threadId) : undefined
+      const attachment = ownerSnapshot ? undefined : transport.attach ? await transport.attach(threadId) : undefined
       if (revision !== readRevision) return
       // Native history is authoritative, but events arriving after this read
       // started may not have reached its snapshot yet. Replay only that suffix;
@@ -176,7 +187,9 @@ export function createConversationController(
           attachment?.events ?? [],
         ),
         realtimeJournal
-          .filter((entry) => entry.revision > realtimeRevisionAtStart)
+          .filter((entry) => ownerSnapshot
+            ? entry.ownerRevision === undefined || entry.ownerRevision > ownerSnapshot.watermark
+            : entry.revision > realtimeRevisionAtStart)
           .map((entry) => entry.event),
       )
       const reconciled = snapshot
@@ -221,7 +234,7 @@ export function createConversationController(
     if (!unsubscribeTransport) {
       unsubscribeTransport = transport.subscribe(threadId, (value) => {
         if (value.type === 'event') {
-          applyRealtimeEvent(value.event)
+          applyRealtimeEvent(value.event, value.ownerRevision)
           return
         }
         if (value.type === 'connected') {
@@ -238,7 +251,7 @@ export function createConversationController(
         publish({
           ...state,
           transportConnection: {
-            status: 'reconnecting',
+            status: value.willReconnect === false ? 'disconnected' : 'reconnecting',
             reconnectAttempt: value.reconnectAttempt ?? state.transportConnection.reconnectAttempt + 1,
             closeCode: value.closeCode ?? null,
             closeReason: value.closeReason ?? value.error ?? '',
@@ -349,8 +362,8 @@ export function createConversationController(
       if (!state.activeTurnId) return
       await transport.interrupt(threadId)
     },
-    ingestEvent(event) {
-      applyRealtimeEvent(event)
+    ingestEvent(event, ownerRevision) {
+      applyRealtimeEvent(event, ownerRevision)
     },
     start,
     refresh,
@@ -391,7 +404,17 @@ export type ReconnectingSocketOptions = {
   heartbeatPayload?: string
   /** Randomized reconnect spread prevents many tabs reconnecting in lockstep. */
   reconnectJitterRatio?: number
+  /** A policy close (for example a deleted conversation) is final rather than
+   * a transient network failure. Products may extend this shared policy. */
+  shouldReconnect?: (close: { code: number | null; reason: string }) => boolean
   random?: () => number
+}
+
+/** 1012 is intentionally retryable: it is the standard service-restart code.
+ * Application close codes in the 44xx range are terminal conversation state. */
+export function shouldReconnectConversationSocket(close: { code: number | null; reason: string }): boolean {
+  if (close.code === 1000 || close.code === 1008) return false
+  return close.code === null || close.code < 4400 || close.code > 4499
 }
 
 /** Small shared WebSocket lifecycle with bounded exponential reconnect. */
@@ -466,6 +489,22 @@ export function createReconnectingConversationSocket(options: ReconnectingSocket
       clearHeartbeat()
       socket = null
       if (closed || reconnectTimer) return
+      const close = {
+        code: typeof event.code === 'number' ? event.code : null,
+        reason: typeof event.reason === 'string' ? event.reason : '',
+      }
+      const willReconnect = (options.shouldReconnect ?? shouldReconnectConversationSocket)(close)
+      if (!willReconnect) {
+        options.listener({
+          type: 'disconnected', atIso: new Date().toISOString(),
+          reconnectAttempt,
+          retryInMs: null,
+          closeCode: close.code,
+          closeReason: close.reason,
+          willReconnect: false,
+        })
+        return
+      }
       if (openedAt > 0 && Date.now() - openedAt >= 30_000) {
         delay = minDelay
         reconnectAttempt = 0
@@ -478,8 +517,9 @@ export function createReconnectingConversationSocket(options: ReconnectingSocket
         type: 'disconnected', atIso: new Date().toISOString(),
         reconnectAttempt,
         retryInMs: wait,
-        closeCode: typeof event.code === 'number' ? event.code : null,
-        closeReason: typeof event.reason === 'string' ? event.reason : '',
+        closeCode: close.code,
+        closeReason: close.reason,
+        willReconnect: true,
       })
       reconnectTimer = setTimeout(() => { reconnectTimer = null; connect() }, wait)
     })

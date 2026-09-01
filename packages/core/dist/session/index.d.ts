@@ -16,6 +16,10 @@ export type TurnHandle = {
     threadId: string;
     turnId: string;
 };
+export type CodexConversationSnapshot = {
+    events: CodexEvent[];
+    watermark: number;
+};
 /**
  * The process owner owns the complete normalized outcome for one native Turn.
  * Products may render or persist this value, but must not replay a second
@@ -99,6 +103,7 @@ export declare class CodexSessionManager {
     private readonly upstreamRetries;
     private readonly operationalStops;
     private readonly terminalEvents;
+    private readonly ownerJournalByBindingId;
     private readonly turnEvents;
     private readonly operationalFailures;
     private readonly submissions;
@@ -109,6 +114,7 @@ export declare class CodexSessionManager {
     private readonly catalog;
     private readonly nowIso;
     private eventSequence;
+    private ownerRevision;
     private commandSequence;
     private runtimeUnavailable;
     private disposed;
@@ -128,6 +134,12 @@ export declare class CodexSessionManager {
     /** Updates product policy/settings for future turns without rebinding the native thread. */
     setContext(bindingId: string, context: ExecutionContext): void;
     read(bindingId: string): Promise<CodexEvent[]>;
+    /**
+     * The only safe reconnect cut: durable native history and the owner's live
+     * journal are captured with a monotonically increasing watermark. A browser
+     * subscribes first and replays only owner events newer than this watermark.
+     */
+    readSnapshot(bindingId: string): Promise<CodexConversationSnapshot>;
     submit(bindingId: string, input: TurnInput, mode?: 'queue' | 'steer', clientCommandId?: string): TurnSubmission;
     send(bindingId: string, input: TurnInput, mode?: 'queue' | 'steer', clientCommandId?: string): Promise<TurnHandle>;
     run(bindingId: string, input: TurnInput, mode?: 'queue' | 'steer', clientCommandId?: string): Promise<TurnOutcome>;

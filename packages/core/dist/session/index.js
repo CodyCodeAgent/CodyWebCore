@@ -18,6 +18,7 @@ const DEFAULT_TURN_STOP_RECONCILE_DELAY_MS = 1_000;
  * make the shared owner grow without bound while a Turn is running.
  */
 const MAX_TURN_OUTCOME_EVENTS = 256;
+const MAX_OWNER_JOURNAL_EVENTS = 10_000;
 export class CodexSessionManager {
     options;
     sessions = new Map();
@@ -28,6 +29,7 @@ export class CodexSessionManager {
     upstreamRetries = new Map();
     operationalStops = new Map();
     terminalEvents = new Map();
+    ownerJournalByBindingId = new Map();
     turnEvents = new Map();
     operationalFailures = new Map();
     submissions = new Map();
@@ -38,6 +40,7 @@ export class CodexSessionManager {
     catalog;
     nowIso;
     eventSequence = 0;
+    ownerRevision = 0;
     commandSequence = 0;
     runtimeUnavailable = false;
     disposed = false;
@@ -163,6 +166,7 @@ export class CodexSessionManager {
             return;
         this.sessions.delete(bindingId);
         this.sessionIdByThreadId.delete(session.binding.threadId);
+        this.ownerJournalByBindingId.delete(bindingId);
     }
     /** Updates product policy/settings for future turns without rebinding the native thread. */
     setContext(bindingId, context) {
@@ -172,6 +176,19 @@ export class CodexSessionManager {
         const session = this.require(bindingId);
         await this.ensureSessionReady(session);
         return this.catalog.readThread(session.binding.threadId);
+    }
+    /**
+     * The only safe reconnect cut: durable native history and the owner's live
+     * journal are captured with a monotonically increasing watermark. A browser
+     * subscribes first and replays only owner events newer than this watermark.
+     */
+    async readSnapshot(bindingId) {
+        const session = this.require(bindingId);
+        await this.ensureSessionReady(session);
+        const history = await this.catalog.readThread(session.binding.threadId);
+        const watermark = this.ownerRevision;
+        const journal = this.ownerJournalByBindingId.get(bindingId) ?? [];
+        return { events: [...history, ...journal.filter(event => (event.ownerRevision ?? 0) <= watermark)], watermark };
     }
     submit(bindingId, input, mode = 'queue', clientCommandId) {
         this.requireUsable();
@@ -379,6 +396,7 @@ export class CodexSessionManager {
         this.resolvedRequests.clear();
         this.sessions.clear();
         this.sessionIdByThreadId.clear();
+        this.ownerJournalByBindingId.clear();
     }
     attachLocal(binding, context) {
         const existingBindingId = this.sessionIdByThreadId.get(binding.threadId);
@@ -516,7 +534,16 @@ export class CodexSessionManager {
             ...normalizedInput,
             id: normalizedInput.id ?? this.eventId(normalizedInput.type, normalizedInput.threadId, normalizedInput.turnId, normalizedInput.itemId),
             atIso: normalizedInput.atIso ?? this.nowIso(),
+            ownerRevision: ++this.ownerRevision,
         };
+        const bindingId = this.sessionIdByThreadId.get(event.threadId);
+        if (bindingId) {
+            const journal = this.ownerJournalByBindingId.get(bindingId) ?? [];
+            journal.push(event);
+            if (journal.length > MAX_OWNER_JOURNAL_EVENTS)
+                journal.splice(0, journal.length - MAX_OWNER_JOURNAL_EVENTS);
+            this.ownerJournalByBindingId.set(bindingId, journal);
+        }
         if (event.turnId) {
             const key = this.turnKey(event.threadId, event.turnId);
             const events = this.turnEvents.get(key) ?? [];

@@ -46,6 +46,10 @@ export type ThreadBinding = {
 }
 
 export type TurnHandle = { threadId: string; turnId: string }
+export type CodexConversationSnapshot = {
+  events: CodexEvent[]
+  watermark: number
+}
 /**
  * The process owner owns the complete normalized outcome for one native Turn.
  * Products may render or persist this value, but must not replay a second
@@ -165,6 +169,7 @@ const DEFAULT_TURN_STOP_RECONCILE_DELAY_MS = 1_000
  * make the shared owner grow without bound while a Turn is running.
  */
 const MAX_TURN_OUTCOME_EVENTS = 256
+const MAX_OWNER_JOURNAL_EVENTS = 10_000
 
 export class CodexSessionManager {
   private readonly sessions = new Map<string, AttachedSession>()
@@ -175,6 +180,7 @@ export class CodexSessionManager {
   private readonly upstreamRetries = new Map<string, UpstreamRetry>()
   private readonly operationalStops = new Map<string, Promise<void>>()
   private readonly terminalEvents = new Map<string, CodexEvent>()
+  private readonly ownerJournalByBindingId = new Map<string, CodexEvent[]>()
   private readonly turnEvents = new Map<string, CodexEvent[]>()
   private readonly operationalFailures = new Map<string, CodexEvent>()
   private readonly submissions = new Map<string, SubmissionRecord>()
@@ -185,6 +191,7 @@ export class CodexSessionManager {
   private readonly catalog: CodexSessionCatalog
   private readonly nowIso: () => string
   private eventSequence = 0
+  private ownerRevision = 0
   private commandSequence = 0
   private runtimeUnavailable = false
   private disposed = false
@@ -312,6 +319,7 @@ export class CodexSessionManager {
     if (!session) return
     this.sessions.delete(bindingId)
     this.sessionIdByThreadId.delete(session.binding.threadId)
+    this.ownerJournalByBindingId.delete(bindingId)
   }
 
   /** Updates product policy/settings for future turns without rebinding the native thread. */
@@ -323,6 +331,20 @@ export class CodexSessionManager {
     const session = this.require(bindingId)
     await this.ensureSessionReady(session)
     return this.catalog.readThread(session.binding.threadId)
+  }
+
+  /**
+   * The only safe reconnect cut: durable native history and the owner's live
+   * journal are captured with a monotonically increasing watermark. A browser
+   * subscribes first and replays only owner events newer than this watermark.
+   */
+  async readSnapshot(bindingId: string): Promise<CodexConversationSnapshot> {
+    const session = this.require(bindingId)
+    await this.ensureSessionReady(session)
+    const history = await this.catalog.readThread(session.binding.threadId)
+    const watermark = this.ownerRevision
+    const journal = this.ownerJournalByBindingId.get(bindingId) ?? []
+    return { events: [...history, ...journal.filter(event => (event.ownerRevision ?? 0) <= watermark)], watermark }
   }
 
   submit(bindingId: string, input: TurnInput, mode: 'queue' | 'steer' = 'queue', clientCommandId?: string): TurnSubmission {
@@ -528,6 +550,7 @@ export class CodexSessionManager {
     this.resolvedRequests.clear()
     this.sessions.clear()
     this.sessionIdByThreadId.clear()
+    this.ownerJournalByBindingId.clear()
   }
 
   private attachLocal(binding: ThreadBinding, context: ExecutionContext): AttachedSession {
@@ -658,6 +681,14 @@ export class CodexSessionManager {
       ...normalizedInput,
       id: normalizedInput.id ?? this.eventId(normalizedInput.type, normalizedInput.threadId, normalizedInput.turnId, normalizedInput.itemId),
       atIso: normalizedInput.atIso ?? this.nowIso(),
+      ownerRevision: ++this.ownerRevision,
+    }
+    const bindingId = this.sessionIdByThreadId.get(event.threadId)
+    if (bindingId) {
+      const journal = this.ownerJournalByBindingId.get(bindingId) ?? []
+      journal.push(event)
+      if (journal.length > MAX_OWNER_JOURNAL_EVENTS) journal.splice(0, journal.length - MAX_OWNER_JOURNAL_EVENTS)
+      this.ownerJournalByBindingId.set(bindingId, journal)
     }
     if (event.turnId) {
       const key = this.turnKey(event.threadId, event.turnId)

@@ -36,7 +36,7 @@ export function createConversationController(threadId, transport, options = {}) 
         const visibleIds = new Set(next.messages.map((message) => message.id));
         localOutboxJournal = localOutboxJournal.filter((event) => visibleIds.has(queuedMessageId(event.itemId || event.id)));
     };
-    const applyRealtimeEvent = (event) => {
+    const applyRealtimeEvent = (event, ownerRevision = event.ownerRevision) => {
         if (!event.id || event.threadId !== threadId)
             return;
         const commandId = typeof event.data.clientCommandId === 'string'
@@ -59,7 +59,7 @@ export function createConversationController(threadId, transport, options = {}) 
         realtimeEventRevision += 1;
         realtimeJournal = [
             ...realtimeJournal,
-            { revision: realtimeEventRevision, event },
+            { revision: realtimeEventRevision, ...(ownerRevision === undefined ? {} : { ownerRevision }), event },
         ].slice(-MAX_REALTIME_JOURNAL_EVENTS);
         const next = reduceConversationEvent(state, event);
         pruneSettledOutbox(next);
@@ -70,7 +70,8 @@ export function createConversationController(threadId, transport, options = {}) 
         const realtimeRevisionAtStart = realtimeBaseline;
         publish({ ...state, history: { ...state.history, loading: true, requestRevision: revision, error: '' } });
         try {
-            const events = await transport.read(threadId);
+            const ownerSnapshot = transport.snapshot ? await transport.snapshot(threadId) : null;
+            const events = ownerSnapshot?.events ?? await transport.read(threadId);
             if (revision !== readRevision)
                 return;
             // Native history is durable, but it can lag the process owner while a
@@ -79,7 +80,7 @@ export function createConversationController(threadId, transport, options = {}) 
             // assuming that an earlier attachment has already reached thread/read.
             // This keeps refresh/reconnect and multi-tab projections on the same
             // authoritative command order without a browser-side durable outbox.
-            const attachment = transport.attach ? await transport.attach(threadId) : undefined;
+            const attachment = ownerSnapshot ? undefined : transport.attach ? await transport.attach(threadId) : undefined;
             if (revision !== readRevision)
                 return;
             // Native history is authoritative, but events arriving after this read
@@ -90,7 +91,9 @@ export function createConversationController(threadId, transport, options = {}) 
             // same accepted command look like a second, newer user message and also
             // forces unsafe text-only deduplication across retry attempts.
             const snapshot = reduceConversationEvents(reduceConversationEvents(reduceConversationEvents(reduceConversationEvents(createConversationState(threadId), localOutboxJournal), events), attachment?.events ?? []), realtimeJournal
-                .filter((entry) => entry.revision > realtimeRevisionAtStart)
+                .filter((entry) => ownerSnapshot
+                ? entry.ownerRevision === undefined || entry.ownerRevision > ownerSnapshot.watermark
+                : entry.revision > realtimeRevisionAtStart)
                 .map((entry) => entry.event));
             const reconciled = snapshot;
             pruneSettledOutbox(reconciled);
@@ -137,7 +140,7 @@ export function createConversationController(threadId, transport, options = {}) 
         if (!unsubscribeTransport) {
             unsubscribeTransport = transport.subscribe(threadId, (value) => {
                 if (value.type === 'event') {
-                    applyRealtimeEvent(value.event);
+                    applyRealtimeEvent(value.event, value.ownerRevision);
                     return;
                 }
                 if (value.type === 'connected') {
@@ -155,7 +158,7 @@ export function createConversationController(threadId, transport, options = {}) 
                 publish({
                     ...state,
                     transportConnection: {
-                        status: 'reconnecting',
+                        status: value.willReconnect === false ? 'disconnected' : 'reconnecting',
                         reconnectAttempt: value.reconnectAttempt ?? state.transportConnection.reconnectAttempt + 1,
                         closeCode: value.closeCode ?? null,
                         closeReason: value.closeReason ?? value.error ?? '',
@@ -273,8 +276,8 @@ export function createConversationController(threadId, transport, options = {}) 
                 return;
             await transport.interrupt(threadId);
         },
-        ingestEvent(event) {
-            applyRealtimeEvent(event);
+        ingestEvent(event, ownerRevision) {
+            applyRealtimeEvent(event, ownerRevision);
         },
         start,
         refresh,
@@ -291,6 +294,13 @@ export function createConversationController(threadId, transport, options = {}) 
             listeners.clear();
         },
     };
+}
+/** 1012 is intentionally retryable: it is the standard service-restart code.
+ * Application close codes in the 44xx range are terminal conversation state. */
+export function shouldReconnectConversationSocket(close) {
+    if (close.code === 1000 || close.code === 1008)
+        return false;
+    return close.code === null || close.code < 4400 || close.code > 4499;
 }
 /** Small shared WebSocket lifecycle with bounded exponential reconnect. */
 export function createReconnectingConversationSocket(options) {
@@ -373,6 +383,22 @@ export function createReconnectingConversationSocket(options) {
             socket = null;
             if (closed || reconnectTimer)
                 return;
+            const close = {
+                code: typeof event.code === 'number' ? event.code : null,
+                reason: typeof event.reason === 'string' ? event.reason : '',
+            };
+            const willReconnect = (options.shouldReconnect ?? shouldReconnectConversationSocket)(close);
+            if (!willReconnect) {
+                options.listener({
+                    type: 'disconnected', atIso: new Date().toISOString(),
+                    reconnectAttempt,
+                    retryInMs: null,
+                    closeCode: close.code,
+                    closeReason: close.reason,
+                    willReconnect: false,
+                });
+                return;
+            }
             if (openedAt > 0 && Date.now() - openedAt >= 30_000) {
                 delay = minDelay;
                 reconnectAttempt = 0;
@@ -385,8 +411,9 @@ export function createReconnectingConversationSocket(options) {
                 type: 'disconnected', atIso: new Date().toISOString(),
                 reconnectAttempt,
                 retryInMs: wait,
-                closeCode: typeof event.code === 'number' ? event.code : null,
-                closeReason: typeof event.reason === 'string' ? event.reason : '',
+                closeCode: close.code,
+                closeReason: close.reason,
+                willReconnect: true,
             });
             reconnectTimer = setTimeout(() => { reconnectTimer = null; connect(); }, wait);
         });
