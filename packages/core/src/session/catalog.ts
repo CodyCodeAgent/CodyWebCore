@@ -3,6 +3,8 @@ import { createTypedCodexClient, type CodexRpcCaller, type TypedCodexClient } fr
 import type { CollaborationMode } from '../protocol/generated/CollaborationMode.js'
 import type { ReasoningEffort } from '../protocol/generated/ReasoningEffort.js'
 import type { ConfigReadResponse } from '../protocol/generated/v2/ConfigReadResponse.js'
+import type { GetAccountRateLimitsResponse } from '../protocol/generated/v2/GetAccountRateLimitsResponse.js'
+import type { McpServerRefreshResponse } from '../protocol/generated/v2/McpServerRefreshResponse.js'
 import type { ModelListResponse } from '../protocol/generated/v2/ModelListResponse.js'
 import type { ThreadListResponse } from '../protocol/generated/v2/ThreadListResponse.js'
 import type { Thread } from '../protocol/generated/v2/Thread.js'
@@ -263,6 +265,14 @@ export class CodexSessionCatalog {
   /** Reads runtime defaults through the typed Core protocol boundary. */
   async readConfig(): Promise<ConfigReadResponse> {
     return this.client.call('config/read', {})
+  }
+
+  async reloadMcpServers(): Promise<McpServerRefreshResponse> {
+    return this.client.call('config/mcpServer/reload', undefined)
+  }
+
+  async readAccountRateLimits(): Promise<GetAccountRateLimitsResponse> {
+    return this.client.call('account/rateLimits/read', undefined)
   }
 
   async listSkillCatalog(cwds: string[] = [], forceReload = false): Promise<CodexSkillCatalogGroup[]> {

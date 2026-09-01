@@ -1,5 +1,7 @@
 import type { AppServerHost, ServerRequestReply } from '../runtime/index.js';
 import type { ConfigReadResponse } from '../protocol/generated/v2/ConfigReadResponse.js';
+import type { GetAccountRateLimitsResponse } from '../protocol/generated/v2/GetAccountRateLimitsResponse.js';
+import type { McpServerRefreshResponse } from '../protocol/generated/v2/McpServerRefreshResponse.js';
 import { type CodexEvent } from '../conversation/index.js';
 import type { ExecutionContext, TurnInput } from './turn-input.js';
 import { type CodexCollaborationModeOption, type CodexModelOption, type CodexSkillCatalogGroup, type CodexSkillOption, type CodexThreadSummary, type ListCodexThreadsOptions } from './catalog.js';
@@ -147,6 +149,8 @@ export declare class CodexSessionManager {
     listModels(): Promise<CodexModelOption[]>;
     listCollaborationModes(): Promise<CodexCollaborationModeOption[]>;
     readConfig(): Promise<ConfigReadResponse>;
+    reloadMcpServers(): Promise<McpServerRefreshResponse>;
+    readAccountRateLimits(): Promise<GetAccountRateLimitsResponse>;
     listSkills(cwds: string[]): Promise<CodexSkillOption[]>;
     listSkillCatalog(cwds: string[]): Promise<CodexSkillCatalogGroup[]>;
     setSkillEnabled(path: string, enabled: boolean): Promise<void>;

@@ -188,6 +188,16 @@ export class CodexSessionManager {
         await this.options.host.ensureInitialized();
         return this.catalog.readConfig();
     }
+    async reloadMcpServers() {
+        this.requireUsable();
+        await this.options.host.ensureInitialized();
+        return this.catalog.reloadMcpServers();
+    }
+    async readAccountRateLimits() {
+        this.requireUsable();
+        await this.options.host.ensureInitialized();
+        return this.catalog.readAccountRateLimits();
+    }
     async listSkills(cwds) {
         this.requireUsable();
         await this.options.host.ensureInitialized();

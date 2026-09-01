@@ -11,6 +11,8 @@ import {
 import type { ThreadStartParams } from '../protocol/generated/v2/ThreadStartParams.js'
 import type { ThreadResumeParams } from '../protocol/generated/v2/ThreadResumeParams.js'
 import type { ConfigReadResponse } from '../protocol/generated/v2/ConfigReadResponse.js'
+import type { GetAccountRateLimitsResponse } from '../protocol/generated/v2/GetAccountRateLimitsResponse.js'
+import type { McpServerRefreshResponse } from '../protocol/generated/v2/McpServerRefreshResponse.js'
 import type { UserInput } from '../protocol/generated/v2/UserInput.js'
 import { latestAssistantTextFromEvents, type CodexEvent } from '../conversation/index.js'
 import {
@@ -353,6 +355,18 @@ export class CodexSessionManager {
     this.requireUsable()
     await this.options.host.ensureInitialized()
     return this.catalog.readConfig()
+  }
+
+  async reloadMcpServers(): Promise<McpServerRefreshResponse> {
+    this.requireUsable()
+    await this.options.host.ensureInitialized()
+    return this.catalog.reloadMcpServers()
+  }
+
+  async readAccountRateLimits(): Promise<GetAccountRateLimitsResponse> {
+    this.requireUsable()
+    await this.options.host.ensureInitialized()
+    return this.catalog.readAccountRateLimits()
   }
 
   async listSkills(cwds: string[]): Promise<CodexSkillOption[]> {

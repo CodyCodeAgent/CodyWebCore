@@ -153,6 +153,12 @@ export class CodexSessionCatalog {
     async readConfig() {
         return this.client.call('config/read', {});
     }
+    async reloadMcpServers() {
+        return this.client.call('config/mcpServer/reload', undefined);
+    }
+    async readAccountRateLimits() {
+        return this.client.call('account/rateLimits/read', undefined);
+    }
     async listSkillCatalog(cwds = [], forceReload = false) {
         const normalizedCwds = [...new Set(cwds.map(cwd => cwd.trim()).filter(Boolean))];
         const result = await this.client.call('skills/list', {

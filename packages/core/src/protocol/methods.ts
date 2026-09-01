@@ -2,6 +2,8 @@ import type { CollaborationModeListParams } from './generated/v2/CollaborationMo
 import type { CollaborationModeListResponse } from './generated/v2/CollaborationModeListResponse.js'
 import type { ConfigReadParams } from './generated/v2/ConfigReadParams.js'
 import type { ConfigReadResponse } from './generated/v2/ConfigReadResponse.js'
+import type { GetAccountRateLimitsResponse } from './generated/v2/GetAccountRateLimitsResponse.js'
+import type { McpServerRefreshResponse } from './generated/v2/McpServerRefreshResponse.js'
 import type { ModelListParams } from './generated/v2/ModelListParams.js'
 import type { ModelListResponse } from './generated/v2/ModelListResponse.js'
 import type { SkillsListParams } from './generated/v2/SkillsListParams.js'
@@ -64,6 +66,8 @@ export interface CodexMethodMap {
   'skills/config/write': { params: SkillsConfigWriteParams; result: SkillsConfigWriteResponse }
   'collaborationMode/list': { params: CollaborationModeListParams; result: CollaborationModeListResponse }
   'config/read': { params: ConfigReadParams; result: ConfigReadResponse }
+  'config/mcpServer/reload': { params: undefined; result: McpServerRefreshResponse }
+  'account/rateLimits/read': { params: undefined; result: GetAccountRateLimitsResponse }
 }
 
 export type CodexMethod = keyof CodexMethodMap

@@ -71,6 +71,17 @@ describe('CodexSessionCatalog', () => {
     expect(rpc.call).toHaveBeenCalledWith('config/read', {}, undefined)
   })
 
+  it('owns typed runtime maintenance and account reads', async () => {
+    const rpc = rpcWith((method) => method === 'config/mcpServer/reload'
+      ? { reloaded: true }
+      : { rateLimits: null, rateLimitsByLimitId: null, rateLimitResetCredits: null })
+    const catalog = new CodexSessionCatalog(rpc)
+    await expect(catalog.reloadMcpServers()).resolves.toEqual({ reloaded: true })
+    await expect(catalog.readAccountRateLimits()).resolves.toEqual({ rateLimits: null, rateLimitsByLimitId: null, rateLimitResetCredits: null })
+    expect(rpc.call).toHaveBeenNthCalledWith(1, 'config/mcpServer/reload', undefined, undefined)
+    expect(rpc.call).toHaveBeenNthCalledWith(2, 'account/rateLimits/read', undefined, undefined)
+  })
+
   it('owns settings and goal RPC payloads', async () => {
     const rpc = rpcWith(() => ({}))
     const catalog = new CodexSessionCatalog(rpc)
