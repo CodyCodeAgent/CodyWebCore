@@ -63,13 +63,14 @@ describe('ReliableChannelOutbox', () => {
           row.status = 'leased'; row.attempts += 1; return { ...row }
         })
       },
+      async markSending(id) { Object.assign(rows.get(id)!, { status: 'sending' }) },
       async markSent(id, remoteMessageId) { Object.assign(rows.get(id)!, { status: 'sent', remoteMessageId }) },
       async markRetry(id, lastError, availableAtIso) { Object.assign(rows.get(id)!, { status: 'retry_wait', lastError, availableAtIso }) },
       async markDeadLetter(id, lastError) { Object.assign(rows.get(id)!, { status: 'dead_letter', lastError }) },
     }
     let calls = 0
     const queue = new ReliableChannelOutbox({ provider: 'feishu', accountId: 'bot-1' }, store, {
-      async deliver() { calls += 1; if (calls === 1) throw new Error('timeout'); return { remoteMessageId: 'remote-1' } },
+      async deliver(item) { expect(rows.get(item.id)?.status).toBe('sending'); calls += 1; if (calls === 1) throw new Error('timeout'); return { remoteMessageId: 'remote-1' } },
       classifyError(error) { return { message: String(error), retryable: !String(error).includes('forbidden') } },
     }, { retryBaseMs: 100, now: () => now, randomId: () => 'out-1' })
     await queue.enqueue({ kind: 'send_text', targetId: 'chat-1', payload: {}, dedupeKey: 'event-1:0' })

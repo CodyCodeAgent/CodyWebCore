@@ -55,7 +55,7 @@ export type ChannelInboxItem = {
   updatedAtIso: string
 }
 
-export type ChannelOutboxStatus = 'pending' | 'leased' | 'retry_wait' | 'sent' | 'dead_letter' | 'superseded'
+export type ChannelOutboxStatus = 'pending' | 'leased' | 'sending' | 'retry_wait' | 'sent' | 'dead_letter' | 'superseded'
 
 export type ChannelOutboxItem = {
   id: string
@@ -80,6 +80,7 @@ export type ChannelDeliveryError = { message: string; retryable: boolean }
 export interface ChannelOutboxStore {
   enqueue(input: Omit<ChannelOutboxItem, 'status' | 'attempts' | 'availableAtIso'> & { availableAtIso?: string }): Promise<ChannelOutboxItem>
   claim(input: { provider: string; accountId: string; limit: number; leaseMs: number; nowIso: string }): Promise<ChannelOutboxItem[]>
+  markSending(id: string): Promise<void>
   markSent(id: string, remoteMessageId?: string): Promise<void>
   markRetry(id: string, error: string, availableAtIso: string): Promise<void>
   markDeadLetter(id: string, error: string): Promise<void>
@@ -161,6 +162,10 @@ export class ReliableChannelOutbox {
 
   private async dispatch(item: ChannelOutboxItem): Promise<void> {
     try {
+      // Persist the network side-effect boundary. If the process exits after
+      // this point, the same lease is recovered instead of pretending that the
+      // delivery was never attempted.
+      await this.store.markSending(item.id)
       const result = await this.dispatcher.deliver(item)
       await this.store.markSent(item.id, result.remoteMessageId)
     } catch (error) {

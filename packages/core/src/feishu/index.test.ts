@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { feishuSelectionCard, normalizeFeishuAction, normalizeFeishuMessage } from './index.js'
+import { applyFeishuChatMode, feishuSelectionCard, normalizeFeishuAction, normalizeFeishuMessage } from './index.js'
 
 describe('normalizeFeishuMessage', () => {
   const config = { accountId: 'bot-1', appId: 'cli_test', appSecret: 'secret', botOpenId: 'ou_bot', privateConversationMode: 'topic' as const }
@@ -29,6 +29,15 @@ describe('normalizeFeishuMessage', () => {
       message: { message_id: 'om_2', chat_id: 'oc_2', chat_type: 'group', message_type: 'text', content: JSON.stringify({ text: '@_user_1 inspect' }), mentions: [{ key: '@_user_1', name: 'CodyWork', id: { open_id: 'ou_bot' } }] },
     } })
     expect(message).toMatchObject({ text: 'inspect', addressedToAgent: true, conversation: { scope: 'group' } })
+  })
+
+  it('promotes a topic-group root event to a stable topic binding after chat lookup', () => {
+    const message = normalizeFeishuMessage(config, { event: {
+      sender: { sender_type: 'user', sender_id: { open_id: 'ou_user' } },
+      message: { message_id: 'om_topic_root', chat_id: 'oc_topic', chat_type: 'group', message_type: 'text', content: JSON.stringify({ text: 'root' }) },
+    } })
+    expect(message?.conversation).toEqual({ id: 'oc_topic', scope: 'group' })
+    expect(applyFeishuChatMode(message!, 'topic').conversation).toEqual({ id: 'oc_topic', scope: 'topic', rootId: 'om_topic_root' })
   })
 
   it('maps file resources without leaking provider fields into the envelope shape', () => {

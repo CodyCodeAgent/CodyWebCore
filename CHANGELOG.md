@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.38.5
+
+- Persist the explicit Outbox `sending` boundary so delivery recovery and diagnostics distinguish leased work from an in-flight network side effect.
+- Resolve Feishu topic-group chat mode for root messages that omit thread identifiers, preserving one stable topic binding across root messages and replies.
+
 ## 0.38.4
 
 - Project structured and Markdown image references as provider-neutral channel assets, with a shared sanitizer for providers that require separately uploaded images.
