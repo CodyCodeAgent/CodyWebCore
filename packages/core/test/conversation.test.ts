@@ -320,6 +320,35 @@ describe('conversation core', () => {
     expect(state.pendingRequests).toEqual([])
   })
 
+  it('terminalizes an inProgress tool when its turn is interrupted', () => {
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { id: 'start', type: 'turn.started', threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:00.000Z', data: {} },
+      { id: 'tool', type: 'tool.started', threadId: 'thread-1', turnId: 'turn-1', itemId: 'tool-1', atIso: '2026-01-01T00:00:00.500Z', data: { tool: { kind: 'command', title: 'Command execution', status: 'inProgress', summary: 'sleep 30', details: [] } } },
+      { id: 'interrupt', type: 'turn.interrupted', threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:01.000Z', data: {} },
+    ])
+
+    expect(state.timeline).toContainEqual(expect.objectContaining({
+      kind: 'tool',
+      tool: expect.objectContaining({ status: 'cancelled' }),
+    }))
+  })
+
+  it('does not reopen tools or requests delivered after a terminal turn event', () => {
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { id: 'start', type: 'turn.started', threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:00.000Z', data: {} },
+      { id: 'tool', type: 'tool.started', threadId: 'thread-1', turnId: 'turn-1', itemId: 'tool-1', atIso: '2026-01-01T00:00:00.500Z', data: { tool: { kind: 'command', title: 'Command execution', status: 'inProgress', summary: 'sleep 30', details: [] } } },
+      { id: 'interrupt', type: 'turn.interrupted', threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:01.000Z', data: {} },
+      { id: 'late-tool', type: 'tool.updated', threadId: 'thread-1', turnId: 'turn-1', itemId: 'tool-1', atIso: '2026-01-01T00:00:01.100Z', data: { tool: { kind: 'command', title: 'Command execution', status: 'inProgress', summary: 'sleep 30', details: [] } } },
+      { id: 'late-approval', type: 'approval.requested', threadId: 'thread-1', turnId: 'turn-1', itemId: 'tool-1', atIso: '2026-01-01T00:00:01.200Z', data: { requestId: '0' } },
+    ])
+
+    expect(state.timeline).toContainEqual(expect.objectContaining({
+      kind: 'tool',
+      tool: expect.objectContaining({ status: 'cancelled' }),
+    }))
+    expect(state.pendingRequests).toEqual([])
+  })
+
   it('settles a bound optimistic user message when its native Turn terminates', () => {
     const state = reduceConversationEvents(createConversationState('thread-1'), [
       { id: 'queued', type: 'command.queued', threadId: 'thread-1', itemId: 'command-1', atIso: '2026-01-01T00:00:00.000Z', data: { text: 'run it' } },

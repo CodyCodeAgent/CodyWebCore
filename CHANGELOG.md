@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.38.2
+
+- Close `inProgress` tool items when their Turn completes, fails, disconnects, or is interrupted.
+- Ignore late tool and interactive-request notifications after a terminal Turn so stale App Server events cannot reopen finished UI.
+
 ## 0.38.1
 
 - Use Feishu `open_id` consistently for inbound messages and card actions so binding ownership and interactive request authorization share one identity.

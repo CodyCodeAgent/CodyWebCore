@@ -112,7 +112,7 @@ function toolTimelineId(event, tool = eventTool(event.data)) {
 function terminalizeTurnTools(timeline, turnId, status) {
     let changed = false;
     const next = timeline.map((entry) => {
-        if (entry.kind !== 'tool' || entry.turnId !== turnId || !/run|start|pending|wait|unknown/iu.test(entry.tool.status))
+        if (entry.kind !== 'tool' || entry.turnId !== turnId || !/run|start|progress|pending|wait|unknown/iu.test(entry.tool.status))
             return entry;
         changed = true;
         return { ...entry, tool: { ...entry.tool, status } };
@@ -619,6 +619,10 @@ export function reduceConversationEvent(previous, event) {
         };
     }
     if (event.type === 'tool.started' || event.type === 'tool.updated' || event.type === 'fileChange.updated' || event.type === 'tool.completed') {
+        // App Server notifications may arrive after a terminal Turn event. A late
+        // item update must never reopen a tool that the terminal transition closed.
+        if (event.turnId && hasTerminalTurn(state, event))
+            return state;
         const phase = event.type === 'tool.started' ? 'started' : event.type === 'tool.completed' ? 'completed' : 'updated';
         const toolId = toolTimelineId(event);
         return {
@@ -628,6 +632,8 @@ export function reduceConversationEvent(previous, event) {
         };
     }
     if (event.type === 'approval.requested' || event.type === 'question.requested') {
+        if (event.turnId && hasTerminalTurn(state, event))
+            return state;
         const id = String(event.data.requestId ?? event.data.approvalId ?? event.id);
         if (state.pendingRequests.some((request) => request.id === id))
             return state;
