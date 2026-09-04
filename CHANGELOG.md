@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.38.0
+
+- Add provider-neutral Channel Inbox, binding, Turn projection, durable Outbox leasing, retry, dead-letter, and revision supersession primitives without introducing a second conversation transcript.
+- Add a reusable Node Feishu provider for long-connection messages and card actions, private/group/topic normalization, text/cards/images/files, safe attachment downloads, idempotent delivery, and retry classification.
+- Keep CodyWeb's existing Feishu implementation explicitly outside this migration so CodyWork can adopt and harden the new Core contracts independently.
+
 ## 0.37.33
 
 - Reconcile an accepted Skill-backed command with its exact native user item after refresh, retaining structured Skill and image metadata without rendering a duplicate optimistic message.

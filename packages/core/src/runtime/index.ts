@@ -9,7 +9,7 @@ import {
   normalizeRpcResponse,
 } from '../protocol/index.js'
 
-export const CODY_WEB_CORE_VERSION = '0.37.33'
+export const CODY_WEB_CORE_VERSION = '0.38.0'
 
 export type { RuntimeNotification, ServerRequest } from '../protocol/index.js'
 
