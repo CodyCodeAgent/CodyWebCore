@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.38.4
+
+- Project structured and Markdown image references as provider-neutral channel assets, with a shared sanitizer for providers that require separately uploaded images.
+
 ## 0.38.3
 
 - Preserve inline image resources from Feishu rich-text posts so channel consumers can download them and pass real local image inputs to Codex.

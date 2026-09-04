@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createConversationState, reduceConversationEvents, type CodexEvent } from '../conversation/index.js'
-import { ReliableChannelOutbox, channelCommandId, channelConversationKey, projectChannelTurn, type ChannelInboundMessage, type ChannelOutboxItem, type ChannelOutboxStore } from './index.js'
+import { ReliableChannelOutbox, channelCommandId, channelConversationKey, extractMarkdownImageReferences, projectChannelTurn, stripMarkdownImages, type ChannelInboundMessage, type ChannelOutboxItem, type ChannelOutboxStore } from './index.js'
 
 const message: ChannelInboundMessage = {
   provider: 'feishu', accountId: 'bot-1', eventId: 'event-1', messageId: 'message-1',
@@ -25,7 +25,25 @@ describe('channel turn projection', () => {
     const state = reduceConversationEvents(createConversationState('thread-1'), [
       event('turn.started'), event('assistant.completed', { text: 'answer' }), event('turn.completed'), event('assistant.delta', { text: 'late', delta: 'late' }),
     ])
-    expect(projectChannelTurn(state, 'turn-1', 4)).toMatchObject({ status: 'completed', terminal: true, assistantText: 'answer' })
+    expect(projectChannelTurn(state, 'turn-1', 4)).toMatchObject({ status: 'completed', terminal: true, assistantText: 'answer', assistantImages: [] })
+  })
+
+  it('projects structured and Markdown images once while retaining authoritative text', () => {
+    const state = createConversationState('thread-1')
+    state.turns['turn-1'] = { id: 'turn-1', lifecycle: 'completed' }
+    state.messages.push({
+      id: 'message-1', role: 'assistant', text: 'Result\n\n![chart](</safe/chart one.png>)\n![duplicate](/safe/screenshot.png)',
+      images: ['/safe/screenshot.png'], turnId: 'turn-1', messageType: 'agentMessage',
+    })
+
+    expect(projectChannelTurn(state, 'turn-1', 2)).toMatchObject({
+      assistantImages: ['/safe/screenshot.png', '/safe/chart one.png'],
+    })
+    expect(extractMarkdownImageReferences(state.messages[0].text)).toEqual([
+      { alt: 'chart', source: '/safe/chart one.png' },
+      { alt: 'duplicate', source: '/safe/screenshot.png' },
+    ])
+    expect(stripMarkdownImages(state.messages[0].text, image => `[image: ${image.alt}]`)).toBe('Result\n\n[image: chart]\n[image: duplicate]')
   })
 })
 

@@ -151,10 +151,20 @@ export type ChannelTurnProjection = {
     turnId: string;
     status: 'queued' | 'running' | 'retrying' | 'disconnected' | 'completed' | 'failed' | 'interrupted';
     assistantText: string;
+    /** Ordered, deduplicated image references from structured messages and Markdown output. */
+    assistantImages: string[];
     error: string;
     terminal: boolean;
     revision: number;
 };
+export type MarkdownImageReference = {
+    alt: string;
+    source: string;
+};
+/** Extract image destinations without making provider or filesystem policy decisions. */
+export declare function extractMarkdownImageReferences(text: string): MarkdownImageReference[];
+/** Remove Markdown image syntax before projecting text into providers that require uploaded image keys. */
+export declare function stripMarkdownImages(text: string, replacement?: (reference: MarkdownImageReference) => string): string;
 /** Providers consume this projection and never interpret native wire events. */
 export declare function projectChannelTurn(state: ConversationState, turnId: string, revision: number): ChannelTurnProjection;
 /** Stable across provider redelivery and process restart. */

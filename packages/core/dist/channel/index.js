@@ -81,6 +81,24 @@ export class ReliableChannelOutbox {
         return Math.min(this.retryMaxMs, this.retryBaseMs * 2 ** Math.max(0, Math.min(20, attempts - 1)));
     }
 }
+const MARKDOWN_IMAGE = /!\[([^\]]*)\]\(\s*(?:<([^>]+)>|((?:\\.|[^)\s])+))(?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?\s*\)/g;
+/** Extract image destinations without making provider or filesystem policy decisions. */
+export function extractMarkdownImageReferences(text) {
+    const references = [];
+    for (const match of text.matchAll(MARKDOWN_IMAGE)) {
+        const source = (match[2] || match[3] || '').replaceAll('\\)', ')').trim();
+        if (source)
+            references.push({ alt: (match[1] || '').trim(), source });
+    }
+    return references;
+}
+/** Remove Markdown image syntax before projecting text into providers that require uploaded image keys. */
+export function stripMarkdownImages(text, replacement) {
+    return text.replace(MARKDOWN_IMAGE, (_value, alt, angleSource, bareSource) => {
+        const reference = { alt: (alt || '').trim(), source: (angleSource || bareSource || '').replaceAll('\\)', ')').trim() };
+        return replacement?.(reference) ?? '';
+    }).replace(/\n{3,}/g, '\n\n').trim();
+}
 function projectionStatus(lifecycle) {
     if (!lifecycle || lifecycle === 'idle')
         return 'queued';
@@ -96,7 +114,11 @@ export function projectChannelTurn(state, turnId, revision) {
         ? assistantMessages.filter(message => message.messageType !== 'agentMessage.live' && message.messageType !== 'plan.live')
         : assistantMessages;
     const assistantText = authoritativeMessages.map(message => message.text).filter(Boolean).join('\n\n').trim();
-    return { threadId: state.threadId, turnId, status, assistantText, error: turn?.error ?? turn?.retryMessage ?? '', terminal, revision };
+    const assistantImages = [...new Set(authoritativeMessages.flatMap(message => [
+            ...(message.images ?? []),
+            ...extractMarkdownImageReferences(message.text).map(reference => reference.source),
+        ]).filter(Boolean))];
+    return { threadId: state.threadId, turnId, status, assistantText, assistantImages, error: turn?.error ?? turn?.retryMessage ?? '', terminal, revision };
 }
 /** Stable across provider redelivery and process restart. */
 export function channelCommandId(message) {

@@ -189,9 +189,36 @@ export type ChannelTurnProjection = {
   turnId: string
   status: 'queued' | 'running' | 'retrying' | 'disconnected' | 'completed' | 'failed' | 'interrupted'
   assistantText: string
+  /** Ordered, deduplicated image references from structured messages and Markdown output. */
+  assistantImages: string[]
   error: string
   terminal: boolean
   revision: number
+}
+
+export type MarkdownImageReference = {
+  alt: string
+  source: string
+}
+
+const MARKDOWN_IMAGE = /!\[([^\]]*)\]\(\s*(?:<([^>]+)>|((?:\\.|[^)\s])+))(?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?\s*\)/g
+
+/** Extract image destinations without making provider or filesystem policy decisions. */
+export function extractMarkdownImageReferences(text: string): MarkdownImageReference[] {
+  const references: MarkdownImageReference[] = []
+  for (const match of text.matchAll(MARKDOWN_IMAGE)) {
+    const source = (match[2] || match[3] || '').replaceAll('\\)', ')').trim()
+    if (source) references.push({ alt: (match[1] || '').trim(), source })
+  }
+  return references
+}
+
+/** Remove Markdown image syntax before projecting text into providers that require uploaded image keys. */
+export function stripMarkdownImages(text: string, replacement?: (reference: MarkdownImageReference) => string): string {
+  return text.replace(MARKDOWN_IMAGE, (_value, alt: string, angleSource: string, bareSource: string) => {
+    const reference = { alt: (alt || '').trim(), source: (angleSource || bareSource || '').replaceAll('\\)', ')').trim() }
+    return replacement?.(reference) ?? ''
+  }).replace(/\n{3,}/g, '\n\n').trim()
 }
 
 function projectionStatus(lifecycle: TurnLifecycle | undefined): ChannelTurnProjection['status'] {
@@ -209,7 +236,11 @@ export function projectChannelTurn(state: ConversationState, turnId: string, rev
     ? assistantMessages.filter(message => message.messageType !== 'agentMessage.live' && message.messageType !== 'plan.live')
     : assistantMessages
   const assistantText = authoritativeMessages.map(message => message.text).filter(Boolean).join('\n\n').trim()
-  return { threadId: state.threadId, turnId, status, assistantText, error: turn?.error ?? turn?.retryMessage ?? '', terminal, revision }
+  const assistantImages = [...new Set(authoritativeMessages.flatMap(message => [
+    ...(message.images ?? []),
+    ...extractMarkdownImageReferences(message.text).map(reference => reference.source),
+  ]).filter(Boolean))]
+  return { threadId: state.threadId, turnId, status, assistantText, assistantImages, error: turn?.error ?? turn?.retryMessage ?? '', terminal, revision }
 }
 
 /** Stable across provider redelivery and process restart. */
