@@ -38,14 +38,15 @@ function normalizeMentions(value) {
             }];
     });
 }
-function richText(value) {
+function richContent(value) {
     const row = record(value);
     if (!row)
-        return '';
+        return { text: '', attachments: [] };
     const localized = Array.isArray(row.content) ? row : Object.values(row).map(record).find(candidate => Array.isArray(candidate?.content));
     if (!localized)
-        return '';
+        return { text: '', attachments: [] };
     const title = string(localized.title);
+    const attachments = [];
     const lines = localized.content.map(line => Array.isArray(line) ? line.map(element => {
         const item = record(element);
         if (!item)
@@ -54,11 +55,18 @@ function richText(value) {
             return `${string(item.text)}${item.href ? ` (${string(item.href)})` : ''}`;
         if (item.tag === 'at')
             return `@${string(item.user_name || item.user_id)}`;
-        if (item.tag === 'img')
+        if (item.tag === 'img') {
+            const id = string(item.image_key || item.imageKey);
+            if (id)
+                attachments.push({ id, type: 'image', name: `${id}.jpg` });
             return '[图片]';
+        }
         return string(item.text);
     }).join('') : '').filter(Boolean);
-    return cleanText([title, ...lines].filter(Boolean).join('\n'));
+    return {
+        text: cleanText([title, ...lines].filter(Boolean).join('\n')),
+        attachments: [...new Map(attachments.map(attachment => [`${attachment.type}:${attachment.id}`, attachment])).values()],
+    };
 }
 function safeAttachmentName(name, id, type) {
     const original = basename(name.trim());
@@ -75,7 +83,7 @@ function parseContent(messageType, content) {
     if (messageType === 'text')
         return { text: cleanText(string(parsed.text)), attachments: [] };
     if (messageType === 'post')
-        return { text: richText(parsed), attachments: [] };
+        return richContent(parsed);
     if (messageType === 'image') {
         const id = string(parsed.image_key);
         return { text: '[图片]', attachments: id ? [{ id, type: 'image', name: `${id}.jpg` }] : [] };

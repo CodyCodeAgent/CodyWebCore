@@ -67,21 +67,29 @@ function normalizeMentions(value: unknown): Array<{ key: string; name: string; o
   })
 }
 
-function richText(value: unknown): string {
+function richContent(value: unknown): { text: string; attachments: ChannelAttachment[] } {
   const row = record(value)
-  if (!row) return ''
+  if (!row) return { text: '', attachments: [] }
   const localized = Array.isArray(row.content) ? row : Object.values(row).map(record).find(candidate => Array.isArray(candidate?.content))
-  if (!localized) return ''
+  if (!localized) return { text: '', attachments: [] }
   const title = string(localized.title)
+  const attachments: ChannelAttachment[] = []
   const lines = (localized.content as unknown[]).map(line => Array.isArray(line) ? line.map(element => {
     const item = record(element)
     if (!item) return ''
     if (item.tag === 'a') return `${string(item.text)}${item.href ? ` (${string(item.href)})` : ''}`
     if (item.tag === 'at') return `@${string(item.user_name || item.user_id)}`
-    if (item.tag === 'img') return '[图片]'
+    if (item.tag === 'img') {
+      const id = string(item.image_key || item.imageKey)
+      if (id) attachments.push({ id, type: 'image', name: `${id}.jpg` })
+      return '[图片]'
+    }
     return string(item.text)
   }).join('') : '').filter(Boolean)
-  return cleanText([title, ...lines].filter(Boolean).join('\n'))
+  return {
+    text: cleanText([title, ...lines].filter(Boolean).join('\n')),
+    attachments: [...new Map(attachments.map(attachment => [`${attachment.type}:${attachment.id}`, attachment])).values()],
+  }
 }
 
 function safeAttachmentName(name: string, id: string, type: ChannelAttachment['type']): string {
@@ -97,7 +105,7 @@ function parseContent(messageType: string, content: unknown): { text: string; at
   const parsed = record(parseJson(content))
   if (!parsed) return { text: '', attachments: [] }
   if (messageType === 'text') return { text: cleanText(string(parsed.text)), attachments: [] }
-  if (messageType === 'post') return { text: richText(parsed), attachments: [] }
+  if (messageType === 'post') return richContent(parsed)
   if (messageType === 'image') {
     const id = string(parsed.image_key)
     return { text: '[图片]', attachments: id ? [{ id, type: 'image', name: `${id}.jpg` }] : [] }

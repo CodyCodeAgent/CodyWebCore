@@ -38,6 +38,24 @@ describe('normalizeFeishuMessage', () => {
     } })
     expect(message?.attachments).toEqual([{ id: 'file_1', type: 'file', name: '../report.txt' }])
   })
+
+  it('preserves inline images from rich-text posts as downloadable attachments', () => {
+    const message = normalizeFeishuMessage(config, { event: {
+      sender: { sender_type: 'user', sender_id: { open_id: 'ou_user' } },
+      message: {
+        message_id: 'om_post', chat_id: 'oc_1', chat_type: 'p2p', message_type: 'post',
+        content: JSON.stringify({ zh_cn: { title: '', content: [[
+          { tag: 'img', image_key: 'img_1' },
+          { tag: 'text', text: '[E2E-IMAGE] inspect this image' },
+          { tag: 'img', image_key: 'img_1' },
+        ]] } }),
+      },
+    } })
+    expect(message).toMatchObject({
+      text: '[图片][E2E-IMAGE] inspect this image[图片]',
+      attachments: [{ id: 'img_1', type: 'image', name: 'img_1.jpg' }],
+    })
+  })
 })
 
 describe('Feishu interactive cards', () => {

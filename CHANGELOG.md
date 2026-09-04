@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.38.3
+
+- Preserve inline image resources from Feishu rich-text posts so channel consumers can download them and pass real local image inputs to Codex.
+
 ## 0.38.2
 
 - Close `inProgress` tool items when their Turn completes, fails, disconnects, or is interrupted.
