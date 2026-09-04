@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.37.33
+
+- Reconcile an accepted Skill-backed command with its exact native user item after refresh, retaining structured Skill and image metadata without rendering a duplicate optimistic message.
+- Add one accessible full-size image preview for both conversation attachments and Markdown images, including backdrop, close-button and Escape-key dismissal.
+
 ## 0.37.32
 
 - Collapse completed and failed command-execution timeline cards by default, while retaining expanded command output during execution.

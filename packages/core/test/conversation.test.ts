@@ -333,6 +333,20 @@ describe('conversation core', () => {
     expect(state.messages[0]?.outbox).toBeUndefined()
   })
 
+  it('uses command binding to converge structured Skill metadata missing from native history', () => {
+    const skill = { name: 'review', path: '/skills/review/SKILL.md', displayName: 'Review' }
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { id: 'native', type: 'user.completed', threadId: 'thread-1', turnId: 'turn-1', itemId: 'native-user-1', atIso: '2026-01-01T00:00:00.000Z', data: { text: 'inspect it' } },
+      { id: 'queued', type: 'command.queued', threadId: 'thread-1', itemId: 'command-1', atIso: '2026-01-01T00:00:00.050Z', data: { text: 'inspect it', skills: [skill] } },
+      { id: 'bound', type: 'command.bound', threadId: 'thread-1', turnId: 'turn-1', itemId: 'command-1', atIso: '2026-01-01T00:00:00.100Z', data: { clientCommandId: 'command-1' } },
+    ])
+
+    expect(state.messages).toEqual([expect.objectContaining({
+      id: 'user:native-user-1', turnId: 'turn-1', text: 'inspect it', skills: [skill],
+    })])
+    expect(state.messages[0]?.outbox).toBeUndefined()
+  })
+
   it('clears interactive requests without fabricating a terminal receipt when runtime disconnects', () => {
     const state = reduceConversationEvents(createConversationState('thread-1'), [
       { id: 'start', type: 'turn.started', threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:00.000Z', data: {} },

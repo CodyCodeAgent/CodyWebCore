@@ -632,12 +632,24 @@ export function reduceConversationEvent(previous: ConversationState, event: Code
       && message.role === 'user'
       && message.turnId === event.turnId
       && message.messageType?.startsWith('userMessage.') !== true
-      && areUserMessagesEquivalent(message, optimistic)
     ))
     if (native) {
       return {
         ...state,
-        messages: state.messages.filter((message) => message.id !== messageId),
+        // command.bound is the provider's exact command-to-Turn identity. Native
+        // history does not necessarily persist structured Skill references, so
+        // requiring text+images+skills equality here resurrects the accepted
+        // optimistic row after refresh. Keep the durable native row while
+        // enriching metadata that only existed on the submitted command.
+        messages: state.messages.flatMap((message) => {
+          if (message.id === messageId) return []
+          if (message.id !== native.id) return [message]
+          return [{
+            ...message,
+            ...(!message.images?.length && optimistic.images?.length ? { images: optimistic.images } : {}),
+            ...(!message.skills?.length && optimistic.skills?.length ? { skills: optimistic.skills } : {}),
+          }]
+        }),
         presentation: state.presentation.filter((row) => row.id !== messageId),
       }
     }

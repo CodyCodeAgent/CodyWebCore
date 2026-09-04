@@ -439,6 +439,32 @@ describe('ConversationController', () => {
     expect(controller.getState().messages).toHaveLength(1)
   })
 
+  it('refreshes a Skill-backed command without duplicating native history that omits Skill metadata', async () => {
+    let listener: ((value: ConversationSubscriptionEvent) => void) | undefined
+    const skill = { name: 'review', path: '/skills/review/SKILL.md', displayName: 'Review' }
+    const snapshot: CodexEvent[] = [
+      { ...event('native-user', 'user.completed', { text: 'inspect it' }), itemId: 'native-user-1', turnId: 'turn-1' },
+      { ...event('queued', 'command.queued', { text: 'inspect it', skills: [skill], clientCommandId: 'command-1' }), itemId: 'command-1' },
+      { ...event('bound', 'command.bound', { clientCommandId: 'command-1' }), itemId: 'command-1', turnId: 'turn-1' },
+      { ...event('completed', 'turn.completed', { status: 'completed' }), turnId: 'turn-1' },
+    ]
+    const controller = createConversationController('thread-1', {
+      snapshot: async () => ({ events: snapshot, watermark: snapshot.length }),
+      read: async () => snapshot,
+      subscribe: (_threadId, next) => { listener = next; return () => undefined },
+      submit: async (command) => ({ clientCommandId: command.clientCommandId }),
+    })
+
+    await controller.start()
+    listener?.({ type: 'connected' })
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(controller.getState().messages).toEqual([expect.objectContaining({
+      id: 'user:native-user-1', turnId: 'turn-1', skills: [skill],
+    })])
+    expect(controller.getState().messages[0]?.outbox).toBeUndefined()
+  })
+
   it('keeps a failed queued user message visible for an explicit retry', async () => {
     const admission = deferred<{ clientCommandId: string }>()
     const controller = createConversationController('thread-1', {
