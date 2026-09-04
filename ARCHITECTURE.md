@@ -28,6 +28,7 @@ protocol/runtime/session/conversation/composer/presentation/client
 - `composer` owns framework-neutral input intent, queue/steer selection, attachments and option reconciliation.
 - `presentation` owns framework-neutral risk and timeline view models.
 - `client` owns reconnecting subscriptions and latest-wins history reads.
+- `channel` owns provider-neutral remote-message identities, durable delivery semantics and projections from authoritative conversation state. Products provide persistence, routing and policy; providers own wire formats.
 - `vue` renders the shared conversation and composer surfaces. It receives product-owned callbacks and policy labels rather than product services.
 
 Imports must follow this direction. A lower layer never imports Vue or a product repository. Product code imports public package entrypoints and must not reach into `packages/*/src` or generated schema files.
@@ -45,7 +46,8 @@ Imports must follow this direction. A lower layer never imports Vue or a product
 | Approval decision | injected product policy; Core transports and reconciles the request |
 | Workspace roots and write access | product policy adapter; Core can preserve or narrow, never widen |
 | Product audit/cost/checkpoints | product adapter consuming normalized events |
-| Feishu, browser notifications, catalog and workspace navigation | product adapter |
+| Remote-channel delivery and conversation projection | `channel`, with product persistence and policy ports |
+| Feishu wire protocol, browser notifications, catalog and workspace navigation | product/provider adapter |
 
 Products must use `normalizeCodexNotification`, selectors such as `latestTerminalTurnEvent`, and the conversation reducer instead of switching on native Turn/item methods. Direct wire parsing is allowed only at a named adapter boundary for data that Core intentionally does not model, such as an MCP image payload, rate-limit snapshot, catalog Thread DTO, or third-party delivery envelope.
 
@@ -60,4 +62,4 @@ Products must use `normalizeCodexNotification`, selectors such as `latestTermina
 
 CodyWork owns Workspace → Demand → Worktree navigation and is free to redesign its storage and UI without compatibility shims. Its policy adapter must keep each Demand inside its readable/writable roots.
 
-CodyWeb owns catalog, Feishu, tasks, audit, checkpoint and workspace tooling. Those services consume Core events but remain outside Core unless both products need the same mechanism and semantics.
+CodyWeb owns catalog, its existing Feishu integration, tasks, audit, checkpoint and workspace tooling. CodyWeb does not migrate to the new channel package until separately approved. Shared channel mechanisms may live in Core while provider wire behavior and product routing remain adapters.

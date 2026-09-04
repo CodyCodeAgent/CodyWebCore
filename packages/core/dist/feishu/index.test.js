@@ -1,0 +1,40 @@
+import { describe, expect, it } from 'vitest';
+import { feishuSelectionCard, normalizeFeishuAction, normalizeFeishuMessage } from './index.js';
+describe('normalizeFeishuMessage', () => {
+    const config = { accountId: 'bot-1', appId: 'cli_test', appSecret: 'secret', botOpenId: 'ou_bot', privateConversationMode: 'topic' };
+    it('maps a private top-level message to a stable topic envelope', () => {
+        const message = normalizeFeishuMessage(config, { event_id: 'event-1', event: {
+                sender: { sender_type: 'user', sender_id: { open_id: 'ou_user' } },
+                message: { message_id: 'om_1', chat_id: 'oc_1', chat_type: 'p2p', message_type: 'text', content: JSON.stringify({ text: 'hello' }) },
+            } });
+        expect(message).toMatchObject({
+            provider: 'feishu', eventId: 'event-1', messageId: 'om_1', text: 'hello', addressedToAgent: true,
+            conversation: { id: 'oc_1', scope: 'private', rootId: 'om_1' }, sender: { id: 'ou_user', type: 'user' },
+        });
+    });
+    it('removes the bot mention and preserves image resource identity', () => {
+        const message = normalizeFeishuMessage(config, { event: {
+                sender: { sender_type: 'user', sender_id: { union_id: 'on_user' } },
+                message: { message_id: 'om_2', chat_id: 'oc_2', chat_type: 'group', message_type: 'text', content: JSON.stringify({ text: '@_user_1 inspect' }), mentions: [{ key: '@_user_1', name: 'CodyWork', id: { open_id: 'ou_bot' } }] },
+            } });
+        expect(message).toMatchObject({ text: 'inspect', addressedToAgent: true, conversation: { scope: 'group' } });
+    });
+    it('maps file resources without leaking provider fields into the envelope shape', () => {
+        const message = normalizeFeishuMessage(config, { event: {
+                sender: { sender_type: 'user', sender_id: { open_id: 'ou_user' } },
+                message: { message_id: 'om_3', chat_id: 'oc_1', chat_type: 'p2p', message_type: 'file', content: JSON.stringify({ file_key: 'file_1', file_name: '../report.txt' }) },
+            } });
+        expect(message?.attachments).toEqual([{ id: 'file_1', type: 'file', name: '../report.txt' }]);
+    });
+});
+describe('Feishu interactive cards', () => {
+    it('round-trips structured selection values through the selected option', () => {
+        const card = feishuSelectionCard('Bind', 'Choose', [{ text: 'Workspace', value: { action: 'pick', workspaceId: 'ws-1' } }]);
+        expect(JSON.stringify(card)).toContain('ws-1');
+        expect(normalizeFeishuAction({
+            event_id: 'action-1', operator: { operator_id: { open_id: 'user-1' } }, context: { open_message_id: 'message-1' },
+            action: { option: JSON.stringify({ action: 'pick', workspaceId: 'ws-1' }) },
+        })).toMatchObject({ actorId: 'user-1', remoteMessageId: 'message-1', value: { action: 'pick', workspaceId: 'ws-1' } });
+    });
+});
+//# sourceMappingURL=index.test.js.map
