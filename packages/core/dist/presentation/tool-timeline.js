@@ -109,6 +109,11 @@ export function toolStatusTone(status) {
     return 'neutral';
 }
 export function isToolTimelineExpandedByDefault(tool) {
+    // Command output is useful while it is changing, but becomes noisy once the
+    // process reaches a terminal state. Keep that distinction in the shared
+    // presentation layer so every client starts from the same compact timeline.
+    if (tool.kind === 'command')
+        return toolStatusTone(tool.status) === 'working';
     return tool.kind !== 'fileChange';
 }
 export function isToolOutputTruncated(output, lineLimit = TOOL_OUTPUT_PREVIEW_LINE_COUNT, charLimit = TOOL_OUTPUT_PREVIEW_MAX_CHARS) {

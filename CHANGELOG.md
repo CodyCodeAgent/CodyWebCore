@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.37.32
+
+- Collapse completed and failed command-execution timeline cards by default, while retaining expanded command output during execution.
+- Keep the runtime diagnostic version synchronized with the published Core package version.
+
 ## 0.37.23
 
 - Move typed MCP reload and account rate-limit reads behind the shared Core owner so products no longer need a generic App Server RPC tunnel.

@@ -46,7 +46,10 @@ describe('presentation tool timeline', () => {
   })
 
   it('owns expansion and bounded output rules', () => {
-    expect(isToolTimelineExpandedByDefault(tool())).toBe(true)
+    expect(isToolTimelineExpandedByDefault(tool({ status: 'running' }))).toBe(true)
+    expect(isToolTimelineExpandedByDefault(tool({ status: 'completed' }))).toBe(false)
+    expect(isToolTimelineExpandedByDefault(tool({ status: 'failed' }))).toBe(false)
+    expect(isToolTimelineExpandedByDefault(tool({ kind: 'dynamicTool', status: 'completed' }))).toBe(true)
     expect(isToolTimelineExpandedByDefault(tool({ kind: 'fileChange' }))).toBe(false)
     expect(isToolOutputTruncated('one\ntwo\nthree\nfour', 3, 100)).toBe(true)
     expect(buildToolOutputPreview('one\ntwo\nthree\nfour', 2, 100)).toBe('one\ntwo')
