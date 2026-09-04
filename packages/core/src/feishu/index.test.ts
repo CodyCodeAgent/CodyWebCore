@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyFeishuChatMode, feishuSelectionCard, normalizeFeishuAction, normalizeFeishuMessage } from './index.js'
+import { applyFeishuChatMode, feishuSelectionCard, feishuTextCard, normalizeFeishuAction, normalizeFeishuMessage } from './index.js'
 
 describe('normalizeFeishuMessage', () => {
   const config = { accountId: 'bot-1', appId: 'cli_test', appSecret: 'secret', botOpenId: 'ou_bot', privateConversationMode: 'topic' as const }
@@ -68,6 +68,15 @@ describe('normalizeFeishuMessage', () => {
 })
 
 describe('Feishu interactive cards', () => {
+  it('renders external URL buttons without creating a callback payload', () => {
+    const card = feishuTextCard('Done', 'Result', { actions: [{ text: 'Open', url: 'https://work.example/session/1', type: 'primary' }] })
+    expect(card).toMatchObject({ elements: [
+      { tag: 'markdown' },
+      { tag: 'action', actions: [{ tag: 'button', type: 'primary', url: 'https://work.example/session/1' }] },
+    ] })
+    expect(JSON.stringify(card)).not.toContain('"value"')
+  })
+
   it('round-trips structured selection values through the selected option', () => {
     const card = feishuSelectionCard('Bind', 'Choose', [{ text: 'Workspace', value: { action: 'pick', workspaceId: 'ws-1' } }])
     expect(JSON.stringify(card)).toContain('ws-1')

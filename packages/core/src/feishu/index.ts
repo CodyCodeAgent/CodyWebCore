@@ -11,6 +11,22 @@ export type FeishuDomain = 'feishu' | 'lark'
 export type FeishuConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'failed'
 export type FeishuCard = Record<string, unknown>
 
+export type FeishuConnectionDiagnostic = {
+  state: FeishuConnectionState
+  atIso: string
+  reconnectAttempts: number
+  lastConnectAtIso: string | null
+  nextConnectAtIso: string | null
+  /** The current SDK does not expose WebSocket close frames. Keep this null
+   * instead of inventing a close code; products can render it as unavailable. */
+  closeCode: number | null
+  closeReason: string
+}
+
+export type FeishuCardButton =
+  | { text: string; value: Record<string, unknown>; type?: 'primary' | 'default' | 'danger'; url?: never }
+  | { text: string; url: string; type?: 'primary' | 'default' | 'danger'; value?: never }
+
 export type FeishuAccountConfig = {
   accountId: string
   appId: string
@@ -31,7 +47,7 @@ export type FeishuCardAction = {
 export type FeishuProviderHandlers = {
   onMessage(message: ChannelInboundMessage): void | Promise<void>
   onAction(action: FeishuCardAction): unknown | Promise<unknown>
-  onState(state: FeishuConnectionState, error?: Error): void
+  onState(state: FeishuConnectionState, error?: Error, diagnostic?: FeishuConnectionDiagnostic): void
 }
 
 export type FeishuChatMode = 'group' | 'p2p' | 'topic'
@@ -284,6 +300,24 @@ export class FeishuProvider {
 
   getState(): FeishuConnectionState { return this.state }
 
+  getConnectionDiagnostic(error?: Error): FeishuConnectionDiagnostic {
+    const status = this.ws?.getConnectionStatus()
+    const closeReason = this.state === 'reconnecting'
+      ? 'Feishu WebSocket 已关闭，SDK 正在自动重连'
+      : this.state === 'failed'
+        ? error?.message || 'Feishu WebSocket 重连已停止'
+        : ''
+    return {
+      state: this.state,
+      atIso: new Date().toISOString(),
+      reconnectAttempts: status?.reconnectAttempts ?? 0,
+      lastConnectAtIso: status?.lastConnectTime ? new Date(status.lastConnectTime).toISOString() : null,
+      nextConnectAtIso: status?.nextConnectTime ? new Date(status.nextConnectTime).toISOString() : null,
+      closeCode: null,
+      closeReason,
+    }
+  }
+
   private async resolveChatMode(message: ChannelInboundMessage): Promise<ChannelInboundMessage> {
     if (message.conversation.scope !== 'group') return message
     let pending = this.chatModes.get(message.conversation.id)
@@ -396,7 +430,7 @@ export class FeishuProvider {
   }
 
   private setState(state: FeishuConnectionState, handlers: FeishuProviderHandlers, error?: Error): void {
-    this.state = state; handlers.onState(state, error)
+    this.state = state; handlers.onState(state, error, this.getConnectionDiagnostic(error))
   }
 
   private messageId(response: { code?: number; msg?: string; data?: { message_id?: string } | null }): string {
@@ -405,9 +439,12 @@ export class FeishuProvider {
   }
 }
 
-export function feishuTextCard(title: string, markdown: string, options: { color?: string; actions?: Array<{ text: string; value: Record<string, unknown>; type?: 'primary' | 'default' | 'danger' }>; note?: string } = {}): FeishuCard {
+export function feishuTextCard(title: string, markdown: string, options: { color?: string; actions?: FeishuCardButton[]; note?: string } = {}): FeishuCard {
   const elements: unknown[] = [{ tag: 'markdown', content: markdown.slice(0, 28_000) || ' ' }]
-  if (options.actions?.length) elements.push({ tag: 'action', actions: options.actions.map(action => ({ tag: 'button', text: { tag: 'plain_text', content: action.text }, type: action.type ?? 'default', value: action.value })) })
+  if (options.actions?.length) elements.push({ tag: 'action', actions: options.actions.map(action => ({
+    tag: 'button', text: { tag: 'plain_text', content: action.text.slice(0, 80) }, type: action.type ?? 'default',
+    ...('url' in action ? { url: action.url } : { value: action.value }),
+  })) })
   if (options.note) elements.push({ tag: 'note', elements: [{ tag: 'plain_text', content: options.note.slice(0, 500) }] })
   return {
     config: { wide_screen_mode: true },

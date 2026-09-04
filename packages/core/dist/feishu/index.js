@@ -262,6 +262,23 @@ export class FeishuProvider {
         this.state = 'idle';
     }
     getState() { return this.state; }
+    getConnectionDiagnostic(error) {
+        const status = this.ws?.getConnectionStatus();
+        const closeReason = this.state === 'reconnecting'
+            ? 'Feishu WebSocket 已关闭，SDK 正在自动重连'
+            : this.state === 'failed'
+                ? error?.message || 'Feishu WebSocket 重连已停止'
+                : '';
+        return {
+            state: this.state,
+            atIso: new Date().toISOString(),
+            reconnectAttempts: status?.reconnectAttempts ?? 0,
+            lastConnectAtIso: status?.lastConnectTime ? new Date(status.lastConnectTime).toISOString() : null,
+            nextConnectAtIso: status?.nextConnectTime ? new Date(status.nextConnectTime).toISOString() : null,
+            closeCode: null,
+            closeReason,
+        };
+    }
     async resolveChatMode(message) {
         if (message.conversation.scope !== 'group')
             return message;
@@ -369,7 +386,7 @@ export class FeishuProvider {
     }
     setState(state, handlers, error) {
         this.state = state;
-        handlers.onState(state, error);
+        handlers.onState(state, error, this.getConnectionDiagnostic(error));
     }
     messageId(response) {
         if (response.code !== 0 || !response.data?.message_id)
@@ -380,7 +397,10 @@ export class FeishuProvider {
 export function feishuTextCard(title, markdown, options = {}) {
     const elements = [{ tag: 'markdown', content: markdown.slice(0, 28_000) || ' ' }];
     if (options.actions?.length)
-        elements.push({ tag: 'action', actions: options.actions.map(action => ({ tag: 'button', text: { tag: 'plain_text', content: action.text }, type: action.type ?? 'default', value: action.value })) });
+        elements.push({ tag: 'action', actions: options.actions.map(action => ({
+                tag: 'button', text: { tag: 'plain_text', content: action.text.slice(0, 80) }, type: action.type ?? 'default',
+                ...('url' in action ? { url: action.url } : { value: action.value }),
+            })) });
     if (options.note)
         elements.push({ tag: 'note', elements: [{ tag: 'plain_text', content: options.note.slice(0, 500) }] });
     return {

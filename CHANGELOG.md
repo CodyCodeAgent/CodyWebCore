@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.38.7
+
+- Expose provider-neutral Feishu connection diagnostics while representing unavailable SDK close codes as unknown instead of fabricating transport data.
+- Support external URL actions in reusable Feishu cards so product adapters can link replies back to their canonical conversation.
+
 ## 0.38.6
 
 - Publish the `0.38.5` Channel reliability changes with regenerated Git-consumer build artifacts. Consumers should use this tag.

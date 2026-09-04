@@ -2,6 +2,28 @@ import type { ChannelAttachment, ChannelDeliveryError, ChannelInboundMessage } f
 export type FeishuDomain = 'feishu' | 'lark';
 export type FeishuConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'failed';
 export type FeishuCard = Record<string, unknown>;
+export type FeishuConnectionDiagnostic = {
+    state: FeishuConnectionState;
+    atIso: string;
+    reconnectAttempts: number;
+    lastConnectAtIso: string | null;
+    nextConnectAtIso: string | null;
+    /** The current SDK does not expose WebSocket close frames. Keep this null
+     * instead of inventing a close code; products can render it as unavailable. */
+    closeCode: number | null;
+    closeReason: string;
+};
+export type FeishuCardButton = {
+    text: string;
+    value: Record<string, unknown>;
+    type?: 'primary' | 'default' | 'danger';
+    url?: never;
+} | {
+    text: string;
+    url: string;
+    type?: 'primary' | 'default' | 'danger';
+    value?: never;
+};
 export type FeishuAccountConfig = {
     accountId: string;
     appId: string;
@@ -20,7 +42,7 @@ export type FeishuCardAction = {
 export type FeishuProviderHandlers = {
     onMessage(message: ChannelInboundMessage): void | Promise<void>;
     onAction(action: FeishuCardAction): unknown | Promise<unknown>;
-    onState(state: FeishuConnectionState, error?: Error): void;
+    onState(state: FeishuConnectionState, error?: Error, diagnostic?: FeishuConnectionDiagnostic): void;
 };
 export type FeishuChatMode = 'group' | 'p2p' | 'topic';
 /** Converts Feishu wire data into the provider-neutral Core envelope. */
@@ -47,6 +69,7 @@ export declare class FeishuProvider {
     start(handlers: FeishuProviderHandlers): Promise<void>;
     stop(): void;
     getState(): FeishuConnectionState;
+    getConnectionDiagnostic(error?: Error): FeishuConnectionDiagnostic;
     private resolveChatMode;
     sendText(chatId: string, text: string, uuid?: string): Promise<string>;
     replyText(messageId: string, text: string, replyInThread?: boolean, uuid?: string): Promise<string>;
@@ -67,11 +90,7 @@ export declare class FeishuProvider {
 }
 export declare function feishuTextCard(title: string, markdown: string, options?: {
     color?: string;
-    actions?: Array<{
-        text: string;
-        value: Record<string, unknown>;
-        type?: 'primary' | 'default' | 'danger';
-    }>;
+    actions?: FeishuCardButton[];
     note?: string;
 }): FeishuCard;
 /** Selection card for product target pickers. Static selects avoid Feishu's
