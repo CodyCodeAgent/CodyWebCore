@@ -140,14 +140,15 @@ export function normalizeFeishuMessage(config, payload) {
     const chatType = string(message.chat_type || message.chatType) === 'p2p' ? 'p2p' : 'group';
     const rootId = string(message.root_id || message.rootId);
     const threadId = string(message.thread_id || message.threadId);
-    const inTopic = Boolean(rootId && threadId);
+    const declaredChatMode = string(message.chat_mode || message.chatMode || event?.chat_mode || event?.chatMode);
+    const inTopic = declaredChatMode === 'topic' || Boolean(rootId && threadId);
     // `scope` is an authorization boundary, not only a UI grouping hint. Keep
     // p2p messages private even when product policy isolates each root message;
     // the optional root id still gives those messages independent bindings.
     const scope = chatType === 'p2p' ? 'private' : inTopic ? 'topic' : 'group';
     const bindingRoot = chatType === 'p2p'
         ? (config.privateConversationMode === 'topic' ? (rootId || messageId) : undefined)
-        : scope === 'topic' ? rootId : undefined;
+        : scope === 'topic' ? (rootId || messageId) : undefined;
     const parentId = string(message.parent_id || message.parentId);
     const replyTo = parentId && parentId !== messageId && (!inTopic || (parentId !== rootId && parentId !== threadId)) ? parentId : undefined;
     const eventId = string(envelope?.event_id || envelope?.eventId || record(envelope?.header)?.event_id) || messageId;
@@ -158,6 +159,19 @@ export function normalizeFeishuMessage(config, payload) {
         addressedToAgent: chatType === 'p2p' || addressedToAgent,
         mentionsOtherRecipient,
         createdAtIso: new Date(Number(message.create_time || message.createTime) || Date.now()).toISOString(),
+    };
+}
+/**
+ * Topic-group root events may omit both root_id and thread_id. The provider can
+ * resolve the chat mode once and apply it without leaking Feishu chat metadata
+ * into the provider-neutral envelope.
+ */
+export function applyFeishuChatMode(message, chatMode) {
+    if (message.conversation.scope !== 'group' || chatMode !== 'topic')
+        return message;
+    return {
+        ...message,
+        conversation: { ...message.conversation, scope: 'topic', rootId: message.conversation.rootId || message.messageId },
     };
 }
 export function normalizeFeishuAction(payload) {
@@ -194,6 +208,7 @@ export class FeishuProvider {
     client;
     ws = null;
     state = 'idle';
+    chatModes = new Map();
     constructor(config) {
         this.config = config;
         this.client = new Lark.Client({
@@ -222,7 +237,9 @@ export class FeishuProvider {
             'im.message.receive_v1': (payload) => {
                 const message = normalizeFeishuMessage(this.config, payload);
                 if (message)
-                    void Promise.resolve(handlers.onMessage(message)).catch(error => handlers.onState(this.state, error instanceof Error ? error : new Error(String(error))));
+                    void this.resolveChatMode(message)
+                        .then(resolved => handlers.onMessage(resolved))
+                        .catch(error => handlers.onState(this.state, error instanceof Error ? error : new Error(String(error))));
             },
             'card.action.trigger': (payload) => handlers.onAction(normalizeFeishuAction(payload)),
         });
@@ -245,6 +262,30 @@ export class FeishuProvider {
         this.state = 'idle';
     }
     getState() { return this.state; }
+    async resolveChatMode(message) {
+        if (message.conversation.scope !== 'group')
+            return message;
+        let pending = this.chatModes.get(message.conversation.id);
+        if (!pending) {
+            pending = this.client.im.v1.chat.get({ path: { chat_id: message.conversation.id } })
+                .then(response => {
+                if (response.code !== 0)
+                    throw new Error(`Feishu chat identity failed: ${response.msg ?? 'unknown'} (${response.code ?? 'unknown'})`);
+                const mode = response.data?.chat_mode;
+                return mode === 'topic' || mode === 'p2p' ? mode : 'group';
+            });
+            this.chatModes.set(message.conversation.id, pending);
+        }
+        try {
+            return applyFeishuChatMode(message, await pending);
+        }
+        catch {
+            // Chat metadata is enrichment only. Authorization remains group-scoped
+            // and deny-by-default when Feishu cannot return chat details.
+            this.chatModes.delete(message.conversation.id);
+            return message;
+        }
+    }
     async sendText(chatId, text, uuid) {
         const response = await this.client.im.v1.message.create({ params: { receive_id_type: 'chat_id' }, data: { receive_id: chatId, msg_type: 'text', content: JSON.stringify({ text }), ...(uuid ? { uuid } : {}) } });
         return this.messageId(response);

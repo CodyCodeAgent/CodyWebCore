@@ -58,6 +58,10 @@ export class ReliableChannelOutbox {
     }
     async dispatch(item) {
         try {
+            // Persist the network side-effect boundary. If the process exits after
+            // this point, the same lease is recovered instead of pretending that the
+            // delivery was never attempted.
+            await this.store.markSending(item.id);
             const result = await this.dispatcher.deliver(item);
             await this.store.markSent(item.id, result.remoteMessageId);
         }

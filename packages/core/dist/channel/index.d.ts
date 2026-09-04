@@ -54,7 +54,7 @@ export type ChannelInboxItem = {
     createdAtIso: string;
     updatedAtIso: string;
 };
-export type ChannelOutboxStatus = 'pending' | 'leased' | 'retry_wait' | 'sent' | 'dead_letter' | 'superseded';
+export type ChannelOutboxStatus = 'pending' | 'leased' | 'sending' | 'retry_wait' | 'sent' | 'dead_letter' | 'superseded';
 export type ChannelOutboxItem = {
     id: string;
     provider: string;
@@ -87,6 +87,7 @@ export interface ChannelOutboxStore {
         leaseMs: number;
         nowIso: string;
     }): Promise<ChannelOutboxItem[]>;
+    markSending(id: string): Promise<void>;
     markSent(id: string, remoteMessageId?: string): Promise<void>;
     markRetry(id: string, error: string, availableAtIso: string): Promise<void>;
     markDeadLetter(id: string, error: string): Promise<void>;

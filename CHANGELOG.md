@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.38.6
+
+- Publish the `0.38.5` Channel reliability changes with regenerated Git-consumer build artifacts. Consumers should use this tag.
+
 ## 0.38.5
 
 - Persist the explicit Outbox `sending` boundary so delivery recovery and diagnostics distinguish leased work from an in-flight network side effect.

@@ -22,8 +22,15 @@ export type FeishuProviderHandlers = {
     onAction(action: FeishuCardAction): unknown | Promise<unknown>;
     onState(state: FeishuConnectionState, error?: Error): void;
 };
+export type FeishuChatMode = 'group' | 'p2p' | 'topic';
 /** Converts Feishu wire data into the provider-neutral Core envelope. */
 export declare function normalizeFeishuMessage(config: FeishuAccountConfig, payload: unknown): ChannelInboundMessage | null;
+/**
+ * Topic-group root events may omit both root_id and thread_id. The provider can
+ * resolve the chat mode once and apply it without leaking Feishu chat metadata
+ * into the provider-neutral envelope.
+ */
+export declare function applyFeishuChatMode(message: ChannelInboundMessage, chatMode: FeishuChatMode): ChannelInboundMessage;
 export declare function normalizeFeishuAction(payload: unknown): FeishuCardAction;
 /** Node-only Feishu transport. It does not interpret Codex events or product targets. */
 export declare class FeishuProvider {
@@ -31,6 +38,7 @@ export declare class FeishuProvider {
     private readonly client;
     private ws;
     private state;
+    private readonly chatModes;
     constructor(config: FeishuAccountConfig);
     identity(): Promise<{
         id: string;
@@ -39,6 +47,7 @@ export declare class FeishuProvider {
     start(handlers: FeishuProviderHandlers): Promise<void>;
     stop(): void;
     getState(): FeishuConnectionState;
+    private resolveChatMode;
     sendText(chatId: string, text: string, uuid?: string): Promise<string>;
     replyText(messageId: string, text: string, replyInThread?: boolean, uuid?: string): Promise<string>;
     sendCard(chatId: string, card: FeishuCard, uuid?: string): Promise<string>;
