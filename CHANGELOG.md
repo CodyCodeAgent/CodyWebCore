@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.38.1
+
+- Use Feishu `open_id` consistently for inbound messages and card actions so binding ownership and interactive request authorization share one identity.
+
 ## 0.38.0
 
 - Add provider-neutral Channel Inbox, binding, Turn projection, durable Outbox leasing, retry, dead-letter, and revision supersession primitives without introducing a second conversation transcript.

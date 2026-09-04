@@ -114,7 +114,10 @@ export function normalizeFeishuMessage(config, payload) {
     const senderId = record(sender.sender_id || sender.senderId);
     const senderTypeRaw = string(sender.sender_type || sender.senderType);
     const senderType = senderTypeRaw === 'app' || senderTypeRaw === 'bot' ? senderTypeRaw : 'user';
-    const senderIdentity = string(senderId?.union_id || senderId?.unionId || senderId?.open_id || senderId?.openId || senderId?.user_id || senderId?.userId || senderId?.app_id || senderId?.appId);
+    // Card-action callbacks identify their operator by open_id. Prefer the same
+    // identity for message events so binding ownership and later interactive
+    // approvals compare values from one stable namespace.
+    const senderIdentity = string(senderId?.open_id || senderId?.openId || senderId?.union_id || senderId?.unionId || senderId?.user_id || senderId?.userId || senderId?.app_id || senderId?.appId);
     let text = parsed.text;
     let addressedToAgent = false;
     let mentionsOtherRecipient = false;

@@ -15,6 +15,14 @@ describe('normalizeFeishuMessage', () => {
     })
   })
 
+  it('uses open_id consistently when the event also contains a union_id', () => {
+    const message = normalizeFeishuMessage(config, { event: {
+      sender: { sender_type: 'user', sender_id: { open_id: 'ou_user', union_id: 'on_user' } },
+      message: { message_id: 'om_identity', chat_id: 'oc_identity', chat_type: 'p2p', message_type: 'text', content: JSON.stringify({ text: 'hello' }) },
+    } })
+    expect(message?.sender.id).toBe('ou_user')
+  })
+
   it('removes the bot mention and preserves image resource identity', () => {
     const message = normalizeFeishuMessage(config, { event: {
       sender: { sender_type: 'user', sender_id: { union_id: 'on_user' } },
