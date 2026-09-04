@@ -17,22 +17,22 @@ type __VLS_Slots = {} & {
     request?: (props: typeof __VLS_19) => any;
 };
 declare const __VLS_component: import("vue").DefineComponent<__VLS_Props, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {
+    copy: (text: string) => any;
     openFile: (args_0: {
         path: string;
         line: number;
     }) => any;
-    copy: (text: string) => any;
     resolveApproval: (requestId: string, decision: "accept" | "decline") => any;
     resolveQuestion: (requestId: string, answer: Record<string, {
         answers: string[];
     }>) => any;
     retryMessage: (message: import("@codycodeagent/cody-web-core/conversation", { with: { "resolution-mode": "import" } }).ConversationMessage) => any;
 }, string, import("vue").PublicProps, Readonly<__VLS_Props> & Readonly<{
+    onCopy?: ((text: string) => any) | undefined;
     onOpenFile?: ((args_0: {
         path: string;
         line: number;
     }) => any) | undefined;
-    onCopy?: ((text: string) => any) | undefined;
     onResolveApproval?: ((requestId: string, decision: "accept" | "decline") => any) | undefined;
     onResolveQuestion?: ((requestId: string, answer: Record<string, {
         answers: string[];

@@ -1,15 +1,13 @@
 <template>
   <div ref="rootRef" class="cody-markdown cody-markdown-renderer" v-html="renderedHtml" @click="onMarkdownClick" />
-  <dialog ref="imageDialogRef" class="cody-markdown-image-dialog" @click="closeImagePreview">
-    <button type="button" aria-label="关闭图片预览" @click="closeImagePreview">×</button>
-    <img :src="previewImageUrl" alt="Markdown 图片预览">
-  </dialog>
+  <CodyImagePreviewDialog :src="previewImageUrl" alt="Markdown 图片预览" @dismiss="previewImageUrl = ''" />
 </template>
 
 <script setup lang="ts">
 import DOMPurify from 'dompurify'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { DEFAULT_CODY_MARKDOWN_LABELS, renderCodyMarkdown, stabilizeStreamingMarkdown, type CodyMarkdownLabels } from './markdown.js'
+import CodyImagePreviewDialog from './CodyImagePreviewDialog.vue'
 
 type DiagramInput = { engine: 'mermaid' | 'plantuml'; source: string; dark: boolean }
 const props = withDefaults(defineProps<{
@@ -25,7 +23,6 @@ const emit = defineEmits<{ openFile: [{ path: string; line: number }] }>()
 
 const labels = computed(() => props.labels ?? DEFAULT_CODY_MARKDOWN_LABELS)
 const rootRef = ref<HTMLElement | null>(null)
-const imageDialogRef = ref<HTMLDialogElement | null>(null)
 const renderedHtml = ref(renderCodyMarkdown(stabilizeStreamingMarkdown(props.text), labels.value))
 const previewImageUrl = ref('')
 const expandedCodeBlockIndexes = new Set<number>()
@@ -186,7 +183,7 @@ function tableCsv(table: HTMLTableElement | null): string {
 function onMarkdownClick(event: MouseEvent): void {
   const target = event.target as HTMLElement
   const image = target.closest<HTMLImageElement>('img')
-  if (image) { previewImageUrl.value = image.currentSrc || image.src; imageDialogRef.value?.showModal(); return }
+  if (image) { previewImageUrl.value = image.currentSrc || image.src; return }
   const button = target.closest<HTMLButtonElement>('[data-markdown-action]')
   if (!button) return
   const shell = button.closest<HTMLElement>('.markdown-code-shell, .markdown-table-shell')
@@ -214,7 +211,6 @@ function onMarkdownClick(event: MouseEvent): void {
   if (diagram && action === 'diagram-export-svg') { const svg = diagram.querySelector('svg'); if (svg) downloadBlob(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml' }), 'diagram.svg') }
 }
 
-function closeImagePreview(): void { imageDialogRef.value?.close() }
 watch(() => [props.text, props.labels] as const, ([value]) => { void renderNext(value) }, { deep: true })
 onMounted(() => { void enhanceMarkup() })
 onBeforeUnmount(() => window.clearTimeout(renderTimer))

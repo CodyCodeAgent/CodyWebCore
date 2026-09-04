@@ -10,7 +10,11 @@
           <div class="cody-message-label">{{ entry.message.role === 'user' ? '你' : entry.message.role === 'assistant' ? 'Codex Agent' : '系统' }}</div>
           <ul v-if="entry.message.skills?.length" class="cody-message-skills"><li v-for="skill in entry.message.skills" :key="`${skill.name}:${skill.path}`">${{ skill.displayName || skill.name }}</li></ul>
           <div v-if="entry.message.text" class="cody-message-body"><slot name="markdown" :message="entry.message"><CodyMarkdown :text="entry.message.text" @open-file="emit('openFile', $event)" /></slot></div>
-          <div v-if="entry.message.images?.length" class="cody-message-images"><img v-for="image in entry.message.images" :key="image" :src="image" alt="对话图片" loading="lazy"></div>
+          <div v-if="entry.message.images?.length" class="cody-message-images">
+            <button v-for="image in entry.message.images" :key="image" type="button" aria-label="打开对话图片预览" @click="previewImageUrl = image">
+              <img :src="image" alt="对话图片" loading="lazy">
+            </button>
+          </div>
           <div v-if="entry.message.outbox" :class="['cody-message-outbox', entry.message.outbox.status]" role="status">
             <span>{{ entry.message.outbox.status === 'failed' ? `发送失败${entry.message.outbox.lastError ? `：${entry.message.outbox.lastError}` : ''}` : entry.message.outbox.status === 'queued' ? '已加入发送队列' : '正在发送…' }}</span>
             <button v-if="entry.message.outbox.status === 'failed'" class="cody-message-retry" type="button" @click="emit('retryMessage', entry.message)">重试此消息</button>
@@ -46,6 +50,7 @@
         <small>{{ entry.detail }}</small>
       </article>
     </template>
+    <CodyImagePreviewDialog :src="previewImageUrl" alt="对话图片预览" @dismiss="previewImageUrl = ''" />
   </section>
 </template>
 
@@ -60,6 +65,7 @@ import {
 } from '@codycodeagent/cody-web-core/presentation'
 import CodyMarkdown from './CodyMarkdown.vue'
 import CodyRequestCard from './CodyRequestCard.vue'
+import CodyImagePreviewDialog from './CodyImagePreviewDialog.vue'
 
 withDefaults(defineProps<{ entries: CodyConversationEntry[]; loading?: boolean; variant?: 'standalone' | 'embedded' }>(), {
   variant: 'standalone',
@@ -73,6 +79,7 @@ const emit = defineEmits<{
 }>()
 
 const expandedToolIds = ref<Record<string, boolean>>({})
+const previewImageUrl = ref('')
 
 function toggleToolOutput(entryId: string): void {
   expandedToolIds.value = {

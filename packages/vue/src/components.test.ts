@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import CodyComposer from './CodyComposer.vue'
 import CodyConversation from './CodyConversation.vue'
+import CodyMarkdown from './CodyMarkdown.vue'
 import { conversationEntriesFromState } from './types.js'
 import { createConversationState, reduceConversationEvents } from '@codycodeagent/cody-web-core/conversation'
 
@@ -160,6 +161,38 @@ describe('shared conversation components', () => {
     const cards = wrapper.findAll('details.cody-tool-card')
     expect(cards[0]!.attributes('open')).toBeUndefined()
     expect(cards[1]!.attributes('open')).toBe('')
+  })
+
+  it('opens a full-size preview when a conversation attachment is clicked', async () => {
+    const wrapper = mount(CodyConversation, {
+      props: {
+        entries: [{
+          id: 'image-message',
+          kind: 'message',
+          message: { id: 'image-message', role: 'user', text: '请看截图', images: ['https://example.test/screenshot.png'] },
+        }],
+      },
+    })
+
+    await wrapper.get('.cody-message-images button').trigger('click')
+    await wrapper.vm.$nextTick()
+    await wrapper.vm.$nextTick()
+
+    const dialog = wrapper.get('[role="dialog"]')
+    expect(dialog.html()).toContain('https://example.test/screenshot.png')
+
+    await dialog.get('button').trigger('click')
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+  })
+
+  it('uses the same preview for images rendered from Markdown', async () => {
+    const wrapper = mount(CodyMarkdown, { props: { text: '![评估单截图](https://example.test/evaluation.png)' } })
+    await wrapper.vm.$nextTick()
+    await wrapper.get('.cody-markdown img').trigger('click')
+    await wrapper.vm.$nextTick()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.get('[role="dialog"] img').attributes('src')).toBe('https://example.test/evaluation.png')
   })
 
   it('keeps long tool output bounded until the user expands it', async () => {
