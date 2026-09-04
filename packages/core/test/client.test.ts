@@ -323,6 +323,20 @@ describe('ConversationController', () => {
     expect(controller.getState().messages[0]?.outbox).toBeUndefined()
   })
 
+  it('accepts an image-only optimistic user message', async () => {
+    const controller = createConversationController('thread-1', {
+      read: async () => [],
+      subscribe: () => () => undefined,
+      submit: async (command) => ({ clientCommandId: command.clientCommandId }),
+    }, { createClientCommandId: () => 'image-command' })
+
+    await controller.submitUserMessage({ text: '', images: ['/api/images/image-1'] }, { mode: 'queue', input: {} })
+
+    expect(controller.getState().messages).toMatchObject([
+      { id: 'user:image-command', text: '', images: ['/api/images/image-1'], outbox: { status: 'queued' } },
+    ])
+  })
+
   it('owns optimistic submission and preserves a failed outbox when command admission fails', async () => {
     const admission = deferred<{ clientCommandId: string }>()
     const controller = createConversationController('thread-1', {

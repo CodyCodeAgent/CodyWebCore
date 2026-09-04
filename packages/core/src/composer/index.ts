@@ -4,7 +4,12 @@ export type KnownReasoningEffort = typeof KNOWN_REASONING_EFFORTS[number]
 export type ComposerSubmitMode = 'queue' | 'steer'
 export type ComposerCollaborationModeKind = 'default' | 'plan'
 
-export type ComposerImage = { id: string; name: string; path: string; url: string; mimeType: string }
+/**
+ * A Composer preview is product-neutral. Native products may keep a local
+ * filesystem `path`, while browser products intentionally expose only a
+ * scoped preview URL and an opaque id.
+ */
+export type ComposerImage = { id: string; name: string; path?: string; url: string; mimeType: string }
 export type ComposerSkill = { name: string; path: string; description: string; displayName: string }
 export type ComposerContextAttachment<Kind extends string = string> = {
   id: string

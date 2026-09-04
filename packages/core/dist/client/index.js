@@ -245,8 +245,8 @@ export function createConversationController(threadId, transport, options = {}) 
         async submitUserMessage(input, command) {
             if (!transport.submit)
                 throw new Error('Conversation transport does not support command submission.');
-            if (!input.text.trim())
-                throw new Error('Conversation command requires a non-empty user message.');
+            if (!input.text.trim() && !input.images?.length && !input.skills?.length)
+                throw new Error('Conversation command requires content.');
             const commandId = nextClientCommandId();
             const event = {
                 id: `local-outbox:${commandId}`,

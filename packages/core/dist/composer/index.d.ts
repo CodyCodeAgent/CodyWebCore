@@ -2,10 +2,15 @@ export declare const KNOWN_REASONING_EFFORTS: readonly ["none", "minimal", "low"
 export type KnownReasoningEffort = typeof KNOWN_REASONING_EFFORTS[number];
 export type ComposerSubmitMode = 'queue' | 'steer';
 export type ComposerCollaborationModeKind = 'default' | 'plan';
+/**
+ * A Composer preview is product-neutral. Native products may keep a local
+ * filesystem `path`, while browser products intentionally expose only a
+ * scoped preview URL and an opaque id.
+ */
 export type ComposerImage = {
     id: string;
     name: string;
-    path: string;
+    path?: string;
     url: string;
     mimeType: string;
 };

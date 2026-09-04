@@ -1,3 +1,4 @@
+import { type ComposerImage } from '@codycodeagent/cody-web-core/composer';
 import type { CodyComposerOption } from './types.js';
 type __VLS_Props = {
     draft: string;
@@ -16,6 +17,11 @@ type __VLS_Props = {
     selectedPermission?: string;
     skills?: CodyComposerOption[];
     selectedSkills?: string[];
+    /** Product-owned uploads are passed back for shared preview, paste, and drag/drop UI. */
+    images?: ComposerImage[];
+    imageUploadEnabled?: boolean;
+    isUploadingImages?: boolean;
+    imageError?: string;
     /** Standalone preserves CodyWeb's dark canvas; embedded inherits the host workbench surface. */
     variant?: 'standalone' | 'embedded';
 };
@@ -34,6 +40,8 @@ declare const __VLS_component: import("vue").DefineComponent<__VLS_Props, {}, {}
     "update:reasoning": (value: string) => any;
     "update:permission": (value: string) => any;
     "update:selected-skills": (value: string[]) => any;
+    "attach-images": (files: File[]) => any;
+    "remove-image": (imageId: string) => any;
     send: () => any;
 }, string, import("vue").PublicProps, Readonly<__VLS_Props> & Readonly<{
     onStop?: (() => any) | undefined;
@@ -44,6 +52,8 @@ declare const __VLS_component: import("vue").DefineComponent<__VLS_Props, {}, {}
     "onUpdate:reasoning"?: ((value: string) => any) | undefined;
     "onUpdate:permission"?: ((value: string) => any) | undefined;
     "onUpdate:selected-skills"?: ((value: string[]) => any) | undefined;
+    "onAttach-images"?: ((files: File[]) => any) | undefined;
+    "onRemove-image"?: ((imageId: string) => any) | undefined;
     onSend?: (() => any) | undefined;
 }>, {
     placeholder: string;
@@ -60,6 +70,7 @@ declare const __VLS_component: import("vue").DefineComponent<__VLS_Props, {}, {}
     selectedPermission: string;
     skills: CodyComposerOption[];
     selectedSkills: string[];
+    images: ComposerImage[];
 }, {}, {}, {}, string, import("vue").ComponentProvideOptions, false, {}, any>;
 declare const _default: __VLS_WithSlots<typeof __VLS_component, __VLS_Slots>;
 export default _default;

@@ -48,6 +48,23 @@ describe('shared conversation components', () => {
     expect(withSkill.emitted('send')).toEqual([[]])
   })
 
+  it('owns image selection, paste, preview, and removal UI while delegating uploads to products', async () => {
+    const image = { id: 'image-1', name: 'screen.png', path: '/tmp/screen.png', url: 'blob:screen', mimeType: 'image/png' }
+    const wrapper = mount(CodyComposer, { props: { draft: '', imageUploadEnabled: true, images: [image] } })
+
+    expect((wrapper.find('.cody-composer-send').element as HTMLButtonElement).disabled).toBe(false)
+    expect(wrapper.find('.cody-composer-image img').attributes('src')).toBe('blob:screen')
+
+    const input = wrapper.find('input[type="file"]')
+    const file = new File(['image'], 'pasted.png', { type: 'image/png' })
+    Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
+    await input.trigger('change')
+    expect(wrapper.emitted('attach-images')?.at(-1)?.[0]).toEqual([file])
+
+    await wrapper.find('.cody-composer-image button').trigger('click')
+    expect(wrapper.emitted('remove-image')).toEqual([['image-1']])
+  })
+
   it('selects multiple Skills through inline dollar references instead of a dropdown', async () => {
     const wrapper = mount(CodyComposer, {
       props: {
