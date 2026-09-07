@@ -11,6 +11,13 @@ export type FeishuDomain = 'feishu' | 'lark'
 export type FeishuConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'failed'
 export type FeishuCard = Record<string, unknown>
 
+export type FeishuApplicationAdministrators = {
+  /** The current application's owner in this application's Open ID namespace. */
+  ownerId: string
+  /** Owner first, followed by the remaining application administrators. */
+  administratorIds: string[]
+}
+
 export type FeishuConnectionDiagnostic = {
   state: FeishuConnectionState
   atIso: string
@@ -247,6 +254,7 @@ export class FeishuProvider {
   private ws: Lark.WSClient | null = null
   private state: FeishuConnectionState = 'idle'
   private readonly chatModes = new Map<string, Promise<FeishuChatMode>>()
+  private applicationAdministratorsCache: { expiresAtMs: number; value: Promise<FeishuApplicationAdministrators> } | null = null
 
   constructor(private readonly config: FeishuAccountConfig) {
     this.client = new Lark.Client({
@@ -266,6 +274,51 @@ export class FeishuProvider {
     if (response.code !== 0 || !response.bot?.open_id) throw new Error(`Feishu bot identity failed: ${response.msg ?? 'missing bot identity'} (${response.code ?? 'unknown'})`)
     this.config.botOpenId = response.bot.open_id
     return { id: response.bot.open_id, name: response.bot.app_name?.trim() ?? '' }
+  }
+
+  /** Resolve approval administrators from the currently authenticated app.
+   * Open IDs returned here are guaranteed to belong to this app's namespace. */
+  async applicationAdministrators(): Promise<FeishuApplicationAdministrators> {
+    const nowMs = Date.now()
+    if (this.applicationAdministratorsCache && this.applicationAdministratorsCache.expiresAtMs > nowMs) {
+      return this.applicationAdministratorsCache.value
+    }
+    const value = this.loadApplicationAdministrators()
+    this.applicationAdministratorsCache = { expiresAtMs: nowMs + 5 * 60_000, value }
+    try {
+      return await value
+    } catch (error) {
+      if (this.applicationAdministratorsCache?.value === value) this.applicationAdministratorsCache = null
+      throw error
+    }
+  }
+
+  private async loadApplicationAdministrators(): Promise<FeishuApplicationAdministrators> {
+    const [application, collaborators] = await Promise.all([
+      this.client.application.v6.application.get({
+        path: { app_id: this.config.appId },
+        params: { lang: 'zh_cn', user_id_type: 'open_id' },
+      }),
+      this.client.application.v6.applicationCollaborators.get({
+        path: { app_id: this.config.appId },
+        params: { user_id_type: 'open_id' },
+      }),
+    ])
+    if (application.code !== 0) {
+      throw new Error(`Feishu application owner lookup failed: ${application.msg ?? 'unknown'} (${application.code ?? 'unknown'})`)
+    }
+    if (collaborators.code !== 0) {
+      throw new Error(`Feishu application collaborator lookup failed: ${collaborators.msg ?? 'unknown'} (${collaborators.code ?? 'unknown'})`)
+    }
+    const ownerId = string(application.data?.app?.creator_id || application.data?.app?.owner?.owner_id)
+    const administratorIds = [...new Set([
+      ownerId,
+      ...(collaborators.data?.collaborators ?? [])
+        .filter(collaborator => collaborator.type === 'administrator')
+        .map(collaborator => collaborator.user_id),
+    ].map(value => value.trim()).filter(value => /^ou_[A-Za-z0-9_-]+$/u.test(value)))]
+    if (administratorIds.length === 0) throw new Error('Feishu application administrator lookup returned no valid Open ID')
+    return { ownerId: administratorIds.includes(ownerId) ? ownerId : '', administratorIds }
   }
 
   async start(handlers: FeishuProviderHandlers): Promise<void> {

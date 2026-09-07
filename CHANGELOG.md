@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.38.8
+
+- Resolve the current Feishu application's owner and administrators in the app-local Open ID namespace, with bounded caching for approval workflows.
+
 ## 0.38.7
 
 - Expose provider-neutral Feishu connection diagnostics while representing unavailable SDK close codes as unknown instead of fabricating transport data.

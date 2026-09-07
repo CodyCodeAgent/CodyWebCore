@@ -1,6 +1,6 @@
 import { type ChildProcessWithoutNullStreams, type SpawnOptionsWithoutStdio } from 'node:child_process';
 import { type RuntimeNotification, type ServerRequest } from '../protocol/index.js';
-export declare const CODY_WEB_CORE_VERSION = "0.38.7";
+export declare const CODY_WEB_CORE_VERSION = "0.38.8";
 export type { RuntimeNotification, ServerRequest } from '../protocol/index.js';
 export type RpcOptions = {
     timeoutMs?: number;

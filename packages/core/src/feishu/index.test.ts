@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyFeishuChatMode, feishuSelectionCard, feishuTextCard, normalizeFeishuAction, normalizeFeishuMessage } from './index.js'
+import { applyFeishuChatMode, FeishuProvider, feishuSelectionCard, feishuTextCard, normalizeFeishuAction, normalizeFeishuMessage } from './index.js'
 
 describe('normalizeFeishuMessage', () => {
   const config = { accountId: 'bot-1', appId: 'cli_test', appSecret: 'secret', botOpenId: 'ou_bot', privateConversationMode: 'topic' as const }
@@ -84,5 +84,36 @@ describe('Feishu interactive cards', () => {
       event_id: 'action-1', operator: { operator_id: { open_id: 'user-1' } }, context: { open_message_id: 'message-1' },
       action: { option: JSON.stringify({ action: 'pick', workspaceId: 'ws-1' }) },
     })).toMatchObject({ actorId: 'user-1', remoteMessageId: 'message-1', value: { action: 'pick', workspaceId: 'ws-1' } })
+  })
+})
+
+describe('Feishu application administration', () => {
+  it('returns the current-app owner first and deduplicates administrators', async () => {
+    const provider = new FeishuProvider({ accountId: 'bot-1', appId: 'cli_test', appSecret: 'secret' })
+    const applicationGet = async () => ({ code: 0, data: { app: { creator_id: 'ou_owner' } } })
+    const collaboratorsGet = async () => ({ code: 0, data: { collaborators: [
+      { type: 'administrator', user_id: 'ou_admin' },
+      { type: 'administrator', user_id: 'ou_owner' },
+      { type: 'developer', user_id: 'ou_developer' },
+    ] } })
+    Object.assign(provider as unknown as { client: unknown }, { client: {
+      application: { v6: { application: { get: applicationGet }, applicationCollaborators: { get: collaboratorsGet } } },
+    } })
+
+    await expect(provider.applicationAdministrators()).resolves.toEqual({
+      ownerId: 'ou_owner', administratorIds: ['ou_owner', 'ou_admin'],
+    })
+  })
+
+  it('rejects an empty or malformed administrator response', async () => {
+    const provider = new FeishuProvider({ accountId: 'bot-1', appId: 'cli_test', appSecret: 'secret' })
+    Object.assign(provider as unknown as { client: unknown }, { client: {
+      application: { v6: {
+        application: { get: async () => ({ code: 0, data: { app: {} } }) },
+        applicationCollaborators: { get: async () => ({ code: 0, data: { collaborators: [{ type: 'administrator', user_id: 'from-another-namespace' }] } }) },
+      } },
+    } })
+
+    await expect(provider.applicationAdministrators()).rejects.toThrow('no valid Open ID')
   })
 })

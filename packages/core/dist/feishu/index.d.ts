@@ -2,6 +2,12 @@ import type { ChannelAttachment, ChannelDeliveryError, ChannelInboundMessage } f
 export type FeishuDomain = 'feishu' | 'lark';
 export type FeishuConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'failed';
 export type FeishuCard = Record<string, unknown>;
+export type FeishuApplicationAdministrators = {
+    /** The current application's owner in this application's Open ID namespace. */
+    ownerId: string;
+    /** Owner first, followed by the remaining application administrators. */
+    administratorIds: string[];
+};
 export type FeishuConnectionDiagnostic = {
     state: FeishuConnectionState;
     atIso: string;
@@ -61,11 +67,16 @@ export declare class FeishuProvider {
     private ws;
     private state;
     private readonly chatModes;
+    private applicationAdministratorsCache;
     constructor(config: FeishuAccountConfig);
     identity(): Promise<{
         id: string;
         name: string;
     }>;
+    /** Resolve approval administrators from the currently authenticated app.
+     * Open IDs returned here are guaranteed to belong to this app's namespace. */
+    applicationAdministrators(): Promise<FeishuApplicationAdministrators>;
+    private loadApplicationAdministrators;
     start(handlers: FeishuProviderHandlers): Promise<void>;
     stop(): void;
     getState(): FeishuConnectionState;
