@@ -526,6 +526,25 @@ export class FeishuProvider {
         if (response.code !== 0)
             throw new Error(`Feishu card patch failed: ${response.msg ?? 'unknown'} (${response.code ?? 'unknown'})`);
     }
+    /** Adds a native Feishu reaction to an existing message. Products can use
+     * this as a lightweight receipt before a longer streamed response begins. */
+    async addReaction(messageId, emojiType = 'GoGoGo') {
+        const response = await this.client.im.v1.messageReaction.create({
+            path: { message_id: messageId },
+            data: { reaction_type: { emoji_type: emojiType } },
+        });
+        if (response.code !== 0)
+            throw new Error(`Feishu reaction failed: ${response.msg ?? 'unknown'} (${response.code ?? 'unknown'})`);
+        return response.data?.reaction_id ?? '';
+    }
+    /** Removes one reaction record previously returned by addReaction. */
+    async removeReaction(messageId, reactionId) {
+        const response = await this.client.im.v1.messageReaction.delete({
+            path: { message_id: messageId, reaction_id: reactionId },
+        });
+        if (response.code !== 0)
+            throw new Error(`Feishu reaction removal failed: ${response.msg ?? 'unknown'} (${response.code ?? 'unknown'})`);
+    }
     async uploadImage(buffer) {
         const response = await this.client.im.v1.image.create({ data: { image_type: 'message', image: buffer } });
         if (!response?.image_key)
@@ -620,6 +639,34 @@ export function feishuMarkdownCards(markdown, options = {}) {
     return chunks.map((content, index) => feishuMarkdownCard(content, {
         ...(options.note ? { note: chunks.length > 1 ? `${options.note}  |  ${index + 1}/${chunks.length}` : options.note } : {}),
     }));
+}
+/** A single patchable card for a live Codex turn. `reasoning` is intended for
+ * the App Server's reasoning summary stream, never raw hidden reasoning. */
+export function feishuStreamingCard(input) {
+    const presentation = {
+        received: { icon: '⏳', label: '已收到', color: 'blue' },
+        thinking: { icon: '🧠', label: 'Codex 正在思考', color: 'turquoise' },
+        answering: { icon: '✍️', label: '正在生成回复', color: 'turquoise' },
+        completed: { icon: '✅', label: '已完成', color: 'green' },
+        failed: { icon: '⚠️', label: '执行失败', color: 'red' },
+    }[input.state];
+    const elements = [];
+    const reasoning = input.reasoning?.trim().slice(-4_000);
+    if (reasoning && input.state !== 'completed') {
+        elements.push({ tag: 'markdown', content: feishuCardMarkdown(`**思考摘要**\n${reasoning}`) });
+        elements.push({ tag: 'hr' });
+    }
+    const body = input.error?.trim()
+        ? `**错误**\n${input.error}`
+        : input.answer?.trim() || (input.state === 'received' ? '消息已进入处理队列…' : '正在思考…');
+    elements.push({ tag: 'markdown', content: feishuCardMarkdown(body) });
+    if (input.note)
+        elements.push({ tag: 'note', elements: [{ tag: 'plain_text', content: input.note.slice(0, 500) }] });
+    return {
+        config: { wide_screen_mode: true, update_multi: true },
+        header: { template: presentation.color, title: { tag: 'plain_text', content: `${presentation.icon} ${presentation.label}` } },
+        elements,
+    };
 }
 function feishuCardMarkdown(markdown) {
     return normalizeFeishuCardMarkdown(markdown).slice(0, 28_000) || ' ';

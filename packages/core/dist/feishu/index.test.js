@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyFeishuChatMode, FEISHU_MESSAGE_TYPES, FeishuProvider, feishuMarkdownCard, feishuMarkdownCards, feishuSelectionCard, feishuTextCard, hydrateFeishuMessagePayload, normalizeFeishuAction, normalizeFeishuMessage } from './index.js';
+import { applyFeishuChatMode, FEISHU_MESSAGE_TYPES, FeishuProvider, feishuMarkdownCard, feishuMarkdownCards, feishuSelectionCard, feishuStreamingCard, feishuTextCard, hydrateFeishuMessagePayload, normalizeFeishuAction, normalizeFeishuMessage } from './index.js';
 describe('normalizeFeishuMessage', () => {
     const config = { accountId: 'bot-1', appId: 'cli_test', appSecret: 'secret', botOpenId: 'ou_bot', privateConversationMode: 'topic' };
     it('maps a private top-level message to a stable topic envelope', () => {
@@ -157,8 +157,27 @@ describe('Feishu interactive cards', () => {
             action: { option: JSON.stringify({ action: 'pick', workspaceId: 'ws-1' }) },
         })).toMatchObject({ actorId: 'user-1', remoteMessageId: 'message-1', value: { action: 'pick', workspaceId: 'ws-1' } });
     });
+    it('renders a patchable card with reasoning summary and partial answer', () => {
+        const card = feishuStreamingCard({ state: 'answering', reasoning: 'Checking the route', answer: 'Partial **answer**', note: 'YOLO' });
+        expect(card).toMatchObject({
+            config: { wide_screen_mode: true, update_multi: true },
+            header: { template: 'turquoise' },
+        });
+        expect(JSON.stringify(card)).toContain('思考摘要');
+        expect(JSON.stringify(card)).toContain('Partial **answer**');
+    });
 });
 describe('Feishu application administration', () => {
+    it('adds and removes a native message reaction', async () => {
+        const provider = new FeishuProvider({ accountId: 'bot-1', appId: 'cli_test', appSecret: 'secret' });
+        const create = async () => ({ code: 0, data: { reaction_id: 'reaction-1' } });
+        const remove = async () => ({ code: 0 });
+        Object.assign(provider, { client: {
+                im: { v1: { messageReaction: { create, delete: remove } } },
+            } });
+        await expect(provider.addReaction('om_1')).resolves.toBe('reaction-1');
+        await expect(provider.removeReaction('om_1', 'reaction-1')).resolves.toBeUndefined();
+    });
     it('identifies the current app sender to prevent reply loops', () => {
         const provider = new FeishuProvider({ accountId: 'bot-1', appId: 'cli_test', appSecret: 'secret', botOpenId: 'ou_bot' });
         expect(provider.isOwnSenderId('cli_test')).toBe(true);

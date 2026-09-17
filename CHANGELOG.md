@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.38.10
+
+- Add reusable Feishu message reactions and patchable streaming response cards.
+
 ## 0.38.9
 
 - Expose provider-neutral message type and optional visible title metadata so products can route Feishu posts and interactive cards without reading provider wire payloads.

@@ -2,6 +2,7 @@ import type { ChannelAttachment, ChannelDeliveryError, ChannelInboundMessage } f
 export type FeishuDomain = 'feishu' | 'lark';
 export type FeishuConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'failed';
 export type FeishuCard = Record<string, unknown>;
+export type FeishuStreamState = 'received' | 'thinking' | 'answering' | 'completed' | 'failed';
 export type FeishuApplicationAdministrators = {
     /** The current application's owner in this application's Open ID namespace. */
     ownerId: string;
@@ -98,6 +99,11 @@ export declare class FeishuProvider {
     sendImage(chatId: string, imageKey: string, uuid?: string): Promise<string>;
     replyImage(messageId: string, imageKey: string, replyInThread?: boolean, uuid?: string): Promise<string>;
     updateCard(messageId: string, card: FeishuCard): Promise<void>;
+    /** Adds a native Feishu reaction to an existing message. Products can use
+     * this as a lightweight receipt before a longer streamed response begins. */
+    addReaction(messageId: string, emojiType?: string): Promise<string>;
+    /** Removes one reaction record previously returned by addReaction. */
+    removeReaction(messageId: string, reactionId: string): Promise<void>;
     uploadImage(buffer: Buffer): Promise<string>;
     downloadAttachment(messageId: string, attachment: ChannelAttachment, rootDir: string, maxBytes?: number): Promise<{
         path: string;
@@ -122,6 +128,15 @@ export declare function feishuMarkdownCard(markdown: string, options?: {
 export declare function feishuMarkdownCards(markdown: string, options?: {
     note?: string;
 }): FeishuCard[];
+/** A single patchable card for a live Codex turn. `reasoning` is intended for
+ * the App Server's reasoning summary stream, never raw hidden reasoning. */
+export declare function feishuStreamingCard(input: {
+    state: FeishuStreamState;
+    answer?: string;
+    reasoning?: string;
+    error?: string;
+    note?: string;
+}): FeishuCard;
 /** Selection card for product target pickers. Static selects avoid Feishu's
  * small per-row button limit and keep large Workspace/Demand lists usable. */
 export declare function feishuSelectionCard(title: string, markdown: string, options: Array<{
