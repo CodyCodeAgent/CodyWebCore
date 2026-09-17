@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Expose provider-neutral message type and optional visible title metadata so products can route Feishu posts and interactive cards without reading provider wire payloads.
+- Normalize Feishu rich-text mentions, files, audio, video, and interactive-card resources; hydrate reduced realtime payloads from message detail.
+- Add Markdown response cards with heading normalization, long-response splitting, response notes, and exhausted WebSocket reconnection recovery.
+
 ## 0.38.8
 
 - Resolve the current Feishu application's owner and administrators in the app-local Open ID namespace, with bounded caching for approval workflows.

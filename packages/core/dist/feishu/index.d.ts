@@ -51,8 +51,13 @@ export type FeishuProviderHandlers = {
     onState(state: FeishuConnectionState, error?: Error, diagnostic?: FeishuConnectionDiagnostic): void;
 };
 export type FeishuChatMode = 'group' | 'p2p' | 'topic';
+/** Message kinds whose content and resources are normalized by this adapter. */
+export declare const FEISHU_MESSAGE_TYPES: readonly ["text", "post", "image", "file", "audio", "media", "interactive"];
 /** Converts Feishu wire data into the provider-neutral Core envelope. */
 export declare function normalizeFeishuMessage(config: FeishuAccountConfig, payload: unknown): ChannelInboundMessage | null;
+/** Merge the authoritative REST message body into a realtime event. Feishu can
+ * emit `nonsupport` or a reduced interactive-card fallback over WebSocket. */
+export declare function hydrateFeishuMessagePayload(payload: unknown, detail: unknown): unknown;
 /**
  * Topic-group root events may omit both root_id and thread_id. The provider can
  * resolve the chat mode once and apply it without leaking Feishu chat metadata
@@ -66,6 +71,7 @@ export declare class FeishuProvider {
     private readonly client;
     private ws;
     private state;
+    private reviveTimer;
     private readonly chatModes;
     private applicationAdministratorsCache;
     constructor(config: FeishuAccountConfig);
@@ -80,8 +86,10 @@ export declare class FeishuProvider {
     start(handlers: FeishuProviderHandlers): Promise<void>;
     stop(): void;
     getState(): FeishuConnectionState;
+    isOwnSenderId(senderId: string): boolean;
     getConnectionDiagnostic(error?: Error): FeishuConnectionDiagnostic;
     private resolveChatMode;
+    private normalizeInbound;
     sendText(chatId: string, text: string, uuid?: string): Promise<string>;
     replyText(messageId: string, text: string, replyInThread?: boolean, uuid?: string): Promise<string>;
     sendCard(chatId: string, card: FeishuCard, uuid?: string): Promise<string>;
@@ -104,6 +112,16 @@ export declare function feishuTextCard(title: string, markdown: string, options?
     actions?: FeishuCardButton[];
     note?: string;
 }): FeishuCard;
+/** Renders an assistant response as native Feishu card Markdown without adding
+ * product-specific chrome. Products retain control over reply/thread routing. */
+export declare function feishuMarkdownCard(markdown: string, options?: {
+    note?: string;
+}): FeishuCard;
+/** Split long assistant output into Feishu-safe cards without silently dropping
+ * the tail. Products can reply each card with a stable per-part UUID. */
+export declare function feishuMarkdownCards(markdown: string, options?: {
+    note?: string;
+}): FeishuCard[];
 /** Selection card for product target pickers. Static selects avoid Feishu's
  * small per-row button limit and keep large Workspace/Demand lists usable. */
 export declare function feishuSelectionCard(title: string, markdown: string, options: Array<{

@@ -7,6 +7,13 @@ export type ChannelAttachment = {
     mimeType?: string;
     sizeBytes?: number;
 };
+/** Normalized message metadata that product routers may match without reading
+ * provider wire payloads. `type` keeps the provider's stable message-kind
+ * identifier while `title` exposes a human-visible post/card title. */
+export type ChannelMessageContent = {
+    type: string;
+    title?: string;
+};
 /** Provider-neutral input accepted by a remote channel runtime. */
 export type ChannelInboundMessage = {
     provider: string;
@@ -22,6 +29,7 @@ export type ChannelInboundMessage = {
         id: string;
         type: 'user' | 'bot' | 'app';
     };
+    content?: ChannelMessageContent;
     text: string;
     replyTo?: string;
     attachments: ChannelAttachment[];

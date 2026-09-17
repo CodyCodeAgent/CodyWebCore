@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyFeishuChatMode, FeishuProvider, feishuSelectionCard, feishuTextCard, normalizeFeishuAction, normalizeFeishuMessage } from './index.js'
+import { applyFeishuChatMode, FEISHU_MESSAGE_TYPES, FeishuProvider, feishuMarkdownCard, feishuMarkdownCards, feishuSelectionCard, feishuTextCard, hydrateFeishuMessagePayload, normalizeFeishuAction, normalizeFeishuMessage } from './index.js'
 
 describe('normalizeFeishuMessage', () => {
   const config = { accountId: 'bot-1', appId: 'cli_test', appSecret: 'secret', botOpenId: 'ou_bot', privateConversationMode: 'topic' as const }
@@ -11,6 +11,7 @@ describe('normalizeFeishuMessage', () => {
     } })
     expect(message).toMatchObject({
       provider: 'feishu', eventId: 'event-1', messageId: 'om_1', text: 'hello', addressedToAgent: true,
+      content: { type: 'text' },
       conversation: { id: 'oc_1', scope: 'private', rootId: 'om_1' }, sender: { id: 'ou_user', type: 'user' },
     })
   })
@@ -48,6 +49,17 @@ describe('normalizeFeishuMessage', () => {
     expect(message?.attachments).toEqual([{ id: 'file_1', type: 'file', name: '../report.txt' }])
   })
 
+  it.each([
+    ['audio', { file_key: 'file_audio' }, { id: 'file_audio', type: 'audio', name: 'file_audio.opus' }],
+    ['media', { file_key: 'file_video', file_name: 'clip.mp4' }, { id: 'file_video', type: 'video', name: 'clip.mp4' }],
+  ])('normalizes %s resources for download', (messageType, content, attachment) => {
+    const message = normalizeFeishuMessage(config, { event: {
+      sender: { sender_type: 'user', sender_id: { open_id: 'ou_user' } },
+      message: { message_id: `om_${messageType}`, chat_id: 'oc_1', chat_type: 'p2p', message_type: messageType, content: JSON.stringify(content) },
+    } })
+    expect(message?.attachments).toEqual([attachment])
+  })
+
   it('preserves inline images from rich-text posts as downloadable attachments', () => {
     const message = normalizeFeishuMessage(config, { event: {
       sender: { sender_type: 'user', sender_id: { open_id: 'ou_user' } },
@@ -62,12 +74,89 @@ describe('normalizeFeishuMessage', () => {
     } })
     expect(message).toMatchObject({
       text: '[图片][E2E-IMAGE] inspect this image[图片]',
+      content: { type: 'post' },
       attachments: [{ id: 'img_1', type: 'image', name: 'img_1.jpg' }],
     })
+  })
+
+  it('recognizes bot mentions and file resources embedded in rich-text posts', () => {
+    const message = normalizeFeishuMessage(config, { event: {
+      sender: { sender_type: 'user', sender_id: { open_id: 'ou_user' } },
+      message: {
+        message_id: 'om_post_file', chat_id: 'oc_1', chat_type: 'group', message_type: 'post',
+        content: JSON.stringify({ zh_cn: { content: [[
+          { tag: 'at', user_id: 'ou_bot', user_name: 'CodyBot' },
+          { tag: 'text', text: ' inspect ' },
+          { tag: 'file', file_key: 'file_1', file_name: 'report.txt' },
+        ]] } }),
+      },
+    } })
+    expect(message).toMatchObject({
+      addressedToAgent: true, text: 'inspect [文件：report.txt]',
+      attachments: [{ id: 'file_1', type: 'file', name: 'report.txt' }],
+    })
+  })
+
+  it('exposes a stable card title for product routing', () => {
+    const message = normalizeFeishuMessage(config, { event: {
+      sender: { sender_type: 'user', sender_id: { open_id: 'ou_user' } },
+      message: {
+        message_id: 'om_card', chat_id: 'oc_1', chat_type: 'group', message_type: 'interactive',
+        content: JSON.stringify({ header: { title: { tag: 'plain_text', content: 'P0 发布告警' } }, elements: [] }),
+      },
+    } })
+    expect(message).toMatchObject({ text: 'P0 发布告警', content: { type: 'interactive', title: 'P0 发布告警' } })
+  })
+
+  it('extracts card body text and image resources', () => {
+    const message = normalizeFeishuMessage(config, { event: {
+      sender: { sender_type: 'user', sender_id: { open_id: 'ou_user' } },
+      message: {
+        message_id: 'om_card_body', chat_id: 'oc_1', chat_type: 'group', message_type: 'interactive',
+        content: JSON.stringify({ header: { title: { content: '告警' } }, body: { elements: [
+          { tag: 'markdown', content: '服务 **不可用**' }, { tag: 'img', img_key: 'img_card' },
+        ] } }),
+      },
+    } })
+    expect(message).toMatchObject({
+      text: '告警\n服务 **不可用**', content: { title: '告警' },
+      attachments: [{ id: 'img_card', type: 'image', name: 'img_card.jpg' }],
+    })
+  })
+
+  it('hydrates nonsupport events from message detail', () => {
+    const payload = { event: { sender: { sender_type: 'user', sender_id: { open_id: 'ou_user' } }, message: {
+      message_id: 'om_hydrate', chat_id: 'oc_1', chat_type: 'group', message_type: 'nonsupport', content: '{}',
+    } } }
+    const hydrated = hydrateFeishuMessagePayload(payload, { data: { items: [{ msg_type: 'post', body: { content: JSON.stringify({ zh_cn: { content: [[{ tag: 'text', text: 'real body' }]] } }) } }] } })
+    expect(normalizeFeishuMessage(config, hydrated)).toMatchObject({ content: { type: 'post' }, text: 'real body' })
   })
 })
 
 describe('Feishu interactive cards', () => {
+  it('renders assistant Markdown without a header', () => {
+    expect(feishuMarkdownCard('## Result\n\n- **done**', { note: 'Workspace: demo' })).toEqual({
+      config: { wide_screen_mode: true },
+      elements: [
+        { tag: 'markdown', content: '**Result**\n\n- **done**' },
+        { tag: 'note', elements: [{ tag: 'plain_text', content: 'Workspace: demo' }] },
+      ],
+    })
+  })
+
+  it('publishes the message kinds normalized by the adapter', () => {
+    expect(FEISHU_MESSAGE_TYPES).toEqual(['text', 'post', 'image', 'file', 'audio', 'media', 'interactive'])
+  })
+
+  it('splits long Markdown without dropping content', () => {
+    const markdown = `${'a'.repeat(20_000)}\n${'b'.repeat(20_000)}`
+    const cards = feishuMarkdownCards(markdown, { note: 'route' })
+    expect(cards).toHaveLength(2)
+    expect(cards.map(card => (card.elements as Array<{ content?: string }>)[0]?.content).join('')).toBe(markdown.replace('\n', ''))
+    expect(JSON.stringify(cards)).toContain('1/2')
+    expect(JSON.stringify(cards)).toContain('2/2')
+  })
+
   it('renders external URL buttons without creating a callback payload', () => {
     const card = feishuTextCard('Done', 'Result', { actions: [{ text: 'Open', url: 'https://work.example/session/1', type: 'primary' }] })
     expect(card).toMatchObject({ elements: [
@@ -88,6 +177,13 @@ describe('Feishu interactive cards', () => {
 })
 
 describe('Feishu application administration', () => {
+  it('identifies the current app sender to prevent reply loops', () => {
+    const provider = new FeishuProvider({ accountId: 'bot-1', appId: 'cli_test', appSecret: 'secret', botOpenId: 'ou_bot' })
+    expect(provider.isOwnSenderId('cli_test')).toBe(true)
+    expect(provider.isOwnSenderId('ou_bot')).toBe(true)
+    expect(provider.isOwnSenderId('cli_other')).toBe(false)
+  })
+
   it('returns the current-app owner first and deduplicates administrators', async () => {
     const provider = new FeishuProvider({ accountId: 'bot-1', appId: 'cli_test', appSecret: 'secret' })
     const applicationGet = async () => ({ code: 0, data: { app: { creator_id: 'ou_owner' } } })
