@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.38.9
 
 - Expose provider-neutral message type and optional visible title metadata so products can route Feishu posts and interactive cards without reading provider wire payloads.
 - Normalize Feishu rich-text mentions, files, audio, video, and interactive-card resources; hydrate reduced realtime payloads from message detail.
