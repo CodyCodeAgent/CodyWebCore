@@ -203,10 +203,10 @@ export class CodexSessionManager {
         await this.options.host.ensureInitialized();
         return this.catalog.readAccountRateLimits();
     }
-    async listSkills(cwds) {
+    async listSkills(cwds, forceReload = false) {
         this.requireUsable();
         await this.options.host.ensureInitialized();
-        return this.catalog.listSkills(cwds);
+        return this.catalog.listSkills(cwds, forceReload);
     }
     async listSkillCatalog(cwds) {
         this.requireUsable();

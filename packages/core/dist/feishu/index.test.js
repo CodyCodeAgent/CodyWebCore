@@ -112,6 +112,35 @@ describe('normalizeFeishuMessage', () => {
             attachments: [{ id: 'img_card', type: 'image', name: 'img_card.jpg' }],
         });
     });
+    it('preserves card fields, action URLs, and decoded source content for investigation', () => {
+        const raw = {
+            header: { title: { content: '实时对账平台' } },
+            body: { elements: [
+                    { tag: 'column_set', fields: [
+                            { label: { content: '任务 ID' }, value: { content: 'T205655' } },
+                            { label: { content: '校验索引' }, value: { content: '7686727454044245034' } },
+                        ] },
+                    { tag: 'button', text: { content: '异常详情' }, behaviors: [{ type: 'open_url', default_url: 'https://example.test/diff?checkIndex=7686727454044245034' }] },
+                ] },
+        };
+        const message = normalizeFeishuMessage(config, { event: {
+                sender: { sender_type: 'app', sender_id: { app_id: 'cli_alert' } },
+                message: {
+                    message_id: 'om_reconcile', chat_id: 'oc_alert', chat_type: 'group', message_type: 'interactive', content: JSON.stringify(raw),
+                },
+            } });
+        expect(message).toMatchObject({
+            text: expect.stringContaining('https://example.test/diff'),
+            content: {
+                type: 'interactive', title: '实时对账平台', raw,
+                fields: [
+                    { label: '任务 ID', value: 'T205655' },
+                    { label: '校验索引', value: '7686727454044245034' },
+                ],
+                actions: [{ label: '异常详情', url: 'https://example.test/diff?checkIndex=7686727454044245034' }],
+            },
+        });
+    });
     it('hydrates nonsupport events from message detail', () => {
         const payload = { event: { sender: { sender_type: 'user', sender_id: { open_id: 'ou_user' } }, message: {
                     message_id: 'om_hydrate', chat_id: 'oc_1', chat_type: 'group', message_type: 'nonsupport', content: '{}',

@@ -168,7 +168,7 @@ export declare class CodexSessionManager {
     readConfig(): Promise<ConfigReadResponse>;
     reloadMcpServers(): Promise<McpServerRefreshResponse>;
     readAccountRateLimits(): Promise<GetAccountRateLimitsResponse>;
-    listSkills(cwds: string[]): Promise<CodexSkillOption[]>;
+    listSkills(cwds: string[], forceReload?: boolean): Promise<CodexSkillOption[]>;
     listSkillCatalog(cwds: string[]): Promise<CodexSkillCatalogGroup[]>;
     setSkillEnabled(path: string, enabled: boolean): Promise<void>;
     renameThread(threadId: string, name: string): Promise<void>;

@@ -112,6 +112,18 @@ function cardContent(value) {
     const title = string(record(header?.title)?.content || root.title);
     const text = [];
     const attachments = [];
+    const fields = [];
+    const actions = [];
+    const visibleText = (value) => {
+        if (typeof value === 'string')
+            return cleanText(value);
+        if (Array.isArray(value))
+            return cleanText(value.map(visibleText).filter(Boolean).join(' '));
+        const item = record(value);
+        if (!item)
+            return '';
+        return cleanText([string(item.content), string(item.text), string(item.label), string(item.name)].filter(Boolean).join(' '));
+    };
     const visit = (value) => {
         if (Array.isArray(value)) {
             value.forEach(visit);
@@ -132,11 +144,32 @@ function cardContent(value) {
             if (id)
                 attachments.push({ id, type: 'file', name });
         }
+        const fieldItems = Array.isArray(item.fields) ? item.fields : [];
+        for (const fieldValue of fieldItems) {
+            const field = record(fieldValue);
+            if (!field)
+                continue;
+            const label = visibleText(field.label || field.name || field.title);
+            const fieldContent = visibleText(field.value || field.content || field.text);
+            if (label || fieldContent)
+                fields.push({ label, value: fieldContent });
+        }
+        const actionLabel = visibleText(item.text || item.content || item.label || item.name) || '打开链接';
+        const actionUrls = [string(item.url || item.href || item.default_url || item.defaultUrl)];
+        if (Array.isArray(item.behaviors))
+            actionUrls.push(...item.behaviors.map(value => {
+                const behavior = record(value);
+                return string(behavior?.default_url || behavior?.defaultUrl || behavior?.url || behavior?.href);
+            }));
+        for (const url of [...new Set(actionUrls.filter(Boolean))]) {
+            actions.push({ label: actionLabel, url });
+            text.push(`${actionLabel} (${url})`);
+        }
         const direct = string(item.content || item.text);
         if (direct)
             text.push(direct);
         for (const [key, child] of Object.entries(item)) {
-            if (!['content', 'text'].includes(key) && (Array.isArray(child) || record(child)))
+            if (!['content', 'text', 'behaviors'].includes(key) && (Array.isArray(child) || record(child)))
                 visit(child);
         }
     };
@@ -145,6 +178,8 @@ function cardContent(value) {
     return {
         title, text: cleanText([title, body].filter(Boolean).join('\n')),
         attachments: [...new Map(attachments.map(attachment => [`${attachment.type}:${attachment.id}`, attachment])).values()],
+        ...(fields.length ? { fields: [...new Map(fields.map(field => [`${field.label}\n${field.value}`, field])).values()] } : {}),
+        ...(actions.length ? { actions: [...new Map(actions.map(action => [`${action.label}\n${action.url ?? ''}`, action])).values()] } : {}),
     };
 }
 function safeAttachmentName(name, id, type) {
@@ -240,7 +275,13 @@ export function normalizeFeishuMessage(config, payload) {
         provider: 'feishu', accountId: config.accountId, eventId, messageId,
         conversation: { id: chatId, scope, ...(bindingRoot ? { rootId: bindingRoot } : {}) },
         sender: { id: senderIdentity, type: senderType },
-        content: { type: messageType, ...(parsed.title ? { title: parsed.title } : {}) },
+        content: {
+            type: messageType,
+            ...(parsed.title ? { title: parsed.title } : {}),
+            ...(parsed.fields?.length ? { fields: parsed.fields } : {}),
+            ...(parsed.actions?.length ? { actions: parsed.actions } : {}),
+            ...(rawContent !== null && rawContent !== undefined ? { raw: rawContent } : {}),
+        },
         text, ...(replyTo ? { replyTo } : {}), attachments: parsed.attachments,
         addressedToAgent: chatType === 'p2p' || addressedToAgent,
         mentionsOtherRecipient,
@@ -490,16 +531,26 @@ export class FeishuProvider {
         if (!messageId || (messageType !== 'nonsupport' && messageType !== 'interactive')) {
             return normalizeFeishuMessage(this.config, payload);
         }
-        try {
-            const detail = await this.client.request({
-                method: 'GET', url: `/open-apis/im/v1/messages/${encodeURIComponent(messageId)}`,
-                params: { card_msg_content_type: 'user_card_content' },
-            });
-            return normalizeFeishuMessage(this.config, hydrateFeishuMessagePayload(payload, detail));
+        let lastError;
+        for (const delay of [0, 200, 800]) {
+            if (delay)
+                await new Promise(resolve => setTimeout(resolve, delay));
+            try {
+                const detail = await this.client.request({
+                    method: 'GET', url: `/open-apis/im/v1/messages/${encodeURIComponent(messageId)}`,
+                    params: { card_msg_content_type: 'user_card_content' },
+                });
+                const hydrated = normalizeFeishuMessage(this.config, hydrateFeishuMessagePayload(payload, detail));
+                if (hydrated && hydrated.content?.type !== 'nonsupport')
+                    return hydrated;
+                lastError = new Error('message detail did not contain supported card content');
+            }
+            catch (error) {
+                lastError = error;
+            }
         }
-        catch {
-            return normalizeFeishuMessage(this.config, payload);
-        }
+        console.warn(`[feishu] message detail hydration failed for ${messageId}: ${redactError(lastError, this.config.appSecret)}`);
+        return normalizeFeishuMessage(this.config, payload);
     }
     async sendText(chatId, text, uuid) {
         const response = await this.client.im.v1.message.create({ params: { receive_id_type: 'chat_id' }, data: { receive_id: chatId, msg_type: 'text', content: JSON.stringify({ text }), ...(uuid ? { uuid } : {}) } });
