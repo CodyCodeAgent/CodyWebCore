@@ -17,6 +17,12 @@ export type ChannelAttachment = {
 export type ChannelMessageContent = {
   type: string
   title?: string
+  /** Provider-normalized label/value pairs from structured messages such as cards. */
+  fields?: Array<{ label: string; value: string }>
+  /** Provider-normalized actions. URLs are preserved so an agent can follow the same evidence links as a person. */
+  actions?: Array<{ label: string; url?: string }>
+  /** Original decoded provider content retained for privileged audit and replay. */
+  raw?: unknown
 }
 
 /** Provider-neutral input accepted by a remote channel runtime. */

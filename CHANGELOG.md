@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.38.12
+
+- Preserve normalized Feishu card fields, actions, action URLs, and decoded source content for downstream investigation and audit.
+- Retry authoritative Feishu card hydration before falling back to realtime payloads, and surface terminal hydration failures in provider logs.
+- Allow products to force-refresh the Codex Skill catalog so newly installed workspace Skills are visible on the next turn.
+
 ## 0.38.11
 
 - Expose cached Feishu group names and chat modes on provider-neutral inbound conversations.

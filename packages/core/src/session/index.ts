@@ -398,10 +398,10 @@ export class CodexSessionManager {
     return this.catalog.readAccountRateLimits()
   }
 
-  async listSkills(cwds: string[]): Promise<CodexSkillOption[]> {
+  async listSkills(cwds: string[], forceReload = false): Promise<CodexSkillOption[]> {
     this.requireUsable()
     await this.options.host.ensureInitialized()
-    return this.catalog.listSkills(cwds)
+    return this.catalog.listSkills(cwds, forceReload)
   }
 
   async listSkillCatalog(cwds: string[]): Promise<CodexSkillCatalogGroup[]> {

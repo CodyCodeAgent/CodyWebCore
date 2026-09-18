@@ -65,6 +65,13 @@ export type FeishuChatMetadata = { id: string; name: string; mode: FeishuChatMod
 export const FEISHU_MESSAGE_TYPES = ['text', 'post', 'image', 'file', 'audio', 'media', 'interactive'] as const
 
 type JsonRecord = Record<string, unknown>
+type ParsedContent = {
+  text: string
+  title: string
+  attachments: ChannelAttachment[]
+  fields?: Array<{ label: string; value: string }>
+  actions?: Array<{ label: string; url?: string }>
+}
 
 function record(value: unknown): JsonRecord | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as JsonRecord : null
@@ -113,7 +120,7 @@ function inlinePostMentions(value: unknown): Array<{ key: string; name: string; 
   }) : [])
 }
 
-function richContent(value: unknown): { text: string; title: string; attachments: ChannelAttachment[] } {
+function richContent(value: unknown): ParsedContent {
   const row = record(value)
   if (!row) return { text: '', title: '', attachments: [] }
   const localized = Array.isArray(row.content) ? row : Object.values(row).map(record).find(candidate => Array.isArray(candidate?.content))
@@ -152,13 +159,22 @@ function richContent(value: unknown): { text: string; title: string; attachments
   }
 }
 
-function cardContent(value: unknown): { text: string; title: string; attachments: ChannelAttachment[] } {
+function cardContent(value: unknown): ParsedContent {
   const root = record(value)
   if (!root) return { text: '', title: '', attachments: [] }
   const header = record(root.header)
   const title = string(record(header?.title)?.content || root.title)
   const text: string[] = []
   const attachments: ChannelAttachment[] = []
+  const fields: Array<{ label: string; value: string }> = []
+  const actions: Array<{ label: string; url?: string }> = []
+  const visibleText = (value: unknown): string => {
+    if (typeof value === 'string') return cleanText(value)
+    if (Array.isArray(value)) return cleanText(value.map(visibleText).filter(Boolean).join(' '))
+    const item = record(value)
+    if (!item) return ''
+    return cleanText([string(item.content), string(item.text), string(item.label), string(item.name)].filter(Boolean).join(' '))
+  }
   const visit = (value: unknown): void => {
     if (Array.isArray(value)) { value.forEach(visit); return }
     const item = record(value)
@@ -173,10 +189,28 @@ function cardContent(value: unknown): { text: string; title: string; attachments
       const name = string(item.file_name) || id
       if (id) attachments.push({ id, type: 'file', name })
     }
+    const fieldItems = Array.isArray(item.fields) ? item.fields : []
+    for (const fieldValue of fieldItems) {
+      const field = record(fieldValue)
+      if (!field) continue
+      const label = visibleText(field.label || field.name || field.title)
+      const fieldContent = visibleText(field.value || field.content || field.text)
+      if (label || fieldContent) fields.push({ label, value: fieldContent })
+    }
+    const actionLabel = visibleText(item.text || item.content || item.label || item.name) || '打开链接'
+    const actionUrls = [string(item.url || item.href || item.default_url || item.defaultUrl)]
+    if (Array.isArray(item.behaviors)) actionUrls.push(...item.behaviors.map(value => {
+      const behavior = record(value)
+      return string(behavior?.default_url || behavior?.defaultUrl || behavior?.url || behavior?.href)
+    }))
+    for (const url of [...new Set(actionUrls.filter(Boolean))]) {
+      actions.push({ label: actionLabel, url })
+      text.push(`${actionLabel} (${url})`)
+    }
     const direct = string(item.content || item.text)
     if (direct) text.push(direct)
     for (const [key, child] of Object.entries(item)) {
-      if (!['content', 'text'].includes(key) && (Array.isArray(child) || record(child))) visit(child)
+      if (!['content', 'text', 'behaviors'].includes(key) && (Array.isArray(child) || record(child))) visit(child)
     }
   }
   visit(root.body || root.elements)
@@ -184,6 +218,8 @@ function cardContent(value: unknown): { text: string; title: string; attachments
   return {
     title, text: cleanText([title, body].filter(Boolean).join('\n')),
     attachments: [...new Map(attachments.map(attachment => [`${attachment.type}:${attachment.id}`, attachment])).values()],
+    ...(fields.length ? { fields: [...new Map(fields.map(field => [`${field.label}\n${field.value}`, field])).values()] } : {}),
+    ...(actions.length ? { actions: [...new Map(actions.map(action => [`${action.label}\n${action.url ?? ''}`, action])).values()] } : {}),
   }
 }
 
@@ -196,7 +232,7 @@ function safeAttachmentName(name: string, id: string, type: ChannelAttachment['t
   return `${stem}-${createHash('sha256').update(id).digest('hex').slice(0, 12)}${extension}`
 }
 
-function parseContent(messageType: string, content: unknown): { text: string; title: string; attachments: ChannelAttachment[] } {
+function parseContent(messageType: string, content: unknown): ParsedContent {
   const parsed = record(parseJson(content))
   if (!parsed) return { text: '', title: '', attachments: [] }
   if (messageType === 'text') return { text: cleanText(string(parsed.text)), title: '', attachments: [] }
@@ -274,7 +310,13 @@ export function normalizeFeishuMessage(config: FeishuAccountConfig, payload: unk
     provider: 'feishu', accountId: config.accountId, eventId, messageId,
     conversation: { id: chatId, scope, ...(bindingRoot ? { rootId: bindingRoot } : {}) },
     sender: { id: senderIdentity, type: senderType },
-    content: { type: messageType, ...(parsed.title ? { title: parsed.title } : {}) },
+    content: {
+      type: messageType,
+      ...(parsed.title ? { title: parsed.title } : {}),
+      ...(parsed.fields?.length ? { fields: parsed.fields } : {}),
+      ...(parsed.actions?.length ? { actions: parsed.actions } : {}),
+      ...(rawContent !== null && rawContent !== undefined ? { raw: rawContent } : {}),
+    },
     text, ...(replyTo ? { replyTo } : {}), attachments: parsed.attachments,
     addressedToAgent: chatType === 'p2p' || addressedToAgent,
     mentionsOtherRecipient,
@@ -519,15 +561,23 @@ export class FeishuProvider {
     if (!messageId || (messageType !== 'nonsupport' && messageType !== 'interactive')) {
       return normalizeFeishuMessage(this.config, payload)
     }
-    try {
-      const detail = await this.client.request({
-        method: 'GET', url: `/open-apis/im/v1/messages/${encodeURIComponent(messageId)}`,
-        params: { card_msg_content_type: 'user_card_content' },
-      })
-      return normalizeFeishuMessage(this.config, hydrateFeishuMessagePayload(payload, detail))
-    } catch {
-      return normalizeFeishuMessage(this.config, payload)
+    let lastError: unknown
+    for (const delay of [0, 200, 800]) {
+      if (delay) await new Promise(resolve => setTimeout(resolve, delay))
+      try {
+        const detail = await this.client.request({
+          method: 'GET', url: `/open-apis/im/v1/messages/${encodeURIComponent(messageId)}`,
+          params: { card_msg_content_type: 'user_card_content' },
+        })
+        const hydrated = normalizeFeishuMessage(this.config, hydrateFeishuMessagePayload(payload, detail))
+        if (hydrated && hydrated.content?.type !== 'nonsupport') return hydrated
+        lastError = new Error('message detail did not contain supported card content')
+      } catch (error) {
+        lastError = error
+      }
     }
+    console.warn(`[feishu] message detail hydration failed for ${messageId}: ${redactError(lastError, this.config.appSecret)}`)
+    return normalizeFeishuMessage(this.config, payload)
   }
 
   async sendText(chatId: string, text: string, uuid?: string): Promise<string> {
