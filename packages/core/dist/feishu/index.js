@@ -312,7 +312,7 @@ export class FeishuProvider {
     ws = null;
     state = 'idle';
     reviveTimer = null;
-    chatModes = new Map();
+    chatMetadataCache = new Map();
     applicationAdministratorsCache = null;
     constructor(config) {
         this.config = config;
@@ -443,27 +443,41 @@ export class FeishuProvider {
             closeReason,
         };
     }
+    /** Resolve user-facing chat metadata through the authenticated Bot. Results
+     * are short-lived so renamed groups become visible without an API call for
+     * every inbound message. */
+    async chatMetadata(chatId, refresh = false) {
+        const cached = this.chatMetadataCache.get(chatId);
+        if (!refresh && cached && cached.expiresAtMs > Date.now())
+            return cached.value;
+        const value = this.client.im.v1.chat.get({ path: { chat_id: chatId } }).then(response => {
+            if (response.code !== 0)
+                throw new Error(`Feishu chat identity failed: ${response.msg ?? 'unknown'} (${response.code ?? 'unknown'})`);
+            const rawMode = response.data?.chat_mode;
+            const mode = rawMode === 'topic' || rawMode === 'p2p' ? rawMode : 'group';
+            return { id: chatId, name: response.data?.name?.trim() ?? '', mode };
+        });
+        this.chatMetadataCache.set(chatId, { expiresAtMs: Date.now() + 5 * 60_000, value });
+        try {
+            return await value;
+        }
+        catch (error) {
+            if (this.chatMetadataCache.get(chatId)?.value === value)
+                this.chatMetadataCache.delete(chatId);
+            throw error;
+        }
+    }
     async resolveChatMode(message) {
         if (message.conversation.scope !== 'group')
             return message;
-        let pending = this.chatModes.get(message.conversation.id);
-        if (!pending) {
-            pending = this.client.im.v1.chat.get({ path: { chat_id: message.conversation.id } })
-                .then(response => {
-                if (response.code !== 0)
-                    throw new Error(`Feishu chat identity failed: ${response.msg ?? 'unknown'} (${response.code ?? 'unknown'})`);
-                const mode = response.data?.chat_mode;
-                return mode === 'topic' || mode === 'p2p' ? mode : 'group';
-            });
-            this.chatModes.set(message.conversation.id, pending);
-        }
         try {
-            return applyFeishuChatMode(message, await pending);
+            const metadata = await this.chatMetadata(message.conversation.id);
+            const resolved = applyFeishuChatMode(message, metadata.mode);
+            return metadata.name ? { ...resolved, conversation: { ...resolved.conversation, name: metadata.name } } : resolved;
         }
         catch {
             // Chat metadata is enrichment only. Authorization remains group-scoped
             // and deny-by-default when Feishu cannot return chat details.
-            this.chatModes.delete(message.conversation.id);
             return message;
         }
     }

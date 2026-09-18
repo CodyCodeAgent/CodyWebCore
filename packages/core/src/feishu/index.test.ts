@@ -187,6 +187,16 @@ describe('Feishu interactive cards', () => {
 })
 
 describe('Feishu application administration', () => {
+  it('resolves and caches user-facing chat metadata', async () => {
+    const provider = new FeishuProvider({ accountId: 'bot-1', appId: 'cli_test', appSecret: 'secret' })
+    let calls = 0
+    const get = async () => { calls += 1; return { code: 0, data: { name: '告警群', chat_mode: 'topic' } } }
+    Object.assign(provider as unknown as { client: unknown }, { client: { im: { v1: { chat: { get } } } } })
+    await expect(provider.chatMetadata('oc_alert')).resolves.toEqual({ id: 'oc_alert', name: '告警群', mode: 'topic' })
+    await expect(provider.chatMetadata('oc_alert')).resolves.toEqual({ id: 'oc_alert', name: '告警群', mode: 'topic' })
+    expect(calls).toBe(1)
+  })
+
   it('adds and removes a native message reaction', async () => {
     const provider = new FeishuProvider({ accountId: 'bot-1', appId: 'cli_test', appSecret: 'secret' })
     const create = async () => ({ code: 0, data: { reaction_id: 'reaction-1' } })

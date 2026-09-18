@@ -52,6 +52,11 @@ export type FeishuProviderHandlers = {
     onState(state: FeishuConnectionState, error?: Error, diagnostic?: FeishuConnectionDiagnostic): void;
 };
 export type FeishuChatMode = 'group' | 'p2p' | 'topic';
+export type FeishuChatMetadata = {
+    id: string;
+    name: string;
+    mode: FeishuChatMode;
+};
 /** Message kinds whose content and resources are normalized by this adapter. */
 export declare const FEISHU_MESSAGE_TYPES: readonly ["text", "post", "image", "file", "audio", "media", "interactive"];
 /** Converts Feishu wire data into the provider-neutral Core envelope. */
@@ -73,7 +78,7 @@ export declare class FeishuProvider {
     private ws;
     private state;
     private reviveTimer;
-    private readonly chatModes;
+    private readonly chatMetadataCache;
     private applicationAdministratorsCache;
     constructor(config: FeishuAccountConfig);
     identity(): Promise<{
@@ -89,6 +94,10 @@ export declare class FeishuProvider {
     getState(): FeishuConnectionState;
     isOwnSenderId(senderId: string): boolean;
     getConnectionDiagnostic(error?: Error): FeishuConnectionDiagnostic;
+    /** Resolve user-facing chat metadata through the authenticated Bot. Results
+     * are short-lived so renamed groups become visible without an API call for
+     * every inbound message. */
+    chatMetadata(chatId: string, refresh?: boolean): Promise<FeishuChatMetadata>;
     private resolveChatMode;
     private normalizeInbound;
     sendText(chatId: string, text: string, uuid?: string): Promise<string>;

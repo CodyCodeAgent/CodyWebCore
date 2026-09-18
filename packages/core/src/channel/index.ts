@@ -25,7 +25,7 @@ export type ChannelInboundMessage = {
   accountId: string
   eventId: string
   messageId: string
-  conversation: { id: string; scope: ChannelConversationScope; rootId?: string }
+  conversation: { id: string; scope: ChannelConversationScope; rootId?: string; name?: string }
   sender: { id: string; type: 'user' | 'bot' | 'app' }
   content?: ChannelMessageContent
   text: string

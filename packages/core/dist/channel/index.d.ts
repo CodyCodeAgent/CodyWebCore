@@ -24,6 +24,7 @@ export type ChannelInboundMessage = {
         id: string;
         scope: ChannelConversationScope;
         rootId?: string;
+        name?: string;
     };
     sender: {
         id: string;

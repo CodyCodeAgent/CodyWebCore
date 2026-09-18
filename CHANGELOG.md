@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.38.11
+
+- Expose cached Feishu group names and chat modes on provider-neutral inbound conversations.
+
 ## 0.38.10
 
 - Add reusable Feishu message reactions and patchable streaming response cards.
