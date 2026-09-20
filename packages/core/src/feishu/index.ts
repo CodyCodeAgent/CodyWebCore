@@ -60,6 +60,7 @@ export type FeishuProviderHandlers = {
 
 export type FeishuChatMode = 'group' | 'p2p' | 'topic'
 export type FeishuChatMetadata = { id: string; name: string; mode: FeishuChatMode }
+export type FeishuUserMetadata = { id: string; name: string }
 
 /** Message kinds whose content and resources are normalized by this adapter. */
 export const FEISHU_MESSAGE_TYPES = ['text', 'post', 'image', 'file', 'audio', 'media', 'interactive'] as const
@@ -389,6 +390,7 @@ export class FeishuProvider {
   private state: FeishuConnectionState = 'idle'
   private reviveTimer: ReturnType<typeof setInterval> | null = null
   private readonly chatMetadataCache = new Map<string, { expiresAtMs: number; value: Promise<FeishuChatMetadata> }>()
+  private readonly userMetadataCache = new Map<string, { expiresAtMs: number; value: Promise<FeishuUserMetadata> }>()
   private applicationAdministratorsCache: { expiresAtMs: number; value: Promise<FeishuApplicationAdministrators> } | null = null
 
   constructor(private readonly config: FeishuAccountConfig) {
@@ -535,6 +537,27 @@ export class FeishuProvider {
     try { return await value }
     catch (error) {
       if (this.chatMetadataCache.get(chatId)?.value === value) this.chatMetadataCache.delete(chatId)
+      throw error
+    }
+  }
+
+  /** Resolve a user display name in the current application's Open ID
+   * namespace. The name field requires contact:user.base:readonly and may be
+   * empty when the app has not received or published that permission. */
+  async userMetadata(openId: string, refresh = false): Promise<FeishuUserMetadata> {
+    const cached = this.userMetadataCache.get(openId)
+    if (!refresh && cached && cached.expiresAtMs > Date.now()) return cached.value
+    const value = this.client.contact.v3.user.get({
+      path: { user_id: openId },
+      params: { user_id_type: 'open_id' },
+    }).then(response => {
+      if (response.code !== 0) throw new Error(`Feishu user identity failed: ${response.msg ?? 'unknown'} (${response.code ?? 'unknown'})`)
+      return { id: openId, name: response.data?.user?.name?.trim() ?? '' }
+    })
+    this.userMetadataCache.set(openId, { expiresAtMs: Date.now() + 5 * 60_000, value })
+    try { return await value }
+    catch (error) {
+      if (this.userMetadataCache.get(openId)?.value === value) this.userMetadataCache.delete(openId)
       throw error
     }
   }

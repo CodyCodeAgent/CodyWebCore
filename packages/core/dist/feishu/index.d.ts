@@ -57,6 +57,10 @@ export type FeishuChatMetadata = {
     name: string;
     mode: FeishuChatMode;
 };
+export type FeishuUserMetadata = {
+    id: string;
+    name: string;
+};
 /** Message kinds whose content and resources are normalized by this adapter. */
 export declare const FEISHU_MESSAGE_TYPES: readonly ["text", "post", "image", "file", "audio", "media", "interactive"];
 /** Converts Feishu wire data into the provider-neutral Core envelope. */
@@ -79,6 +83,7 @@ export declare class FeishuProvider {
     private state;
     private reviveTimer;
     private readonly chatMetadataCache;
+    private readonly userMetadataCache;
     private applicationAdministratorsCache;
     constructor(config: FeishuAccountConfig);
     identity(): Promise<{
@@ -98,6 +103,10 @@ export declare class FeishuProvider {
      * are short-lived so renamed groups become visible without an API call for
      * every inbound message. */
     chatMetadata(chatId: string, refresh?: boolean): Promise<FeishuChatMetadata>;
+    /** Resolve a user display name in the current application's Open ID
+     * namespace. The name field requires contact:user.base:readonly and may be
+     * empty when the app has not received or published that permission. */
+    userMetadata(openId: string, refresh?: boolean): Promise<FeishuUserMetadata>;
     private resolveChatMode;
     private normalizeInbound;
     sendText(chatId: string, text: string, uuid?: string): Promise<string>;

@@ -197,6 +197,15 @@ describe('Feishu interactive cards', () => {
     });
 });
 describe('Feishu application administration', () => {
+    it('resolves and caches user-facing user metadata', async () => {
+        const provider = new FeishuProvider({ accountId: 'bot-1', appId: 'cli_test', appSecret: 'secret' });
+        let calls = 0;
+        const get = async () => { calls += 1; return { code: 0, data: { user: { name: '勾超' } } }; };
+        Object.assign(provider, { client: { contact: { v3: { user: { get } } } } });
+        await expect(provider.userMetadata('ou_user')).resolves.toEqual({ id: 'ou_user', name: '勾超' });
+        await expect(provider.userMetadata('ou_user')).resolves.toEqual({ id: 'ou_user', name: '勾超' });
+        expect(calls).toBe(1);
+    });
     it('resolves and caches user-facing chat metadata', async () => {
         const provider = new FeishuProvider({ accountId: 'bot-1', appId: 'cli_test', appSecret: 'secret' });
         let calls = 0;

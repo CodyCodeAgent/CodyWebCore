@@ -1,6 +1,6 @@
 import { type ChildProcessWithoutNullStreams, type SpawnOptionsWithoutStdio } from 'node:child_process';
 import { type RuntimeNotification, type ServerRequest } from '../protocol/index.js';
-export declare const CODY_WEB_CORE_VERSION = "0.38.13";
+export declare const CODY_WEB_CORE_VERSION = "0.38.14";
 export type AppServerRuntimeKind = 'codex' | 'traex';
 export type AppServerRuntimeProfile = Readonly<{
     kind: AppServerRuntimeKind;

@@ -9,7 +9,7 @@ import {
   normalizeRpcResponse,
 } from '../protocol/index.js'
 
-export const CODY_WEB_CORE_VERSION = '0.38.13'
+export const CODY_WEB_CORE_VERSION = '0.38.14'
 
 export type AppServerRuntimeKind = 'codex' | 'traex'
 

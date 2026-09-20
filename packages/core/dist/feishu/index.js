@@ -354,6 +354,7 @@ export class FeishuProvider {
     state = 'idle';
     reviveTimer = null;
     chatMetadataCache = new Map();
+    userMetadataCache = new Map();
     applicationAdministratorsCache = null;
     constructor(config) {
         this.config = config;
@@ -505,6 +506,31 @@ export class FeishuProvider {
         catch (error) {
             if (this.chatMetadataCache.get(chatId)?.value === value)
                 this.chatMetadataCache.delete(chatId);
+            throw error;
+        }
+    }
+    /** Resolve a user display name in the current application's Open ID
+     * namespace. The name field requires contact:user.base:readonly and may be
+     * empty when the app has not received or published that permission. */
+    async userMetadata(openId, refresh = false) {
+        const cached = this.userMetadataCache.get(openId);
+        if (!refresh && cached && cached.expiresAtMs > Date.now())
+            return cached.value;
+        const value = this.client.contact.v3.user.get({
+            path: { user_id: openId },
+            params: { user_id_type: 'open_id' },
+        }).then(response => {
+            if (response.code !== 0)
+                throw new Error(`Feishu user identity failed: ${response.msg ?? 'unknown'} (${response.code ?? 'unknown'})`);
+            return { id: openId, name: response.data?.user?.name?.trim() ?? '' };
+        });
+        this.userMetadataCache.set(openId, { expiresAtMs: Date.now() + 5 * 60_000, value });
+        try {
+            return await value;
+        }
+        catch (error) {
+            if (this.userMetadataCache.get(openId)?.value === value)
+                this.userMetadataCache.delete(openId);
             throw error;
         }
     }

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.38.14
+
+- Resolve and cache Feishu user display names by app-scoped Open ID for products that need readable private-conversation metadata.
+
 ## 0.38.13
 
 - Add first-class Codex and TraeX App Server runtime profiles with shared stdio lifecycle, diagnostics, and protocol handling.
