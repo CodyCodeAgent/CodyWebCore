@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.38.13
+
+- Add first-class Codex and TraeX App Server runtime profiles with shared stdio lifecycle, diagnostics, and protocol handling.
+- Expose a runtime-aware host factory so products can select an agent engine without duplicating session infrastructure.
+
 ## 0.38.12
 
 - Preserve normalized Feishu card fields, actions, action URLs, and decoded source content for downstream investigation and audit.
