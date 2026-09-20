@@ -1,6 +1,15 @@
 import { type ChildProcessWithoutNullStreams, type SpawnOptionsWithoutStdio } from 'node:child_process';
 import { type RuntimeNotification, type ServerRequest } from '../protocol/index.js';
-export declare const CODY_WEB_CORE_VERSION = "0.38.12";
+export declare const CODY_WEB_CORE_VERSION = "0.38.13";
+export type AppServerRuntimeKind = 'codex' | 'traex';
+export type AppServerRuntimeProfile = Readonly<{
+    kind: AppServerRuntimeKind;
+    label: string;
+    command: string;
+    args: readonly string[];
+    skillDirectoryName: '.codex' | '.trae';
+}>;
+export declare function appServerRuntimeProfile(kind: AppServerRuntimeKind, command?: string): AppServerRuntimeProfile;
 export type { RuntimeNotification, ServerRequest } from '../protocol/index.js';
 export type RpcOptions = {
     timeoutMs?: number;
@@ -99,7 +108,13 @@ export type AppServerHostOptions = {
     spawn?: SpawnAppServer;
     onServerRequest?: (request: ServerRequest) => Promise<ServerRequestReply | null> | ServerRequestReply | null;
     onDisconnected?: (reason: Error) => void;
+    runtimeLabel?: string;
 };
+export type RuntimeAppServerHostOptions = Omit<AppServerHostOptions, 'command' | 'args' | 'runtimeLabel'> & {
+    command?: string;
+    args?: string[];
+};
+export declare function createRuntimeAppServerHost(kind: AppServerRuntimeKind, options?: RuntimeAppServerHostOptions): AppServerHost;
 export interface AppServerHost {
     ensureInitialized(): Promise<void>;
     call<T>(method: string, params?: unknown, options?: RpcOptions): Promise<T>;

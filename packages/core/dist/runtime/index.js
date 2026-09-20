@@ -1,6 +1,33 @@
 import { spawn } from 'node:child_process';
 import { isNotification, isServerRequest, normalizeRpcResponse, } from '../protocol/index.js';
-export const CODY_WEB_CORE_VERSION = '0.38.12';
+export const CODY_WEB_CORE_VERSION = '0.38.13';
+export function appServerRuntimeProfile(kind, command) {
+    if (kind === 'traex') {
+        return {
+            kind,
+            label: 'TraeX',
+            command: command?.trim() || 'traex',
+            args: ['app-server', '--enable', 'default_mode_request_user_input', '--listen', 'stdio://'],
+            skillDirectoryName: '.trae',
+        };
+    }
+    return {
+        kind,
+        label: 'Codex',
+        command: command?.trim() || 'codex',
+        args: ['app-server', '--stdio'],
+        skillDirectoryName: '.codex',
+    };
+}
+export function createRuntimeAppServerHost(kind, options = {}) {
+    const profile = appServerRuntimeProfile(kind, options.command);
+    return createAppServerHost({
+        ...options,
+        command: profile.command,
+        args: options.args ?? [...profile.args],
+        runtimeLabel: profile.label,
+    });
+}
 const DEFAULT_TIMEOUT_MS = 20_000;
 const MAX_LOGS = 80;
 const MAX_LOG_LENGTH = 500;
@@ -36,6 +63,7 @@ function splitCommand(command) {
     return parts;
 }
 export function createAppServerHost(options = {}) {
+    const runtimeLabel = options.runtimeLabel?.trim() || 'Codex';
     const pending = new Map();
     const pendingServerRequests = new Map();
     const listeners = new Set();
@@ -194,11 +222,11 @@ export function createAppServerHost(options = {}) {
         if (process)
             return;
         if (lifecycle === 'disposed')
-            throw new Error('Codex App Server host has been disposed');
+            throw new Error(`${runtimeLabel} App Server host has been disposed`);
         if (startCount > 0) {
             throw new Error(unavailableReason
-                ? `Codex App Server is unavailable and will not be restarted automatically: ${unavailableReason}`
-                : 'Codex App Server is unavailable and will not be restarted automatically');
+                ? `${runtimeLabel} App Server is unavailable and will not be restarted automatically: ${unavailableReason}`
+                : `${runtimeLabel} App Server is unavailable and will not be restarted automatically`);
         }
         const [command, ...fromCommand] = splitCommand(options.command ?? 'codex app-server --stdio');
         const args = options.args ?? fromCommand;
@@ -243,19 +271,19 @@ export function createAppServerHost(options = {}) {
             const entries = [...pending].map(([id, entry]) => clientSummary(id, entry, Date.now()));
             const failedMethod = entries.length === 1 ? entries[0].method : null;
             pushLog('error', 'bridge', `stdin: ${error.message}`);
-            const reason = new Error(`Codex App Server stdin failed: ${error.message}`);
+            const reason = new Error(`${runtimeLabel} App Server stdin failed: ${error.message}`);
             captureFailure('transport', 'stdin_error', failedMethod, 'The Codex App Server input pipe failed.', entries);
             stdinFailureGeneration = processGeneration;
             markUnavailable(reason);
         });
         child.on('error', (error) => {
-            const reason = new Error(`Codex App Server process error: ${error.message}`);
+            const reason = new Error(`${runtimeLabel} App Server process error: ${error.message}`);
             pushLog('error', 'bridge', reason.message);
             markUnavailable(reason);
             captureFailure('process', 'process_exit', null, reason.message);
         });
         child.on('exit', (code, signal) => {
-            const reason = new Error(stopping ? 'Codex App Server stopped' : `Codex App Server exited (${String(code ?? signal ?? 'unknown')})`);
+            const reason = new Error(stopping ? `${runtimeLabel} App Server stopped` : `${runtimeLabel} App Server exited (${String(code ?? signal ?? 'unknown')})`);
             const entries = [...pending].map(([id, entry]) => clientSummary(id, entry, Date.now()));
             const failedMethod = entries.length === 1 ? entries[0].method : null;
             exitedAtIso = new Date().toISOString();
@@ -281,16 +309,16 @@ export function createAppServerHost(options = {}) {
     };
     const send = (payload) => {
         if (!process)
-            throw new Error('Codex App Server is not running');
+            throw new Error(`${runtimeLabel} App Server is not running`);
         process.stdin.write(`${JSON.stringify(payload)}\n`);
     };
     const call = (method, params = {}, rpcOptions = {}) => {
         if (!process || lifecycle !== 'running') {
             const message = lifecycle === 'disposed'
-                ? 'Codex App Server host has been disposed'
+                ? `${runtimeLabel} App Server host has been disposed`
                 : unavailableReason
-                    ? `Codex App Server is unavailable and will not be restarted automatically: ${unavailableReason}`
-                    : 'Codex App Server has not been initialized';
+                    ? `${runtimeLabel} App Server is unavailable and will not be restarted automatically: ${unavailableReason}`
+                    : `${runtimeLabel} App Server has not been initialized`;
             return Promise.reject(new Error(message));
         }
         const id = sequence++;
@@ -302,7 +330,7 @@ export function createAppServerHost(options = {}) {
                 if (!timedOut || !pending.delete(id))
                     return;
                 failed += 1;
-                const error = new Error(`codex app-server RPC ${method} timed out after ${String(timeoutMs)}ms`);
+                const error = new Error(`${runtimeLabel} app-server RPC ${method} timed out after ${String(timeoutMs)}ms`);
                 pushLog('error', 'bridge', error.message);
                 const nowMs = Date.now();
                 captureFailure(method === 'initialize' ? 'initialize' : 'rpc', method === 'initialize' ? 'initialize_timeout' : 'rpc_timeout', method, error.message, [clientSummary(id, timedOut, nowMs), ...[...pending].map(([pendingId, entry]) => clientSummary(pendingId, entry, nowMs))]);
