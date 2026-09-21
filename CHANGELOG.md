@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.39.0
+
+- Route App Server dynamic tool calls through a product-owned adapter while Core remains the single JSON-RPC request owner.
+
 ## 0.38.14
 
 - Resolve and cache Feishu user display names by app-scoped Open ID for products that need readable private-conversation metadata.

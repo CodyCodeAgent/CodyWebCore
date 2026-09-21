@@ -2,6 +2,8 @@ import type { AppServerHost, ServerRequest, ServerRequestReply } from '../runtim
 import type { ConfigReadResponse } from '../protocol/generated/v2/ConfigReadResponse.js';
 import type { GetAccountRateLimitsResponse } from '../protocol/generated/v2/GetAccountRateLimitsResponse.js';
 import type { McpServerRefreshResponse } from '../protocol/generated/v2/McpServerRefreshResponse.js';
+import type { DynamicToolCallParams } from '../protocol/generated/v2/DynamicToolCallParams.js';
+import type { DynamicToolCallResponse } from '../protocol/generated/v2/DynamicToolCallResponse.js';
 import { type CodexEvent } from '../conversation/index.js';
 import type { ExecutionContext, TurnInput } from './turn-input.js';
 import { type CodexCollaborationModeOption, type CodexModelOption, type CodexSkillCatalogGroup, type CodexSkillOption, type CodexThreadSummary, type ListCodexThreadsOptions } from './catalog.js';
@@ -91,6 +93,11 @@ export interface ExecutionPolicyProvider {
     evaluate(operation: ProtectedOperation, binding: ThreadBinding, context: ExecutionContext): Promise<PolicyDecision> | PolicyDecision;
     onResolved?(resolution: ServerRequestResolution): Promise<void> | void;
 }
+/** Product adapter for App Server dynamic tools. Core remains the single
+ * owner of the JSON-RPC reply while products own tool semantics. */
+export interface DynamicToolProvider {
+    invoke(call: DynamicToolCallParams, binding: ThreadBinding, context: ExecutionContext): Promise<DynamicToolCallResponse> | DynamicToolCallResponse;
+}
 export type CodexSessionDiagnostic = {
     level: 'info' | 'warning' | 'error';
     message: string;
@@ -100,6 +107,7 @@ export type CodexSessionDiagnostic = {
 export type CodexSessionManagerOptions = {
     host: AppServerHost;
     policy?: ExecutionPolicyProvider;
+    dynamicTools?: DynamicToolProvider;
     nowIso?: () => string;
     /** Maximum silence between events for an active turn. Progress resets this watchdog. */
     turnInactivityTimeoutMs?: number;

@@ -975,6 +975,26 @@ export class CodexSessionManager {
             return;
         }
         const session = this.sessions.get(bindingId);
+        if (request.method === 'item/tool/call') {
+            if (!this.options.dynamicTools) {
+                const reason = 'No dynamic tool provider is configured for this product.';
+                this.options.onDiagnostic?.({ level: 'error', message: reason, method: request.method, params });
+                await this.options.host.resolveServerRequest(request.id, { error: { code: -32601, message: reason } });
+                return;
+            }
+            try {
+                const result = await this.options.dynamicTools.invoke(params, session.binding, session.context);
+                await this.options.host.resolveServerRequest(request.id, { result });
+            }
+            catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                this.options.onDiagnostic?.({ level: 'error', message: `Dynamic tool failed: ${message}`, method: request.method, params });
+                await this.options.host.resolveServerRequest(request.id, {
+                    result: { contentItems: [{ type: 'inputText', text: JSON.stringify({ status: 'failed', error: message }) }], success: false },
+                });
+            }
+            return;
+        }
         const operation = {
             requestId: request.id,
             method: request.method,

@@ -14,6 +14,8 @@ import type { ConfigReadResponse } from '../protocol/generated/v2/ConfigReadResp
 import type { GetAccountRateLimitsResponse } from '../protocol/generated/v2/GetAccountRateLimitsResponse.js'
 import type { McpServerRefreshResponse } from '../protocol/generated/v2/McpServerRefreshResponse.js'
 import type { UserInput } from '../protocol/generated/v2/UserInput.js'
+import type { DynamicToolCallParams } from '../protocol/generated/v2/DynamicToolCallParams.js'
+import type { DynamicToolCallResponse } from '../protocol/generated/v2/DynamicToolCallResponse.js'
 import { latestAssistantTextFromEvents, type CodexEvent } from '../conversation/index.js'
 import {
   contentFromUserItem,
@@ -127,6 +129,16 @@ export interface ExecutionPolicyProvider {
   onResolved?(resolution: ServerRequestResolution): Promise<void> | void
 }
 
+/** Product adapter for App Server dynamic tools. Core remains the single
+ * owner of the JSON-RPC reply while products own tool semantics. */
+export interface DynamicToolProvider {
+  invoke(
+    call: DynamicToolCallParams,
+    binding: ThreadBinding,
+    context: ExecutionContext,
+  ): Promise<DynamicToolCallResponse> | DynamicToolCallResponse
+}
+
 export type CodexSessionDiagnostic = {
   level: 'info' | 'warning' | 'error'
   message: string
@@ -137,6 +149,7 @@ export type CodexSessionDiagnostic = {
 export type CodexSessionManagerOptions = {
   host: AppServerHost
   policy?: ExecutionPolicyProvider
+  dynamicTools?: DynamicToolProvider
   nowIso?: () => string
   /** Maximum silence between events for an active turn. Progress resets this watchdog. */
   turnInactivityTimeoutMs?: number
@@ -1152,6 +1165,25 @@ export class CodexSessionManager {
       return
     }
     const session = this.sessions.get(bindingId)!
+    if (request.method === 'item/tool/call') {
+      if (!this.options.dynamicTools) {
+        const reason = 'No dynamic tool provider is configured for this product.'
+        this.options.onDiagnostic?.({ level: 'error', message: reason, method: request.method, params })
+        await this.options.host.resolveServerRequest(request.id, { error: { code: -32601, message: reason } })
+        return
+      }
+      try {
+        const result = await this.options.dynamicTools.invoke(params as DynamicToolCallParams, session.binding, session.context)
+        await this.options.host.resolveServerRequest(request.id, { result })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        this.options.onDiagnostic?.({ level: 'error', message: `Dynamic tool failed: ${message}`, method: request.method, params })
+        await this.options.host.resolveServerRequest(request.id, {
+          result: { contentItems: [{ type: 'inputText', text: JSON.stringify({ status: 'failed', error: message }) }], success: false },
+        })
+      }
+      return
+    }
     const operation: ProtectedOperation = {
       requestId: request.id,
       method: request.method,

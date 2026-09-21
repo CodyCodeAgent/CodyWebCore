@@ -895,6 +895,33 @@ describe('CodexSessionManager', () => {
     await manager.dispose()
   })
 
+  it('routes dynamic tool calls through the product adapter and owns the reply', async () => {
+    const host = new FakeHost()
+    const invoke = vi.fn(async () => ({
+      contentItems: [{ type: 'inputText' as const, text: '{"status":"awaiting_approval"}' }],
+      success: true,
+    }))
+    const manager = new CodexSessionManager({ host, dynamicTools: { invoke } })
+    await manager.create('conversation-1', context)
+
+    host.emit('server/request', {
+      id: 420,
+      method: 'item/tool/call',
+      params: {
+        threadId: 'thread-1', turnId: 'turn-1', callId: 'call-1',
+        namespace: 'codybothub', tool: 'invoke_tool_package', arguments: { packageId: 'package-1' },
+      },
+      receivedAtIso: '2026-01-01T00:00:00.000Z',
+    })
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(invoke).toHaveBeenCalledWith(expect.objectContaining({ callId: 'call-1', tool: 'invoke_tool_package' }), { id: 'conversation-1', threadId: 'thread-1' }, context)
+    expect(host.replies).toContainEqual({ id: 420, reply: { result: {
+      contentItems: [{ type: 'inputText', text: '{"status":"awaiting_approval"}' }], success: true,
+    } } })
+    await manager.dispose()
+  })
+
   it('replays unresolved approval events after a product view reconnects', async () => {
     const host = new FakeHost()
     const manager = new CodexSessionManager({ host })
