@@ -53,6 +53,10 @@ export type ChannelInboundMessage = {
         id: string;
         type: 'user' | 'bot' | 'app';
         idType?: ChannelIdentityType;
+        identities?: Array<{
+            id: string;
+            idType: ChannelIdentityType;
+        }>;
         name?: string;
     };
     content?: ChannelMessageContent;

@@ -42,7 +42,7 @@ describe('normalizeFeishuMessage', () => {
       message: { message_id: 'om_bot', chat_id: 'oc_2', chat_type: 'group', message_type: 'text', content: JSON.stringify({ text: '@_user_1 inspect' }), mentions: [{ key: '@_user_1', name: 'CodyWork', id: { app_id: 'cli_test', open_id: 'ou_bot' } }] },
     } })
     expect(message).toMatchObject({
-      sender: { id: 'cli_source', type: 'app', idType: 'app_id' }, addressedToAgent: true,
+      sender: { id: 'cli_source', type: 'app', idType: 'app_id', identities: [{ id: 'cli_source', idType: 'app_id' }] }, addressedToAgent: true,
       mentions: [{ id: 'ou_bot', idType: 'open_id', type: 'app', isAgent: true }],
     })
   })

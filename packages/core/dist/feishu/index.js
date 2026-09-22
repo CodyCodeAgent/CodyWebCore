@@ -261,6 +261,12 @@ export function normalizeFeishuMessage(config, payload) {
     // approvals compare values from one stable namespace.
     const senderIdentity = string(senderId?.open_id || senderId?.openId || senderId?.union_id || senderId?.unionId || senderId?.user_id || senderId?.userId || senderId?.app_id || senderId?.appId);
     const senderIdentityType = identityType(senderId, senderIdentity);
+    const senderIdentities = [...new Map([
+            ['open_id', string(senderId?.open_id || senderId?.openId)],
+            ['app_id', string(senderId?.app_id || senderId?.appId)],
+            ['user_id', string(senderId?.user_id || senderId?.userId)],
+            ['union_id', string(senderId?.union_id || senderId?.unionId)],
+        ].filter((entry) => Boolean(entry[1])).map(([idType, id]) => [id, { id, idType }])).values()];
     let text = parsed.text;
     let addressedToAgent = false;
     let mentionsOtherRecipient = false;
@@ -302,7 +308,7 @@ export function normalizeFeishuMessage(config, payload) {
     return {
         provider: 'feishu', accountId: config.accountId, eventId, messageId,
         conversation: { id: chatId, scope, ...(bindingRoot ? { rootId: bindingRoot } : {}) },
-        sender: { id: senderIdentity, type: senderType, idType: senderIdentityType },
+        sender: { id: senderIdentity, type: senderType, idType: senderIdentityType, identities: senderIdentities },
         content: {
             type: messageType,
             ...(parsed.title ? { title: parsed.title } : {}),

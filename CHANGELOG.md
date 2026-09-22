@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.39.2
+
+- Preserve all available sender identity aliases so product allowlists can match either a bot App ID or Open ID.
+
 ## 0.39.1
 
 - Preserve provider-neutral sender identity types and structured Feishu mentions for product routing.
