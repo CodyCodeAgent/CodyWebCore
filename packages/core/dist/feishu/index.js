@@ -40,6 +40,23 @@ function normalizeMentions(value) {
             }];
     });
 }
+function identityType(identity, value) {
+    if (!value)
+        return 'unknown';
+    if (string(identity?.open_id || identity?.openId) === value)
+        return 'open_id';
+    if (string(identity?.app_id || identity?.appId) === value)
+        return 'app_id';
+    if (string(identity?.user_id || identity?.userId) === value)
+        return 'user_id';
+    if (string(identity?.union_id || identity?.unionId) === value)
+        return 'union_id';
+    if (value.startsWith('ou_'))
+        return 'open_id';
+    if (value.startsWith('cli_'))
+        return 'app_id';
+    return 'unknown';
+}
 function inlinePostMentions(value) {
     const row = record(value);
     if (!row)
@@ -243,11 +260,22 @@ export function normalizeFeishuMessage(config, payload) {
     // identity for message events so binding ownership and later interactive
     // approvals compare values from one stable namespace.
     const senderIdentity = string(senderId?.open_id || senderId?.openId || senderId?.union_id || senderId?.unionId || senderId?.user_id || senderId?.userId || senderId?.app_id || senderId?.appId);
+    const senderIdentityType = identityType(senderId, senderIdentity);
     let text = parsed.text;
     let addressedToAgent = false;
     let mentionsOtherRecipient = false;
+    const structuredMentions = [];
     for (const mention of mentions) {
         const own = Boolean(config.botOpenId && mention.openId === config.botOpenId) || mention.appId === config.appId;
+        const id = mention.openId || mention.appId;
+        if (id && !structuredMentions.some(item => item.id === id))
+            structuredMentions.push({
+                id,
+                idType: mention.openId ? 'open_id' : 'app_id',
+                type: mention.appId ? 'app' : 'user',
+                name: mention.name,
+                isAgent: own,
+            });
         addressedToAgent ||= own;
         mentionsOtherRecipient ||= !own && Boolean(mention.openId || mention.appId);
         if (mention.key)
@@ -274,7 +302,7 @@ export function normalizeFeishuMessage(config, payload) {
     return {
         provider: 'feishu', accountId: config.accountId, eventId, messageId,
         conversation: { id: chatId, scope, ...(bindingRoot ? { rootId: bindingRoot } : {}) },
-        sender: { id: senderIdentity, type: senderType },
+        sender: { id: senderIdentity, type: senderType, idType: senderIdentityType },
         content: {
             type: messageType,
             ...(parsed.title ? { title: parsed.title } : {}),
@@ -285,8 +313,15 @@ export function normalizeFeishuMessage(config, payload) {
         text, ...(replyTo ? { replyTo } : {}), attachments: parsed.attachments,
         addressedToAgent: chatType === 'p2p' || addressedToAgent,
         mentionsOtherRecipient,
+        mentions: structuredMentions,
         createdAtIso: new Date(Number(message.create_time || message.createTime) || Date.now()).toISOString(),
     };
+}
+/** Native interactive-card mention syntax. Feishu only guarantees card
+ * mentions for a user's open_id, so invalid or provider-incompatible values
+ * deliberately produce an empty prefix instead of a broken card. */
+export function feishuCardMention(openId) {
+    return /^ou_[A-Za-z0-9_-]+$/u.test(openId) ? `<at id=${openId}></at>` : '';
 }
 /** Merge the authoritative REST message body into a realtime event. Feishu can
  * emit `nonsupport` or a reduced interactive-card fallback over WebSocket. */

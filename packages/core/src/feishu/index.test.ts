@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyFeishuChatMode, FEISHU_MESSAGE_TYPES, FeishuProvider, feishuMarkdownCard, feishuMarkdownCards, feishuSelectionCard, feishuStreamingCard, feishuTextCard, hydrateFeishuMessagePayload, normalizeFeishuAction, normalizeFeishuMessage } from './index.js'
+import { applyFeishuChatMode, FEISHU_MESSAGE_TYPES, FeishuProvider, feishuCardMention, feishuMarkdownCard, feishuMarkdownCards, feishuSelectionCard, feishuStreamingCard, feishuTextCard, hydrateFeishuMessagePayload, normalizeFeishuAction, normalizeFeishuMessage } from './index.js'
 
 describe('normalizeFeishuMessage', () => {
   const config = { accountId: 'bot-1', appId: 'cli_test', appSecret: 'secret', botOpenId: 'ou_bot', privateConversationMode: 'topic' as const }
@@ -29,7 +29,22 @@ describe('normalizeFeishuMessage', () => {
       sender: { sender_type: 'user', sender_id: { union_id: 'on_user' } },
       message: { message_id: 'om_2', chat_id: 'oc_2', chat_type: 'group', message_type: 'text', content: JSON.stringify({ text: '@_user_1 inspect' }), mentions: [{ key: '@_user_1', name: 'CodyWork', id: { open_id: 'ou_bot' } }] },
     } })
-    expect(message).toMatchObject({ text: 'inspect', addressedToAgent: true, conversation: { scope: 'group' } })
+    expect(message).toMatchObject({
+      text: 'inspect', addressedToAgent: true, conversation: { scope: 'group' },
+      sender: { id: 'on_user', idType: 'union_id' },
+      mentions: [{ id: 'ou_bot', idType: 'open_id', type: 'user', name: 'CodyWork', isAgent: true }],
+    })
+  })
+
+  it('keeps app mentions structured without treating their display text as routing data', () => {
+    const message = normalizeFeishuMessage(config, { event: {
+      sender: { sender_type: 'app', sender_id: { app_id: 'cli_source' } },
+      message: { message_id: 'om_bot', chat_id: 'oc_2', chat_type: 'group', message_type: 'text', content: JSON.stringify({ text: '@_user_1 inspect' }), mentions: [{ key: '@_user_1', name: 'CodyWork', id: { app_id: 'cli_test', open_id: 'ou_bot' } }] },
+    } })
+    expect(message).toMatchObject({
+      sender: { id: 'cli_source', type: 'app', idType: 'app_id' }, addressedToAgent: true,
+      mentions: [{ id: 'ou_bot', idType: 'open_id', type: 'app', isAgent: true }],
+    })
   })
 
   it('promotes a topic-group root event to a stable topic binding after chat lookup', () => {
@@ -160,6 +175,14 @@ describe('normalizeFeishuMessage', () => {
     } } }
     const hydrated = hydrateFeishuMessagePayload(payload, { data: { items: [{ msg_type: 'post', body: { content: JSON.stringify({ zh_cn: { content: [[{ tag: 'text', text: 'real body' }]] } }) } }] } })
     expect(normalizeFeishuMessage(config, hydrated)).toMatchObject({ content: { type: 'post' }, text: 'real body' })
+  })
+})
+
+describe('feishuCardMention', () => {
+  it('renders only Feishu open IDs as native card mentions', () => {
+    expect(feishuCardMention('ou_user-1')).toBe('<at id=ou_user-1></at>')
+    expect(feishuCardMention('cli_app')).toBe('')
+    expect(feishuCardMention('all')).toBe('')
   })
 })
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.39.1
+
+- Preserve provider-neutral sender identity types and structured Feishu mentions for product routing.
+- Render safe native Feishu card mentions from app-scoped user Open IDs.
+
 ## 0.39.0
 
 - Route App Server dynamic tool calls through a product-owned adapter while Core remains the single JSON-RPC request owner.

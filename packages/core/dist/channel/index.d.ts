@@ -26,6 +26,17 @@ export type ChannelMessageContent = {
     /** Original decoded provider content retained for privileged audit and replay. */
     raw?: unknown;
 };
+export type ChannelIdentityType = 'open_id' | 'app_id' | 'user_id' | 'union_id' | 'unknown';
+/** A provider mention kept as structured data so products can make routing
+ * decisions without parsing display text, and can render a native reply
+ * mention when the provider supplies a usable identity. */
+export type ChannelMention = {
+    id: string;
+    idType: ChannelIdentityType;
+    type: 'user' | 'bot' | 'app';
+    name: string;
+    isAgent: boolean;
+};
 /** Provider-neutral input accepted by a remote channel runtime. */
 export type ChannelInboundMessage = {
     provider: string;
@@ -41,6 +52,8 @@ export type ChannelInboundMessage = {
     sender: {
         id: string;
         type: 'user' | 'bot' | 'app';
+        idType?: ChannelIdentityType;
+        name?: string;
     };
     content?: ChannelMessageContent;
     text: string;
@@ -48,6 +61,7 @@ export type ChannelInboundMessage = {
     attachments: ChannelAttachment[];
     addressedToAgent: boolean;
     mentionsOtherRecipient: boolean;
+    mentions?: ChannelMention[];
     createdAtIso: string;
 };
 export type ChannelBinding = {

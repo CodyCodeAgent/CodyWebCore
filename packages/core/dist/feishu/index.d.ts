@@ -65,6 +65,10 @@ export type FeishuUserMetadata = {
 export declare const FEISHU_MESSAGE_TYPES: readonly ["text", "post", "image", "file", "audio", "media", "interactive"];
 /** Converts Feishu wire data into the provider-neutral Core envelope. */
 export declare function normalizeFeishuMessage(config: FeishuAccountConfig, payload: unknown): ChannelInboundMessage | null;
+/** Native interactive-card mention syntax. Feishu only guarantees card
+ * mentions for a user's open_id, so invalid or provider-incompatible values
+ * deliberately produce an empty prefix instead of a broken card. */
+export declare function feishuCardMention(openId: string): string;
 /** Merge the authoritative REST message body into a realtime event. Feishu can
  * emit `nonsupport` or a reduced interactive-card fallback over WebSocket. */
 export declare function hydrateFeishuMessagePayload(payload: unknown, detail: unknown): unknown;
