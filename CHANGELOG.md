@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.39.4
+
+- Resolve one explicitly quoted Feishu message through the Bot message-detail API and expose its normalized text, sender and attachments on the provider-neutral inbound envelope.
+- Keep quote expansion bounded to one level, validate the source conversation, and degrade to the current message when the quoted content cannot be read.
+
 ## 0.39.3
 
 - Resolve and cache receiver-scoped Bot Open IDs from the current Feishu chat so products can route native mentions to peer Bots without confusing them with human mentions.

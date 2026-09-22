@@ -73,6 +73,10 @@ export declare const FEISHU_MESSAGE_TYPES: readonly ["text", "post", "image", "f
 export declare function normalizeFeishuChatBots(value: unknown): FeishuChatBotMetadata[];
 /** Converts Feishu wire data into the provider-neutral Core envelope. */
 export declare function normalizeFeishuMessage(config: FeishuAccountConfig, payload: unknown): ChannelInboundMessage | null;
+/** Converts the REST `GET /im/v1/messages/:id` response into the same
+ * provider-neutral envelope used for realtime messages. The caller supplies a
+ * scope hint because Feishu message detail does not include chat_type. */
+export declare function normalizeFeishuMessageDetail(config: FeishuAccountConfig, detail: unknown, scopeHint?: ChannelInboundMessage['conversation']['scope']): ChannelInboundMessage | null;
 /** Native interactive-card mention syntax. Feishu only guarantees card
  * mentions for a user's open_id, so invalid or provider-incompatible values
  * deliberately produce an empty prefix instead of a broken card. */
@@ -126,6 +130,9 @@ export declare class FeishuProvider {
     userMetadata(openId: string, refresh?: boolean): Promise<FeishuUserMetadata>;
     private resolveChatMode;
     private normalizeInbound;
+    /** Fetch and normalize one message through the authenticated Bot. */
+    messageDetail(messageId: string, scopeHint?: ChannelInboundMessage['conversation']['scope']): Promise<ChannelInboundMessage>;
+    private resolveQuotedMessage;
     sendText(chatId: string, text: string, uuid?: string): Promise<string>;
     replyText(messageId: string, text: string, replyInThread?: boolean, uuid?: string): Promise<string>;
     sendCard(chatId: string, card: FeishuCard, uuid?: string): Promise<string>;

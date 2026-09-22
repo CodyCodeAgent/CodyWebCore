@@ -278,6 +278,7 @@ export function normalizeFeishuMessage(config, payload) {
     // approvals compare values from one stable namespace.
     const senderIdentity = string(senderId?.open_id || senderId?.openId || senderId?.union_id || senderId?.unionId || senderId?.user_id || senderId?.userId || senderId?.app_id || senderId?.appId);
     const senderIdentityType = identityType(senderId, senderIdentity);
+    const senderName = string(sender.sender_name || sender.senderName || sender.name).trim();
     const senderIdentities = [...new Map([
             ['open_id', string(senderId?.open_id || senderId?.openId)],
             ['app_id', string(senderId?.app_id || senderId?.appId)],
@@ -325,7 +326,7 @@ export function normalizeFeishuMessage(config, payload) {
     return {
         provider: 'feishu', accountId: config.accountId, eventId, messageId,
         conversation: { id: chatId, scope, ...(bindingRoot ? { rootId: bindingRoot } : {}) },
-        sender: { id: senderIdentity, type: senderType, idType: senderIdentityType, identities: senderIdentities },
+        sender: { id: senderIdentity, type: senderType, idType: senderIdentityType, identities: senderIdentities, ...(senderName ? { name: senderName } : {}) },
         content: {
             type: messageType,
             ...(parsed.title ? { title: parsed.title } : {}),
@@ -339,6 +340,60 @@ export function normalizeFeishuMessage(config, payload) {
         mentions: structuredMentions,
         createdAtIso: new Date(Number(message.create_time || message.createTime) || Date.now()).toISOString(),
     };
+}
+/** Converts the REST `GET /im/v1/messages/:id` response into the same
+ * provider-neutral envelope used for realtime messages. The caller supplies a
+ * scope hint because Feishu message detail does not include chat_type. */
+export function normalizeFeishuMessageDetail(config, detail, scopeHint = 'group') {
+    const root = record(detail);
+    const data = record(root?.data) ?? root;
+    const item = Array.isArray(data?.items) ? record(data.items[0]) : record(data?.item);
+    const body = record(item?.body);
+    const sender = record(item?.sender);
+    const messageId = string(item?.message_id || item?.messageId);
+    const chatId = string(item?.chat_id || item?.chatId);
+    const messageType = string(item?.msg_type || item?.message_type || item?.messageType);
+    const content = body?.content;
+    const senderId = string(sender?.id);
+    const senderIdType = string(sender?.id_type || sender?.idType);
+    if (!item || !sender || !messageId || !chatId || !messageType || typeof content !== 'string' || !senderId)
+        return null;
+    const senderIdentity = ['open_id', 'app_id', 'user_id', 'union_id'].includes(senderIdType)
+        ? { [senderIdType]: senderId }
+        : senderId.startsWith('ou_') ? { open_id: senderId }
+            : senderId.startsWith('cli_') ? { app_id: senderId }
+                : { user_id: senderId };
+    const mentions = Array.isArray(item.mentions) ? item.mentions.flatMap(value => {
+        const mention = record(value);
+        const id = string(mention?.id);
+        const idType = string(mention?.id_type || mention?.idType);
+        if (!mention || !id)
+            return [];
+        return [{
+                key: string(mention.key), name: string(mention.name), id_type: idType,
+                id: ['open_id', 'app_id'].includes(idType) ? { [idType]: id } : { open_id: id },
+            }];
+    }) : [];
+    return normalizeFeishuMessage(config, { event_id: messageId, event: {
+            sender: {
+                sender_type: string(sender.sender_type || sender.senderType).toLowerCase(),
+                sender_id: senderIdentity,
+                sender_name: string(sender.sender_name || sender.senderName),
+            },
+            message: {
+                message_id: messageId,
+                chat_id: chatId,
+                chat_type: scopeHint === 'private' ? 'p2p' : 'group',
+                ...(scopeHint === 'topic' ? { chat_mode: 'topic' } : {}),
+                message_type: messageType,
+                content,
+                mentions,
+                root_id: string(item.root_id || item.rootId),
+                parent_id: string(item.parent_id || item.parentId),
+                thread_id: string(item.thread_id || item.threadId),
+                create_time: string(item.create_time || item.createTime),
+            },
+        } });
 }
 /** Native interactive-card mention syntax. Feishu only guarantees card
  * mentions for a user's open_id, so invalid or provider-incompatible values
@@ -489,6 +544,7 @@ export class FeishuProvider {
             'im.message.receive_v1': (payload) => {
                 void this.normalizeInbound(payload)
                     .then(message => message ? this.resolveChatMode(message) : null)
+                    .then(message => message ? this.resolveQuotedMessage(message) : null)
                     .then(message => message ? handlers.onMessage(message) : undefined)
                     .catch(error => handlers.onState(this.state, error instanceof Error ? error : new Error(String(error))));
             },
@@ -661,6 +717,47 @@ export class FeishuProvider {
         }
         console.warn(`[feishu] message detail hydration failed for ${messageId}: ${redactError(lastError, this.config.appSecret)}`);
         return normalizeFeishuMessage(this.config, payload);
+    }
+    /** Fetch and normalize one message through the authenticated Bot. */
+    async messageDetail(messageId, scopeHint = 'group') {
+        const detail = await this.client.im.v1.message.get({
+            path: { message_id: messageId },
+            params: { user_id_type: 'open_id', card_msg_content_type: 'user_card_content', with_sender_name: true },
+        });
+        if (detail.code !== 0)
+            throw new Error(`Feishu message detail failed: ${detail.msg ?? 'unknown'} (${detail.code ?? 'unknown'})`);
+        const message = normalizeFeishuMessageDetail(this.config, detail, scopeHint);
+        if (!message)
+            throw new Error('Feishu message detail did not contain a readable message');
+        return message;
+    }
+    async resolveQuotedMessage(message) {
+        if (!message.replyTo)
+            return message;
+        try {
+            const quoted = await this.messageDetail(message.replyTo, message.conversation.scope);
+            if (quoted.conversation.id !== message.conversation.id) {
+                throw new Error('quoted message belongs to another conversation');
+            }
+            const quotedMessage = {
+                messageId: quoted.messageId,
+                conversationId: quoted.conversation.id,
+                sender: {
+                    id: quoted.sender.id, type: quoted.sender.type,
+                    ...(quoted.sender.idType ? { idType: quoted.sender.idType } : {}),
+                    ...(quoted.sender.name ? { name: quoted.sender.name } : {}),
+                },
+                ...(quoted.content ? { content: quoted.content } : {}),
+                text: quoted.text,
+                attachments: quoted.attachments,
+                createdAtIso: quoted.createdAtIso,
+            };
+            return { ...message, quotedMessage };
+        }
+        catch (error) {
+            console.warn(`[feishu] quoted message hydration failed for ${message.replyTo}: ${redactError(error, this.config.appSecret)}`);
+            return message;
+        }
     }
     async sendText(chatId, text, uuid) {
         const response = await this.client.im.v1.message.create({ params: { receive_id_type: 'chat_id' }, data: { receive_id: chatId, msg_type: 'text', content: JSON.stringify({ text }), ...(uuid ? { uuid } : {}) } });

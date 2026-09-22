@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyFeishuChatMode, FEISHU_MESSAGE_TYPES, FeishuProvider, feishuCardMention, feishuMarkdownCard, feishuMarkdownCards, feishuSelectionCard, feishuStreamingCard, feishuTextCard, hydrateFeishuMessagePayload, normalizeFeishuAction, normalizeFeishuChatBots, normalizeFeishuMessage } from './index.js'
+import { applyFeishuChatMode, FEISHU_MESSAGE_TYPES, FeishuProvider, feishuCardMention, feishuMarkdownCard, feishuMarkdownCards, feishuSelectionCard, feishuStreamingCard, feishuTextCard, hydrateFeishuMessagePayload, normalizeFeishuAction, normalizeFeishuChatBots, normalizeFeishuMessage, normalizeFeishuMessageDetail } from './index.js'
 
 describe('normalizeFeishuMessage', () => {
   const config = { accountId: 'bot-1', appId: 'cli_test', appSecret: 'secret', botOpenId: 'ou_bot', privateConversationMode: 'topic' as const }
@@ -176,6 +176,33 @@ describe('normalizeFeishuMessage', () => {
     const hydrated = hydrateFeishuMessagePayload(payload, { data: { items: [{ msg_type: 'post', body: { content: JSON.stringify({ zh_cn: { content: [[{ tag: 'text', text: 'real body' }]] } }) } }] } })
     expect(normalizeFeishuMessage(config, hydrated)).toMatchObject({ content: { type: 'post' }, text: 'real body' })
   })
+
+  it('preserves the quoted-message relationship without mixing it into visible text', () => {
+    const message = normalizeFeishuMessage(config, { event: {
+      sender: { sender_type: 'user', sender_id: { open_id: 'ou_user' } },
+      message: {
+        message_id: 'om_reply', parent_id: 'om_quoted', chat_id: 'oc_1', chat_type: 'group',
+        message_type: 'text', content: JSON.stringify({ text: 'check this' }),
+      },
+    } })
+    expect(message).toMatchObject({ text: 'check this', replyTo: 'om_quoted' })
+    expect(message).not.toHaveProperty('quotedMessage')
+  })
+
+  it('normalizes an authoritative quoted-message detail with sender name and resources', () => {
+    const message = normalizeFeishuMessageDetail(config, { code: 0, data: { items: [{
+      message_id: 'om_quoted', chat_id: 'oc_1', msg_type: 'post', create_time: '1700000000000',
+      sender: { id: 'ou_author', id_type: 'open_id', sender_type: 'user', sender_name: 'Quoted Author' },
+      body: { content: JSON.stringify({ zh_cn: { content: [[
+        { tag: 'text', text: 'quoted body' }, { tag: 'img', image_key: 'img_quote' },
+      ]] } }) },
+    }] } }, 'topic')
+    expect(message).toMatchObject({
+      messageId: 'om_quoted', conversation: { id: 'oc_1', scope: 'topic' },
+      sender: { id: 'ou_author', idType: 'open_id', type: 'user', name: 'Quoted Author' },
+      text: 'quoted body[图片]', attachments: [{ id: 'img_quote', type: 'image' }],
+    })
+  })
 })
 
 describe('feishuCardMention', () => {
@@ -254,6 +281,46 @@ describe('Feishu interactive cards', () => {
 })
 
 describe('Feishu application administration', () => {
+  it('fetches and normalizes one message detail for quote expansion', async () => {
+    const provider = new FeishuProvider({ accountId: 'bot-1', appId: 'cli_test', appSecret: 'secret' })
+    const get = async () => ({ code: 0, data: { items: [{
+      message_id: 'om_quoted', chat_id: 'oc_1', msg_type: 'text', create_time: '1700000000000',
+      sender: { id: 'ou_author', id_type: 'open_id', sender_type: 'user', sender_name: 'Author' },
+      body: { content: JSON.stringify({ text: 'quoted body' }) },
+    }] } })
+    Object.assign(provider as unknown as { client: unknown }, { client: { im: { v1: { message: { get } } } } })
+    await expect(provider.messageDetail('om_quoted', 'group')).resolves.toMatchObject({
+      messageId: 'om_quoted', conversation: { id: 'oc_1', scope: 'group' },
+      sender: { id: 'ou_author', name: 'Author' }, text: 'quoted body',
+    })
+  })
+
+  it('attaches exactly one same-conversation quoted message to an inbound envelope', async () => {
+    const provider = new FeishuProvider({ accountId: 'bot-1', appId: 'cli_test', appSecret: 'secret' })
+    const current = normalizeFeishuMessage({ accountId: 'bot-1', appId: 'cli_test', appSecret: 'secret' }, { event: {
+      sender: { sender_type: 'user', sender_id: { open_id: 'ou_user' } },
+      message: {
+        message_id: 'om_reply', parent_id: 'om_quoted', chat_id: 'oc_1', chat_type: 'group',
+        message_type: 'text', content: JSON.stringify({ text: 'check this' }),
+      },
+    } })!
+    provider.messageDetail = async () => ({
+      ...current, eventId: 'om_quoted', messageId: 'om_quoted', replyTo: 'om_older',
+      sender: { id: 'ou_author', type: 'user', idType: 'open_id', name: 'Author' },
+      text: 'quoted body', attachments: [{ id: 'img_quoted', type: 'image', name: 'quoted.jpg' }],
+    })
+    const enriched = await (provider as unknown as { resolveQuotedMessage(message: typeof current): Promise<typeof current> }).resolveQuotedMessage(current)
+    expect(enriched.quotedMessage).toEqual({
+      messageId: 'om_quoted', conversationId: 'oc_1',
+      sender: { id: 'ou_author', type: 'user', idType: 'open_id', name: 'Author' },
+      content: { type: 'text', raw: { text: 'check this' } },
+      text: 'quoted body', attachments: [{ id: 'img_quoted', type: 'image', name: 'quoted.jpg' }],
+      createdAtIso: current.createdAtIso,
+    })
+    expect(enriched.quotedMessage).not.toHaveProperty('replyTo')
+    expect(enriched.quotedMessage).not.toHaveProperty('quotedMessage')
+  })
+
   it('resolves and caches user-facing user metadata', async () => {
     const provider = new FeishuProvider({ accountId: 'bot-1', appId: 'cli_test', appSecret: 'secret' })
     let calls = 0

@@ -37,6 +37,23 @@ export type ChannelMention = {
     name: string;
     isAgent: boolean;
 };
+/** One explicitly quoted provider message, resolved by the transport before
+ * product routing. Quotes are intentionally one level deep so a reply cannot
+ * recursively expand an unbounded provider history. */
+export type ChannelQuotedMessage = {
+    messageId: string;
+    conversationId: string;
+    sender: {
+        id: string;
+        type: 'user' | 'bot' | 'app';
+        idType?: ChannelIdentityType;
+        name?: string;
+    };
+    content?: ChannelMessageContent;
+    text: string;
+    attachments: ChannelAttachment[];
+    createdAtIso: string;
+};
 /** Provider-neutral input accepted by a remote channel runtime. */
 export type ChannelInboundMessage = {
     provider: string;
@@ -62,6 +79,7 @@ export type ChannelInboundMessage = {
     content?: ChannelMessageContent;
     text: string;
     replyTo?: string;
+    quotedMessage?: ChannelQuotedMessage;
     attachments: ChannelAttachment[];
     addressedToAgent: boolean;
     mentionsOtherRecipient: boolean;
