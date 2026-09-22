@@ -60,6 +60,7 @@ export type FeishuProviderHandlers = {
 
 export type FeishuChatMode = 'group' | 'p2p' | 'topic'
 export type FeishuChatMetadata = { id: string; name: string; mode: FeishuChatMode }
+export type FeishuChatBotMetadata = { id: string; name: string }
 export type FeishuUserMetadata = { id: string; name: string }
 
 /** Message kinds whose content and resources are normalized by this adapter. */
@@ -85,6 +86,23 @@ function string(value: unknown): string {
 function parseJson(value: unknown): unknown {
   if (typeof value !== 'string') return value
   try { return JSON.parse(value) as unknown } catch { return null }
+}
+
+/** Normalize the observer-scoped bot handles returned by Feishu's current-chat
+ * bot roster endpoint. These Open IDs are the only safe identities for a Bot
+ * to use when it wants to mention a peer Bot in the same chat. */
+export function normalizeFeishuChatBots(value: unknown): FeishuChatBotMetadata[] {
+  const payload = record(value)
+  const data = record(payload?.data)
+  const items = Array.isArray(data?.items) ? data.items : []
+  const seen = new Set<string>()
+  return items.flatMap(item => {
+    const row = record(item)
+    const id = string(row?.bot_id || row?.botId).trim()
+    if (!id.startsWith('ou_') || seen.has(id)) return []
+    seen.add(id)
+    return [{ id, name: string(row?.bot_name || row?.botName).trim() }]
+  })
 }
 
 function cleanText(value: string): string {
@@ -425,6 +443,7 @@ export class FeishuProvider {
   private state: FeishuConnectionState = 'idle'
   private reviveTimer: ReturnType<typeof setInterval> | null = null
   private readonly chatMetadataCache = new Map<string, { expiresAtMs: number; value: Promise<FeishuChatMetadata> }>()
+  private readonly chatBotsCache = new Map<string, { expiresAtMs: number; value: Promise<FeishuChatBotMetadata[]> }>()
   private readonly userMetadataCache = new Map<string, { expiresAtMs: number; value: Promise<FeishuUserMetadata> }>()
   private applicationAdministratorsCache: { expiresAtMs: number; value: Promise<FeishuApplicationAdministrators> } | null = null
 
@@ -572,6 +591,27 @@ export class FeishuProvider {
     try { return await value }
     catch (error) {
       if (this.chatMetadataCache.get(chatId)?.value === value) this.chatMetadataCache.delete(chatId)
+      throw error
+    }
+  }
+
+  /** Return the Bots currently visible in a chat using receiver-scoped Open
+   * IDs. Feishu mention Open IDs are application-scoped, so products must not
+   * substitute identities discovered under another application. */
+  async chatBots(chatId: string, refresh = false): Promise<FeishuChatBotMetadata[]> {
+    const cached = this.chatBotsCache.get(chatId)
+    if (!refresh && cached && cached.expiresAtMs > Date.now()) return cached.value
+    const value = this.client.request<JsonRecord>({
+      method: 'GET', url: `/open-apis/im/v1/chats/${encodeURIComponent(chatId)}/members/bots`,
+    }).then(response => {
+      const code = Number(response.code ?? -1)
+      if (code !== 0) throw new Error(`Feishu chat Bot roster failed: ${string(response.msg) || 'unknown'} (${code})`)
+      return normalizeFeishuChatBots(response)
+    })
+    this.chatBotsCache.set(chatId, { expiresAtMs: Date.now() + 5 * 60_000, value })
+    try { return await value }
+    catch (error) {
+      if (this.chatBotsCache.get(chatId)?.value === value) this.chatBotsCache.delete(chatId)
       throw error
     }
   }

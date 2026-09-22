@@ -57,12 +57,20 @@ export type FeishuChatMetadata = {
     name: string;
     mode: FeishuChatMode;
 };
+export type FeishuChatBotMetadata = {
+    id: string;
+    name: string;
+};
 export type FeishuUserMetadata = {
     id: string;
     name: string;
 };
 /** Message kinds whose content and resources are normalized by this adapter. */
 export declare const FEISHU_MESSAGE_TYPES: readonly ["text", "post", "image", "file", "audio", "media", "interactive"];
+/** Normalize the observer-scoped bot handles returned by Feishu's current-chat
+ * bot roster endpoint. These Open IDs are the only safe identities for a Bot
+ * to use when it wants to mention a peer Bot in the same chat. */
+export declare function normalizeFeishuChatBots(value: unknown): FeishuChatBotMetadata[];
 /** Converts Feishu wire data into the provider-neutral Core envelope. */
 export declare function normalizeFeishuMessage(config: FeishuAccountConfig, payload: unknown): ChannelInboundMessage | null;
 /** Native interactive-card mention syntax. Feishu only guarantees card
@@ -87,6 +95,7 @@ export declare class FeishuProvider {
     private state;
     private reviveTimer;
     private readonly chatMetadataCache;
+    private readonly chatBotsCache;
     private readonly userMetadataCache;
     private applicationAdministratorsCache;
     constructor(config: FeishuAccountConfig);
@@ -107,6 +116,10 @@ export declare class FeishuProvider {
      * are short-lived so renamed groups become visible without an API call for
      * every inbound message. */
     chatMetadata(chatId: string, refresh?: boolean): Promise<FeishuChatMetadata>;
+    /** Return the Bots currently visible in a chat using receiver-scoped Open
+     * IDs. Feishu mention Open IDs are application-scoped, so products must not
+     * substitute identities discovered under another application. */
+    chatBots(chatId: string, refresh?: boolean): Promise<FeishuChatBotMetadata[]>;
     /** Resolve a user display name in the current application's Open ID
      * namespace. The name field requires contact:user.base:readonly and may be
      * empty when the app has not received or published that permission. */

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.39.3
+
+- Resolve and cache receiver-scoped Bot Open IDs from the current Feishu chat so products can route native mentions to peer Bots without confusing them with human mentions.
+
 ## 0.39.2
 
 - Preserve all available sender identity aliases so product allowlists can match either a bot App ID or Open ID.

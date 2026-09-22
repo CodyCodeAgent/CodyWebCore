@@ -22,6 +22,23 @@ function parseJson(value) {
         return null;
     }
 }
+/** Normalize the observer-scoped bot handles returned by Feishu's current-chat
+ * bot roster endpoint. These Open IDs are the only safe identities for a Bot
+ * to use when it wants to mention a peer Bot in the same chat. */
+export function normalizeFeishuChatBots(value) {
+    const payload = record(value);
+    const data = record(payload?.data);
+    const items = Array.isArray(data?.items) ? data.items : [];
+    const seen = new Set();
+    return items.flatMap(item => {
+        const row = record(item);
+        const id = string(row?.bot_id || row?.botId).trim();
+        if (!id.startsWith('ou_') || seen.has(id))
+            return [];
+        seen.add(id);
+        return [{ id, name: string(row?.bot_name || row?.botName).trim() }];
+    });
+}
 function cleanText(value) {
     return value.replace(/[ \t]+/gu, ' ').replace(/ *\n */gu, '\n').replace(/\n{3,}/gu, '\n\n').trim();
 }
@@ -395,6 +412,7 @@ export class FeishuProvider {
     state = 'idle';
     reviveTimer = null;
     chatMetadataCache = new Map();
+    chatBotsCache = new Map();
     userMetadataCache = new Map();
     applicationAdministratorsCache = null;
     constructor(config) {
@@ -547,6 +565,31 @@ export class FeishuProvider {
         catch (error) {
             if (this.chatMetadataCache.get(chatId)?.value === value)
                 this.chatMetadataCache.delete(chatId);
+            throw error;
+        }
+    }
+    /** Return the Bots currently visible in a chat using receiver-scoped Open
+     * IDs. Feishu mention Open IDs are application-scoped, so products must not
+     * substitute identities discovered under another application. */
+    async chatBots(chatId, refresh = false) {
+        const cached = this.chatBotsCache.get(chatId);
+        if (!refresh && cached && cached.expiresAtMs > Date.now())
+            return cached.value;
+        const value = this.client.request({
+            method: 'GET', url: `/open-apis/im/v1/chats/${encodeURIComponent(chatId)}/members/bots`,
+        }).then(response => {
+            const code = Number(response.code ?? -1);
+            if (code !== 0)
+                throw new Error(`Feishu chat Bot roster failed: ${string(response.msg) || 'unknown'} (${code})`);
+            return normalizeFeishuChatBots(response);
+        });
+        this.chatBotsCache.set(chatId, { expiresAtMs: Date.now() + 5 * 60_000, value });
+        try {
+            return await value;
+        }
+        catch (error) {
+            if (this.chatBotsCache.get(chatId)?.value === value)
+                this.chatBotsCache.delete(chatId);
             throw error;
         }
     }

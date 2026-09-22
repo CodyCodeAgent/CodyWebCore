@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyFeishuChatMode, FEISHU_MESSAGE_TYPES, FeishuProvider, feishuCardMention, feishuMarkdownCard, feishuMarkdownCards, feishuSelectionCard, feishuStreamingCard, feishuTextCard, hydrateFeishuMessagePayload, normalizeFeishuAction, normalizeFeishuMessage } from './index.js'
+import { applyFeishuChatMode, FEISHU_MESSAGE_TYPES, FeishuProvider, feishuCardMention, feishuMarkdownCard, feishuMarkdownCards, feishuSelectionCard, feishuStreamingCard, feishuTextCard, hydrateFeishuMessagePayload, normalizeFeishuAction, normalizeFeishuChatBots, normalizeFeishuMessage } from './index.js'
 
 describe('normalizeFeishuMessage', () => {
   const config = { accountId: 'bot-1', appId: 'cli_test', appSecret: 'secret', botOpenId: 'ou_bot', privateConversationMode: 'topic' as const }
@@ -183,6 +183,20 @@ describe('feishuCardMention', () => {
     expect(feishuCardMention('ou_user-1')).toBe('<at id=ou_user-1></at>')
     expect(feishuCardMention('cli_app')).toBe('')
     expect(feishuCardMention('all')).toBe('')
+  })
+})
+
+describe('normalizeFeishuChatBots', () => {
+  it('keeps unique receiver-scoped Bot Open IDs from the live chat roster', () => {
+    expect(normalizeFeishuChatBots({ data: { items: [
+      { bot_id: 'ou_bot_1', bot_name: 'Bot One' },
+      { bot_id: 'ou_bot_1', bot_name: 'Duplicate' },
+      { bot_id: 'cli_app', bot_name: 'Wrong namespace' },
+      { bot_id: 'ou_bot_2', bot_name: 'Bot Two' },
+    ] } })).toEqual([
+      { id: 'ou_bot_1', name: 'Bot One' },
+      { id: 'ou_bot_2', name: 'Bot Two' },
+    ])
   })
 })
 
