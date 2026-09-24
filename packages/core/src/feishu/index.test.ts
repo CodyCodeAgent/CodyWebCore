@@ -234,7 +234,7 @@ describe('Feishu interactive cards', () => {
       config: { update_multi: true },
       body: { direction: 'vertical', elements: [
         { tag: 'markdown', content: '**Result**\n\n- **done**' },
-        { tag: 'note', elements: [{ tag: 'lark_md', content: 'Workspace: demo' }] },
+        { tag: 'markdown', content: '---\nWorkspace: demo' },
       ] },
     })
   })
@@ -308,6 +308,7 @@ describe('Feishu interactive cards', () => {
       body: { direction: 'vertical', elements: expect.any(Array) },
     })
     expect(card).not.toHaveProperty('elements')
+    expect(JSON.stringify(card)).not.toContain('"tag":"note"')
     expect(JSON.stringify(card)).toContain('思考摘要')
     expect(JSON.stringify(card)).toContain('Partial **answer**')
   })

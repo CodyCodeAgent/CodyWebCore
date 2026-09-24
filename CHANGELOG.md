@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.39.7
+
+- Render Feishu card-v2 footer metadata with the supported Markdown component instead of the removed legacy `note` component, fixing HTTP 400 failures on initial and final assistant cards.
+
 ## 0.39.6
 
 - Keep Feishu streaming placeholders and completed Markdown replies on card schema 2.0 so a live message can be patched into a native-table response without a rejected cross-schema update.

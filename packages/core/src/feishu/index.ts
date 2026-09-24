@@ -974,7 +974,7 @@ export function feishuStreamingCard(input: {
     ? `**错误**\n${input.error}`
     : input.answer?.trim() || (input.state === 'received' ? '消息已进入处理队列…' : '正在思考…')
   elements.push({ tag: 'markdown', content: feishuCardMarkdown(body) })
-  if (input.note) elements.push({ tag: 'note', elements: [{ tag: 'plain_text', content: input.note.slice(0, 500) }] })
+  if (input.note) elements.push(feishuV2Note(input.note))
   return {
     schema: '2.0',
     config: { update_multi: true },
@@ -999,15 +999,19 @@ function normalizeFeishuCardMarkdown(markdown: string): string {
 
 function feishuMarkdownCardFromElements(elements: unknown[], note?: string): FeishuCard {
   const bodyElements = elements.length ? [...elements] : [{ tag: 'markdown', content: ' ' }]
-  if (note) bodyElements.push({
-    tag: 'note',
-    elements: [{ tag: 'lark_md', content: note.slice(0, 500) }],
-  })
+  if (note) bodyElements.push(feishuV2Note(note))
   return {
     schema: '2.0',
     config: { update_multi: true },
     body: { direction: 'vertical', elements: bodyElements },
   }
+}
+
+/** Card schema 2.0 removed the legacy `note` component. Keep product metadata
+ * in a regular Markdown element so both initial sends and later patches remain
+ * valid card-v2 payloads. */
+function feishuV2Note(note: string): Record<string, unknown> {
+  return { tag: 'markdown', content: feishuCardMarkdown(`---\n${note.slice(0, 500)}`) }
 }
 
 function sourceLines(lines: string[], map: [number, number]): string {
