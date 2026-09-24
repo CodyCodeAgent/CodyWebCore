@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.39.5
+
+- Render GFM pipe tables in final Feishu assistant replies as native card-v2 tables instead of raw pipe-delimited text.
+- Split long final replies by rendered card elements so table rows stay intact across multi-card responses.
+
 ## 0.39.4
 
 - Resolve one explicitly quoted Feishu message through the Bot message-detail API and expose its normalized text, sender and attachments on the provider-neutral inbound envelope.

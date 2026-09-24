@@ -230,12 +230,42 @@ describe('normalizeFeishuChatBots', () => {
 describe('Feishu interactive cards', () => {
   it('renders assistant Markdown without a header', () => {
     expect(feishuMarkdownCard('## Result\n\n- **done**', { note: 'Workspace: demo' })).toEqual({
+      schema: '2.0',
       config: { wide_screen_mode: true },
-      elements: [
+      body: { direction: 'vertical', elements: [
         { tag: 'markdown', content: '**Result**\n\n- **done**' },
-        { tag: 'note', elements: [{ tag: 'plain_text', content: 'Workspace: demo' }] },
+        { tag: 'note', elements: [{ tag: 'lark_md', content: 'Workspace: demo' }] },
+      ] },
+    })
+  })
+
+  it('renders a GFM pipe table as a native Feishu table', () => {
+    const card = feishuMarkdownCard([
+      'before', '',
+      '| Budget account | BudgetBindID |',
+      '| --- | --- |',
+      '| 7676047556366912552 | 7676047772861155368 |',
+      '| 7643709362225481755 | 7685962976632769577 |',
+      '', 'after',
+    ].join('\n')) as { body: { elements: Array<Record<string, unknown>> } }
+    expect(card.body.elements.map(element => element.tag)).toEqual(['markdown', 'table', 'markdown'])
+    expect(card.body.elements[1]).toMatchObject({
+      columns: [
+        { name: 'c0', display_name: 'Budget account', data_type: 'lark_md' },
+        { name: 'c1', display_name: 'BudgetBindID', data_type: 'lark_md' },
+      ],
+      rows: [
+        { c0: '7676047556366912552', c1: '7676047772861155368' },
+        { c0: '7643709362225481755', c1: '7685962976632769577' },
       ],
     })
+  })
+
+  it('keeps table-looking text inside a code fence as Markdown', () => {
+    const card = feishuMarkdownCard('```text\n| a | b |\n| - | - |\n| 1 | 2 |\n```') as { body: { elements: Array<Record<string, unknown>> } }
+    expect(card.body.elements).toHaveLength(1)
+    expect(card.body.elements[0]).toMatchObject({ tag: 'markdown' })
+    expect(card.body.elements[0].content).toContain('| a | b |')
   })
 
   it('publishes the message kinds normalized by the adapter', () => {
@@ -246,7 +276,7 @@ describe('Feishu interactive cards', () => {
     const markdown = `${'a'.repeat(20_000)}\n${'b'.repeat(20_000)}`
     const cards = feishuMarkdownCards(markdown, { note: 'route' })
     expect(cards).toHaveLength(2)
-    expect(cards.map(card => (card.elements as Array<{ content?: string }>)[0]?.content).join('')).toBe(markdown.replace('\n', ''))
+    expect(cards.map(card => ((card.body as { elements: Array<{ content?: string }> }).elements[0]?.content)).join('')).toBe(markdown.replace('\n', ''))
     expect(JSON.stringify(cards)).toContain('1/2')
     expect(JSON.stringify(cards)).toContain('2/2')
   })

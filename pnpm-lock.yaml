@@ -35,6 +35,9 @@ importers:
 
   packages/core:
     devDependencies:
+      '@types/markdown-it':
+        specifier: ^14.2.0
+        version: 14.2.0
       '@types/node':
         specifier: ^22.20.0
         version: 22.20.1

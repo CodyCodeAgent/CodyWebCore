@@ -1,4 +1,6 @@
 import * as Lark from '@larksuiteoapi/node-sdk'
+import MarkdownIt from 'markdown-it'
+import type Token from 'markdown-it/lib/token.mjs'
 import { createHash } from 'node:crypto'
 import { createWriteStream } from 'node:fs'
 import { mkdir, rename, stat, unlink } from 'node:fs/promises'
@@ -11,6 +13,10 @@ export type FeishuDomain = 'feishu' | 'lark'
 export type FeishuConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'failed'
 export type FeishuCard = Record<string, unknown>
 export type FeishuStreamState = 'received' | 'thinking' | 'answering' | 'completed' | 'failed'
+
+const feishuMarkdownParser = new MarkdownIt({ html: false, linkify: false, breaks: false })
+const FEISHU_CARD_CONTENT_LIMIT = 28_000
+const FEISHU_CARD_ELEMENT_BUDGET = 26_000
 
 export type FeishuApplicationAdministrators = {
   /** The current application's owner in this application's Open ID namespace. */
@@ -914,30 +920,32 @@ export function feishuTextCard(title: string, markdown: string, options: { color
 /** Renders an assistant response as native Feishu card Markdown without adding
  * product-specific chrome. Products retain control over reply/thread routing. */
 export function feishuMarkdownCard(markdown: string, options: { note?: string } = {}): FeishuCard {
-  const elements: unknown[] = [{ tag: 'markdown', content: feishuCardMarkdown(markdown) }]
-  if (options.note) elements.push({ tag: 'note', elements: [{ tag: 'plain_text', content: options.note.slice(0, 500) }] })
-  return {
-    config: { wide_screen_mode: true },
-    elements,
-  }
+  return feishuMarkdownCardFromElements(feishuMarkdownElements(markdown), options.note)
 }
 
 /** Split long assistant output into Feishu-safe cards without silently dropping
  * the tail. Products can reply each card with a stable per-part UUID. */
 export function feishuMarkdownCards(markdown: string, options: { note?: string } = {}): FeishuCard[] {
-  const normalized = normalizeFeishuCardMarkdown(markdown) || ' '
-  const chunks: string[] = []
-  let remaining = normalized
-  while (remaining.length > 28_000) {
-    const boundary = remaining.lastIndexOf('\n', 28_000)
-    const end = boundary > 14_000 ? boundary : 28_000
-    chunks.push(remaining.slice(0, end))
-    remaining = remaining.slice(end).replace(/^\n/u, '')
+  const groups: unknown[][] = []
+  let current: unknown[] = []
+  let currentSize = 0
+  for (const element of feishuMarkdownElements(markdown)) {
+    for (const part of splitOversizedFeishuElement(element)) {
+      const size = JSON.stringify(part).length
+      if (current.length && currentSize + size > FEISHU_CARD_ELEMENT_BUDGET) {
+        groups.push(current)
+        current = []
+        currentSize = 0
+      }
+      current.push(part)
+      currentSize += size
+    }
   }
-  chunks.push(remaining || ' ')
-  return chunks.map((content, index) => feishuMarkdownCard(content, {
-    ...(options.note ? { note: chunks.length > 1 ? `${options.note}  |  ${index + 1}/${chunks.length}` : options.note } : {}),
-  }))
+  if (current.length || groups.length === 0) groups.push(current.length ? current : [{ tag: 'markdown', content: ' ' }])
+  return groups.map((elements, index) => feishuMarkdownCardFromElements(
+    elements,
+    options.note ? (groups.length > 1 ? `${options.note}  |  ${index + 1}/${groups.length}` : options.note) : undefined,
+  ))
 }
 
 /** A single patchable card for a live Codex turn. `reasoning` is intended for
@@ -975,7 +983,7 @@ export function feishuStreamingCard(input: {
 }
 
 function feishuCardMarkdown(markdown: string): string {
-  return normalizeFeishuCardMarkdown(markdown).slice(0, 28_000) || ' '
+  return normalizeFeishuCardMarkdown(markdown).slice(0, FEISHU_CARD_CONTENT_LIMIT) || ' '
 }
 
 function normalizeFeishuCardMarkdown(markdown: string): string {
@@ -986,6 +994,159 @@ function normalizeFeishuCardMarkdown(markdown: string): string {
     const heading = line.match(/^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/u)
     return heading ? `**${heading[1]}**` : line
   }).join('\n')
+}
+
+function feishuMarkdownCardFromElements(elements: unknown[], note?: string): FeishuCard {
+  const bodyElements = elements.length ? [...elements] : [{ tag: 'markdown', content: ' ' }]
+  if (note) bodyElements.push({
+    tag: 'note',
+    elements: [{ tag: 'lark_md', content: note.slice(0, 500) }],
+  })
+  return {
+    schema: '2.0',
+    config: { wide_screen_mode: true },
+    body: { direction: 'vertical', elements: bodyElements },
+  }
+}
+
+function sourceLines(lines: string[], map: [number, number]): string {
+  return lines.slice(map[0], map[1]).join('\n')
+}
+
+function matchingClose(tokens: Token[], openIndex: number): number {
+  const open = tokens[openIndex]
+  const closeType = open.type.replace(/_open$/u, '_close')
+  let depth = 1
+  for (let index = openIndex + 1; index < tokens.length; index += 1) {
+    if (tokens[index].type === open.type) depth += 1
+    else if (tokens[index].type === closeType && --depth === 0) return index
+  }
+  return tokens.length - 1
+}
+
+function feishuTableElement(tokens: Token[]): Record<string, unknown> | null {
+  const headers: string[] = []
+  const rows: string[][] = []
+  let inHeader = false
+  let inBody = false
+  let inCell = false
+  let currentRow: string[] | null = null
+  for (const token of tokens) {
+    switch (token.type) {
+      case 'thead_open': inHeader = true; break
+      case 'thead_close': inHeader = false; break
+      case 'tbody_open': inBody = true; break
+      case 'tbody_close': inBody = false; break
+      case 'tr_open': currentRow = []; break
+      case 'tr_close':
+        if (inBody && currentRow) rows.push(currentRow)
+        currentRow = null
+        break
+      case 'th_open':
+      case 'td_open': inCell = true; break
+      case 'th_close':
+      case 'td_close': inCell = false; break
+      case 'inline':
+        if (inCell) {
+          if (inHeader) headers.push(token.content)
+          else if (currentRow) currentRow.push(token.content)
+        }
+        break
+    }
+  }
+  if (!headers.length) return null
+  return {
+    tag: 'table',
+    page_size: Math.min(10, Math.max(1, rows.length || 1)),
+    row_height: 'low',
+    header_style: {
+      text_align: 'left', text_size: 'normal', background_style: 'grey',
+      text_color: 'default', bold: true, lines: 1,
+    },
+    columns: headers.map((header, index) => ({
+      name: `c${index}`, display_name: header || ' ', data_type: 'lark_md', width: 'auto',
+    })),
+    rows: rows.map(row => Object.fromEntries(headers.map((_, index) => [`c${index}`, row[index] ?? '']))),
+  }
+}
+
+/** Convert CommonMark/GFM blocks into Feishu card-v2 elements. Feishu's
+ * Markdown element intentionally does not implement pipe tables, so tables
+ * become native components while prose, lists and code keep their source. */
+function feishuMarkdownElements(markdown: string): unknown[] {
+  if (!markdown.trim()) return [{ tag: 'markdown', content: ' ' }]
+  const tokens = feishuMarkdownParser.parse(markdown, {})
+  const lines = markdown.split('\n')
+  const elements: unknown[] = []
+  const buffer: string[] = []
+  const flush = () => {
+    const content = normalizeFeishuCardMarkdown(buffer.join('\n\n')).replace(/\n{3,}/gu, '\n\n').trim()
+    if (content) elements.push({ tag: 'markdown', content })
+    buffer.length = 0
+  }
+  let index = 0
+  while (index < tokens.length) {
+    const token = tokens[index]
+    if (token.level !== 0) { index += 1; continue }
+    if (token.type === 'table_open') {
+      flush()
+      const closeIndex = matchingClose(tokens, index)
+      const table = feishuTableElement(tokens.slice(index, closeIndex + 1))
+      if (table) elements.push(table)
+      else if (token.map) buffer.push(sourceLines(lines, token.map as [number, number]))
+      index = closeIndex + 1
+      continue
+    }
+    if (token.type.endsWith('_open') && token.map) {
+      buffer.push(sourceLines(lines, token.map as [number, number]))
+      index = matchingClose(tokens, index) + 1
+      continue
+    }
+    if ((token.type === 'fence' || token.type === 'code_block') && token.map) {
+      buffer.push(sourceLines(lines, token.map as [number, number]))
+      index += 1
+      continue
+    }
+    if (token.type === 'hr') buffer.push('---')
+    index += 1
+  }
+  flush()
+  return elements.length ? elements : [{ tag: 'markdown', content: normalizeFeishuCardMarkdown(markdown) || ' ' }]
+}
+
+function splitMarkdownContent(content: string): string[] {
+  const chunks: string[] = []
+  let remaining = content
+  while (remaining.length > FEISHU_CARD_ELEMENT_BUDGET) {
+    const boundary = remaining.lastIndexOf('\n', FEISHU_CARD_ELEMENT_BUDGET)
+    const end = boundary > FEISHU_CARD_ELEMENT_BUDGET / 2 ? boundary : FEISHU_CARD_ELEMENT_BUDGET
+    chunks.push(remaining.slice(0, end))
+    remaining = remaining.slice(end).replace(/^\n/u, '')
+  }
+  chunks.push(remaining || ' ')
+  return chunks
+}
+
+function splitOversizedFeishuElement(element: unknown): unknown[] {
+  if (!element || typeof element !== 'object') return [element]
+  const value = element as Record<string, unknown>
+  if (value.tag === 'markdown' && typeof value.content === 'string') {
+    return splitMarkdownContent(value.content).map(content => ({ ...value, content }))
+  }
+  if (value.tag !== 'table' || !Array.isArray(value.rows) || JSON.stringify(value).length <= FEISHU_CARD_ELEMENT_BUDGET) return [value]
+  const rows = value.rows as unknown[]
+  const parts: unknown[] = []
+  let group: unknown[] = []
+  for (const row of rows) {
+    const candidate = { ...value, rows: [...group, row], page_size: Math.min(10, Math.max(1, group.length + 1)) }
+    if (group.length && JSON.stringify(candidate).length > FEISHU_CARD_ELEMENT_BUDGET) {
+      parts.push({ ...value, rows: group, page_size: Math.min(10, group.length) })
+      group = []
+    }
+    group.push(row)
+  }
+  if (group.length) parts.push({ ...value, rows: group, page_size: Math.min(10, group.length) })
+  return parts.length ? parts : [value]
 }
 
 /** Selection card for product target pickers. Static selects avoid Feishu's
