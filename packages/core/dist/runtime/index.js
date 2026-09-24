@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { isNotification, isServerRequest, normalizeRpcResponse, } from '../protocol/index.js';
-export const CODY_WEB_CORE_VERSION = '0.39.6';
+export const CODY_WEB_CORE_VERSION = '0.39.8';
 export function appServerRuntimeProfile(kind, command) {
     if (kind === 'traex') {
         return {

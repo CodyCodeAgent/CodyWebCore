@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.39.8
+
+- Publish the compiled Feishu adapter containing the card-v2 footer fix so GitHub consumers execute the corrected payload builder.
+
 ## 0.39.7
 
 - Render Feishu card-v2 footer metadata with the supported Markdown component instead of the removed legacy `note` component, fixing HTTP 400 failures on initial and final assistant cards.
