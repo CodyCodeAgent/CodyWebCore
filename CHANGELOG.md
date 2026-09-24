@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.39.6
+
+- Keep Feishu streaming placeholders and completed Markdown replies on card schema 2.0 so a live message can be patched into a native-table response without a rejected cross-schema update.
+
 ## 0.39.5
 
 - Render GFM pipe tables in final Feishu assistant replies as native card-v2 tables instead of raw pipe-delimited text.

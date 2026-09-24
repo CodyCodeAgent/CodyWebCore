@@ -976,9 +976,10 @@ export function feishuStreamingCard(input: {
   elements.push({ tag: 'markdown', content: feishuCardMarkdown(body) })
   if (input.note) elements.push({ tag: 'note', elements: [{ tag: 'plain_text', content: input.note.slice(0, 500) }] })
   return {
-    config: { wide_screen_mode: true, update_multi: true },
+    schema: '2.0',
+    config: { update_multi: true },
     header: { template: presentation.color, title: { tag: 'plain_text', content: `${presentation.icon} ${presentation.label}` } },
-    elements,
+    body: { direction: 'vertical', elements },
   }
 }
 
@@ -1004,7 +1005,7 @@ function feishuMarkdownCardFromElements(elements: unknown[], note?: string): Fei
   })
   return {
     schema: '2.0',
-    config: { wide_screen_mode: true },
+    config: { update_multi: true },
     body: { direction: 'vertical', elements: bodyElements },
   }
 }

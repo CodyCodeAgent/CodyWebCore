@@ -212,7 +212,7 @@ describe('Feishu interactive cards', () => {
     it('renders assistant Markdown without a header', () => {
         expect(feishuMarkdownCard('## Result\n\n- **done**', { note: 'Workspace: demo' })).toEqual({
             schema: '2.0',
-            config: { wide_screen_mode: true },
+            config: { update_multi: true },
             body: { direction: 'vertical', elements: [
                     { tag: 'markdown', content: '**Result**\n\n- **done**' },
                     { tag: 'note', elements: [{ tag: 'lark_md', content: 'Workspace: demo' }] },
@@ -276,9 +276,12 @@ describe('Feishu interactive cards', () => {
     it('renders a patchable card with reasoning summary and partial answer', () => {
         const card = feishuStreamingCard({ state: 'answering', reasoning: 'Checking the route', answer: 'Partial **answer**', note: 'YOLO' });
         expect(card).toMatchObject({
-            config: { wide_screen_mode: true, update_multi: true },
+            schema: '2.0',
+            config: { update_multi: true },
             header: { template: 'turquoise' },
+            body: { direction: 'vertical', elements: expect.any(Array) },
         });
+        expect(card).not.toHaveProperty('elements');
         expect(JSON.stringify(card)).toContain('思考摘要');
         expect(JSON.stringify(card)).toContain('Partial **answer**');
     });
