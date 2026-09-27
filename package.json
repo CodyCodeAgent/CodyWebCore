@@ -1,6 +1,6 @@
 {
   "name": "@codycodeagent/cody-web-core",
-  "version": "0.39.8",
+  "version": "0.40.0",
   "description": "Shared Codex protocol, runtime, and conversation primitives for CodyWeb products",
   "license": "MIT",
   "type": "module",
@@ -50,6 +50,10 @@
     "./feishu": {
       "types": "./packages/core/dist/feishu/index.d.ts",
       "import": "./packages/core/dist/feishu/index.js"
+    },
+    "./task": {
+      "types": "./packages/core/dist/task/index.d.ts",
+      "import": "./packages/core/dist/task/index.js"
     },
     "./vue": {
       "types": "./packages/vue/dist/index.d.ts",

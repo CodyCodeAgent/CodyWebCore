@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.40.0
+
+- Add provider-neutral task lifecycle snapshots, validated transitions, terminal-state helpers and in-process task notifications.
+- Keep durable task storage, routing and recovery product-owned so channel adapters and MCP transports can project the same execution without creating a second agent runtime.
+
 ## 0.39.8
 
 - Publish the compiled Feishu adapter containing the card-v2 footer fix so GitHub consumers execute the corrected payload builder.

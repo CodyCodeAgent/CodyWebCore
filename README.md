@@ -8,6 +8,8 @@ Framework-neutral Codex App Server primitives shared by CodyWebUI and CodyWork.
 `@codycodeagent/cody-web-core/conversation` owns deterministic realtime/history merge rules.
 `@codycodeagent/cody-web-core/composer` owns canonical queue/steer intent, turn attachments, trigger parsing and selection reconciliation.
 `@codycodeagent/cody-web-core/client` owns reconnect reconciliation and latest-wins native history reads.
+`@codycodeagent/cody-web-core/channel` owns provider-neutral remote-message and delivery primitives.
+`@codycodeagent/cody-web-core/task` owns provider-neutral task lifecycle snapshots, transitions and notifications.
 
 `@codycodeagent/cody-web-core/vue` provides the shared Vue conversation surface and composer. It deliberately accepts product-owned data and callbacks: CodyWork keeps its Demand/Worktree policy while CodyWeb keeps its thread and project capabilities.
 

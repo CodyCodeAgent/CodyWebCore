@@ -15,7 +15,7 @@ runtime ──► session ──► conversation ◄── client
 
 composer (independent product input rules)
 
-protocol/runtime/session/conversation/composer/presentation/client
+protocol/runtime/session/conversation/composer/presentation/client/channel/task
                               │
                               ▼
                              vue
@@ -29,6 +29,7 @@ protocol/runtime/session/conversation/composer/presentation/client
 - `presentation` owns framework-neutral risk and timeline view models.
 - `client` owns reconnecting subscriptions and latest-wins history reads.
 - `channel` owns provider-neutral remote-message identities, durable delivery semantics and projections from authoritative conversation state. Products provide persistence, routing and policy; providers own wire formats.
+- `task` owns provider-neutral lifecycle snapshots, validated transitions and in-process notifications. Products provide durable storage, routing, recovery and authorization.
 - `vue` renders the shared conversation and composer surfaces. It receives product-owned callbacks and policy labels rather than product services.
 
 Imports must follow this direction. A lower layer never imports Vue or a product repository. Product code imports public package entrypoints and must not reach into `packages/*/src` or generated schema files.
@@ -47,6 +48,7 @@ Imports must follow this direction. A lower layer never imports Vue or a product
 | Workspace roots and write access | product policy adapter; Core can preserve or narrow, never widen |
 | Product audit/cost/checkpoints | product adapter consuming normalized events |
 | Remote-channel delivery and conversation projection | `channel`, with product persistence and policy ports |
+| Cross-channel task lifecycle | `task`, with product persistence, routing and recovery ports |
 | Feishu wire protocol, browser notifications, catalog and workspace navigation | product/provider adapter |
 
 Products must use `normalizeCodexNotification`, selectors such as `latestTerminalTurnEvent`, and the conversation reducer instead of switching on native Turn/item methods. Direct wire parsing is allowed only at a named adapter boundary for data that Core intentionally does not model, such as an MCP image payload, rate-limit snapshot, catalog Thread DTO, or third-party delivery envelope.
