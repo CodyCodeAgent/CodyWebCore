@@ -24,6 +24,15 @@ describe('channel turn projection', () => {
         ]);
         expect(projectChannelTurn(state, 'turn-1', 4)).toMatchObject({ status: 'completed', terminal: true, assistantText: 'answer', assistantImages: [] });
     });
+    it('retains a legacy streamed answer when the provider omitted assistant.completed', () => {
+        const event = (type, data = {}) => ({
+            id: `${type}-${JSON.stringify(data)}`, type, threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-09-05T00:00:00.000Z', data,
+        });
+        const state = reduceConversationEvents(createConversationState('thread-1'), [
+            event('turn.started'), event('assistant.delta', { text: 'legacy ' }), event('assistant.delta', { text: 'answer' }), event('turn.completed'),
+        ]);
+        expect(projectChannelTurn(state, 'turn-1', 4)).toMatchObject({ status: 'completed', terminal: true, assistantText: 'legacy answer', assistantImages: [] });
+    });
     it('projects structured and Markdown images once while retaining authoritative text', () => {
         const state = createConversationState('thread-1');
         state.turns['turn-1'] = { id: 'turn-1', lifecycle: 'completed' };

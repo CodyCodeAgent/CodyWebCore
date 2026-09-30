@@ -1,6 +1,6 @@
 import { type ChildProcessWithoutNullStreams, type SpawnOptionsWithoutStdio } from 'node:child_process';
 import { type RuntimeNotification, type ServerRequest } from '../protocol/index.js';
-export declare const CODY_WEB_CORE_VERSION = "0.42.0";
+export declare const CODY_WEB_CORE_VERSION = "0.43.0";
 export type AppServerRuntimeKind = 'codex' | 'traex';
 /**
  * Product-owned definition of an installed AI Runtime.
