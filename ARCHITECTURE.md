@@ -9,6 +9,7 @@ protocol ───────────────┐
    │                    │
    ▼                    ▼
 runtime ──► session ──► conversation ◄── client
+acp ────────────────────┘
                │             │
                │             ▼
                └──────► presentation
@@ -23,6 +24,7 @@ protocol/runtime/session/conversation/composer/presentation/client/channel/task
 
 - `protocol` owns generated schema, typed RPC calls, capability checks and tolerant wire readers.
 - `runtime` owns the single-start App Server process, JSON-RPC transport, initialization, pending server requests and diagnostics. A timeout or transport failure marks that owner unavailable; it never creates a replacement process.
+- `acp` owns shell-free ACP CLI startup, protocol initialization, one native Session per process, Session create/load/resume/close, prompt/cancel/config transport and exactly-once protocol permission routing. It intentionally does not choose product policy or normalize provider updates into a product feed.
 - `session` is the only raw-notification-to-`CodexEvent` interpretation path. It owns native Thread attachment, Turn coordination, retry authority and approval routing.
 - `conversation` owns deterministic reducer state, history/live reconciliation, terminal authority, overlays, timeline entries and feed selection.
 - `composer` owns framework-neutral input intent, queue/steer selection, attachments and option reconciliation.
@@ -45,6 +47,7 @@ Imports must follow this direction. A lower layer never imports Vue or a product
 | Browser realtime connection | WebSocket open/close plus application heartbeat; unrelated HTTP health checks never change conversation state |
 | Client command admission | Core optimistic outbox plus process-owner idempotency keyed by product binding and client command id |
 | Approval decision | injected product policy; Core transports and reconciles the request |
+| ACP process/Session transport | `acp`; product adapters map updates and supply the approval policy |
 | Workspace roots and write access | product policy adapter; Core can preserve or narrow, never widen |
 | Product audit/cost/checkpoints | product adapter consuming normalized events |
 | Remote-channel delivery and conversation projection | `channel`, with product persistence and policy ports |

@@ -1,15 +1,38 @@
+/**
+ * Provider-neutral journal coordinator. It deliberately does not infer a
+ * provider's native history durability: callers persist every event only when
+ * their provider declares that a product replay cache is required.
+ */
 export class ConversationEventJournalCoordinator {
     store;
     constructor(store) {
         this.store = store;
     }
-    async append(conversationId, event) { await this.store.append(conversationId, event); }
-    async snapshot(conversationId, native) { return mergeConversationSnapshotWithJournal(native, await this.store.read(conversationId)); }
-    async replace(conversationId, journal) { await this.store.replace(conversationId, journal); }
-    async clear(conversationId, atIso = new Date().toISOString()) { await this.store.replace(conversationId, { events: [], nativeEventsAfterIso: atIso, compactedAtIso: atIso }); }
+    async append(conversationId, event) {
+        await this.store.append(conversationId, event);
+    }
+    async snapshot(conversationId, native) {
+        return mergeConversationSnapshotWithJournal(native, await this.store.read(conversationId));
+    }
+    async replace(conversationId, journal) {
+        await this.store.replace(conversationId, journal);
+    }
+    /** Keep the provider Session intact while making its pre-clear in-memory
+     * events ineligible for a later replay. */
+    async clear(conversationId, atIso = new Date().toISOString()) {
+        await this.store.replace(conversationId, { events: [], nativeEventsAfterIso: atIso, compactedAtIso: atIso });
+    }
 }
+/**
+ * Reconciles a provider snapshot with a durable product journal. Event IDs are
+ * the authority for deduplication; timestamp ordering is only used to place
+ * two distinct events from different sources predictably. The native watermark
+ * is preserved because it belongs to the provider owner, not the journal.
+ */
 export function mergeConversationSnapshotWithJournal(native, journal) {
-    const current = journal.nativeEventsAfterIso ? native.events.filter((event) => event.atIso > journal.nativeEventsAfterIso) : native.events;
+    const current = journal.nativeEventsAfterIso
+        ? native.events.filter((event) => event.atIso > journal.nativeEventsAfterIso)
+        : native.events;
     const seen = new Set();
     const ordered = [];
     for (const event of [...journal.events, ...current]) {
@@ -21,8 +44,15 @@ export function mergeConversationSnapshotWithJournal(native, journal) {
     ordered.sort((left, right) => left.event.atIso.localeCompare(right.event.atIso) || left.index - right.index);
     return { events: ordered.map((item) => item.event), watermark: native.watermark };
 }
+/** A bounded, role-bearing transcript source that a provider can turn into an
+ * explicit handoff summary before its verbose journal is compacted. Core does
+ * not invoke a model or decide the summary language. */
 export function conversationHandoffTranscript(events, maxCharacters = 24_000) {
-    const transcript = events.filter((event) => event.type === 'user.completed' || event.type === 'assistant.completed').map((event) => `${event.type === 'user.completed' ? 'User' : 'Assistant'}: ${eventText(event).trim()}`).filter((line) => !line.endsWith(':')).join('\n\n');
+    const transcript = events
+        .filter((event) => event.type === 'user.completed' || event.type === 'assistant.completed')
+        .map((event) => `${event.type === 'user.completed' ? 'User' : 'Assistant'}: ${eventText(event).trim()}`)
+        .filter((line) => !line.endsWith(':'))
+        .join('\n\n');
     const bounded = Math.max(1, Math.trunc(maxCharacters));
     if (transcript.length <= bounded)
         return transcript;
@@ -30,12 +60,24 @@ export function conversationHandoffTranscript(events, maxCharacters = 24_000) {
     const tail = Math.max(1, bounded - head);
     return `${transcript.slice(0, head)}\n\n… (middle history omitted) …\n\n${transcript.slice(-tail)}`;
 }
+/** Creates the minimal replay record retained after a product has obtained a
+ * provider-generated handoff. `decorate` lets products add their own durable
+ * conversation identifier without leaking it into Core's portable event type. */
 export function createConversationHandoffReplay(input) {
     const createId = input.createId ?? ((kind) => `handoff:${input.turnId}:${kind}`);
     const decorate = input.decorate ?? ((event) => event);
     const notice = input.notice ?? 'Conversation history was compacted into the following handoff summary.';
-    const event = (type, kind, data) => decorate({ id: createId(kind), type, threadId: input.threadId, turnId: input.turnId, atIso: input.atIso, data });
-    return [event('user.completed', 'user', { text: notice }), event('assistant.completed', 'assistant', { text: input.summary }), event('turn.completed', 'completed', { status: 'completed' })];
+    const event = (type, kind, data) => decorate({
+        id: createId(kind), type, threadId: input.threadId, turnId: input.turnId, atIso: input.atIso, data,
+    });
+    return [
+        event('user.completed', 'user', { text: notice }),
+        event('assistant.completed', 'assistant', { text: input.summary }),
+        event('turn.completed', 'completed', { status: 'completed' }),
+    ];
 }
-function eventText(event) { const value = event.data.text; return typeof value === 'string' ? value : ''; }
+function eventText(event) {
+    const value = event.data.text;
+    return typeof value === 'string' ? value : '';
+}
 //# sourceMappingURL=journal.js.map

@@ -4,6 +4,7 @@ Framework-neutral Codex App Server primitives shared by CodyWebUI and CodyWork.
 
 `@codycodeagent/cody-web-core/protocol` owns wire normalization and capabilities.
 `@codycodeagent/cody-web-core/runtime` owns a single-start service-level App Server host.
+`@codycodeagent/cody-web-core/acp` owns shell-free ACP process startup, native Session lifecycle and one-shot protocol request routing for ACP-compatible CLIs.
 `@codycodeagent/cody-web-core/session` owns typed thread/turn coordination, notification normalization, retry semantics, and approval routing.
 `@codycodeagent/cody-web-core/conversation` owns deterministic realtime/history merge rules.
 `@codycodeagent/cody-web-core/composer` owns canonical queue/steer intent, turn attachments, trigger parsing and selection reconciliation.
@@ -15,7 +16,7 @@ Framework-neutral Codex App Server primitives shared by CodyWebUI and CodyWork.
 
 ## Ownership boundary
 
-- Core owns Codex schema/RPC, process lifecycle, native thread/turn state, retries, normalized events, history/live reconciliation, Markdown and reusable Vue conversation controls.
+- Core owns Codex schema/RPC, Codex and ACP process lifecycle, native thread/turn or Session transport state, retries, normalized events, history/live reconciliation, Markdown and reusable Vue conversation controls.
 - Products own routes, persistence outside native Codex history, workspace navigation, policy decisions, audits and third-party integrations.
 - A product may narrow an execution policy, but Core never widens readable or writable roots.
 
