@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.43.0
+
+- Add ACP Session lifecycle and registry primitives, durable conversation-event journaling, and append/requeue reconciliation for ACP-compatible runtimes.
+- Keep a completed ACP turn readable when a legacy provider persisted only canonical assistant deltas, without letting a later delta replace a settled answer.
+- Render GFM tables as native Feishu card-v2 tables and preserve every oversized table or response chunk for product delivery.
+- Synchronize the root, Core, and Vue workspace package versions for this shared release.
+
 ## 0.42.0
 
 - Treat explicit local Markdown file links as the same reusable `open-file` interaction as inline file references, while preserving web, protocol and document-fragment links as ordinary anchors.

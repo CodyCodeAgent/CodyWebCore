@@ -283,8 +283,15 @@ export function projectChannelTurn(state: ConversationState, turnId: string, rev
   const authoritativeMessages = terminal
     ? assistantMessages.filter(message => message.messageType !== 'agentMessage.live' && message.messageType !== 'plan.live')
     : assistantMessages
-  const assistantText = authoritativeMessages.map(message => message.text).filter(Boolean).join('\n\n').trim()
-  const assistantImages = [...new Set(authoritativeMessages.flatMap(message => [
+  // Some early ACP providers persisted their streamed deltas but omitted the
+  // terminal assistant.completed event. A completed turn may still project
+  // that canonical live message when no settled assistant message exists;
+  // never let a late delta override an existing settled response.
+  const renderedMessages = terminal && !authoritativeMessages.some(message => Boolean(message.text.trim()))
+    ? assistantMessages
+    : authoritativeMessages
+  const assistantText = renderedMessages.map(message => message.text).filter(Boolean).join('\n\n').trim()
+  const assistantImages = [...new Set(renderedMessages.flatMap(message => [
     ...(message.images ?? []),
     ...extractMarkdownImageReferences(message.text).map(reference => reference.source),
   ]).filter(Boolean))]

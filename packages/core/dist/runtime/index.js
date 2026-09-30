@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { isNotification, isServerRequest, normalizeRpcResponse, } from '../protocol/index.js';
-export const CODY_WEB_CORE_VERSION = '0.42.0';
+export const CODY_WEB_CORE_VERSION = '0.43.0';
 /**
  * Immutable, framework-neutral catalog of installed AI Runtimes.
  *
