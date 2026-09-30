@@ -1,8 +1,13 @@
 /** Deterministic conversation state primitives. They deliberately contain no Vue/React state. */
 export * from './history-window.js';
+export * from './journal.js';
 export * from './messages.js';
 import { type ConversationMessage, type ConversationTool } from './messages.js';
-export type CodexEventType = 'thread.attached' | 'thread.context.updated' | 'thread.compaction.started' | 'thread.compacted' | 'turn.started' | 'turn.activity' | 'turn.retrying' | 'turn.disconnected' | 'turn.completed' | 'turn.failed' | 'turn.interrupted' | 'command.queued' | 'command.bound' | 'command.failed' | 'user.completed' | 'assistant.delta' | 'assistant.completed' | 'reasoning.delta' | 'reasoning.break' | 'plan.delta' | 'plan.replaced' | 'tool.started' | 'tool.updated' | 'tool.completed' | 'fileChange.updated' | 'approval.requested' | 'approval.resolved' | 'question.requested' | 'question.resolved' | 'runtime.connected' | 'runtime.disconnected' | 'provider.extension';
+export type CodexEventType = 'thread.attached' | 'thread.context.updated' | 'thread.compaction.started' | 'thread.compacted' | 'turn.started' | 'turn.activity' | 'turn.retrying' | 'turn.disconnected' | 'turn.completed' | 'turn.failed' | 'turn.interrupted' | 'command.queued' | 'command.bound'
+/** A supplemental prompt was accepted by the task currently running. */
+ | 'command.appended'
+/** The Runtime could not retain a supplemental prompt and put it back in order. */
+ | 'command.requeued' | 'command.failed' | 'user.completed' | 'assistant.delta' | 'assistant.completed' | 'reasoning.delta' | 'reasoning.break' | 'plan.delta' | 'plan.replaced' | 'tool.started' | 'tool.updated' | 'tool.completed' | 'fileChange.updated' | 'approval.requested' | 'approval.resolved' | 'question.requested' | 'question.resolved' | 'runtime.connected' | 'runtime.disconnected' | 'provider.extension';
 /** Framework- and transport-neutral event emitted by the shared Codex session manager. */
 export type CodexEvent = {
     id: string;

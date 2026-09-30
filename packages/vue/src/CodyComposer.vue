@@ -161,7 +161,12 @@ const activeSkillOptionId = computed(() => isSkillMenuOpen.value && filteredSkil
   : undefined)
 const selectedPermissionDescription = computed(() => props.permissionOptions.find(option => option.value === props.selectedPermission)?.description ?? '')
 const canSend = computed(() => !props.disabled && !props.isUploadingImages && composerHasContent({ text: props.draft, images: props.images, skills: props.selectedSkills }))
-const submitLabel = computed(() => props.isRunning && props.selectedSubmitMode === 'steer' ? '发送引导' : props.isRunning ? '加入队列' : '发送')
+const submitLabel = computed(() => {
+  if (!props.isRunning) return '发送'
+  if (props.selectedSubmitMode === 'steer') return '发送引导'
+  if (props.selectedSubmitMode === 'append') return '追加到当前任务'
+  return '加入队列'
+})
 const isDraggingImages = computed(() => props.imageUploadEnabled && dragDepth.value > 0)
 watch(() => props.draft, value => { latestDraft.value = value })
 function optionLabel(options: CodyComposerOption[], value: string): string { return options.find(option => option.value === value)?.label ?? value }

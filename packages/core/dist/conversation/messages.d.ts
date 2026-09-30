@@ -20,8 +20,10 @@ export type ConversationMessage = {
         path: string;
         displayName?: string;
     }>;
+    /** `delivered` means the Runtime accepted this message into its active task.
+     * It is not a claim that the task itself has completed. */
     outbox?: {
-        status: 'queued' | 'sending' | 'failed';
+        status: 'queued' | 'sending' | 'delivered' | 'failed';
         lastError?: string;
     };
     tool?: ConversationTool | null;

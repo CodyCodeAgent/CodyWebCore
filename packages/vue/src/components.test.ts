@@ -255,6 +255,19 @@ describe('shared conversation components', () => {
     expect(wrapper.emitted('retryMessage')).toEqual([[message]])
   })
 
+  it('labels an active-task supplemental message as delivered instead of queued', () => {
+    const message = {
+      id: 'user:append-1', turnId: 'turn-1', role: 'user' as const, text: 'Add the edge case',
+      messageType: 'userMessage.optimistic', outbox: { status: 'delivered' as const },
+    }
+    const wrapper = mount(CodyConversation, {
+      props: { entries: [{ id: message.id, kind: 'message' as const, message }] },
+    })
+
+    expect(wrapper.text()).toContain('已发送给当前任务')
+    expect(wrapper.text()).not.toContain('已加入发送队列')
+  })
+
   it('does not render an interrupted receipt for an empty Turn', () => {
     const state = reduceConversationEvents(createConversationState('thread-1'), [
       { id: 'start', type: 'turn.started', threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-08-29T00:00:00.000Z', data: {} },

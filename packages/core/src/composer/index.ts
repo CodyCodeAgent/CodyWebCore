@@ -1,7 +1,13 @@
 export const KNOWN_REASONING_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const
 
 export type KnownReasoningEffort = typeof KNOWN_REASONING_EFFORTS[number]
-export type ComposerSubmitMode = 'queue' | 'steer'
+/**
+ * `append` is deliberately distinct from `steer`: a Runtime may accept a
+ * supplemental prompt while its current task is running without claiming that
+ * it can alter the current Turn's execution plan. Products only expose it
+ * when the Runtime explicitly advertises that behavior.
+ */
+export type ComposerSubmitMode = 'queue' | 'steer' | 'append'
 export type ComposerCollaborationModeKind = 'default' | 'plan'
 
 /**
@@ -130,7 +136,7 @@ export function normalizeComposerSubmission<Kind extends string>(submission: Com
   return { ...normalized, hasContent: composerHasContent(normalized) }
 }
 export function resolveComposerSubmitMode(isTurnRunning: boolean, selectedMode: ComposerSubmitMode): ComposerSubmitMode {
-  return isTurnRunning && selectedMode === 'steer' ? 'steer' : 'queue'
+  return isTurnRunning && (selectedMode === 'steer' || selectedMode === 'append') ? selectedMode : 'queue'
 }
 export function materializeComposerContextText(text: string, contexts: readonly ComposerContextAttachment[], heading = 'Attached Workspace Context'): string {
   const trimmedText = text.trim()

@@ -68,10 +68,10 @@ export function createConversationController(threadId, transport, options = {}) 
         const commandId = typeof event.data.clientCommandId === 'string'
             ? event.data.clientCommandId
             : event.itemId;
-        if ((event.type === 'command.queued' || event.type === 'command.bound') && commandId) {
+        if ((event.type === 'command.queued' || event.type === 'command.bound' || event.type === 'command.appended') && commandId) {
             admittedCommandIds.add(commandId);
         }
-        if (event.type === 'command.bound' && commandId && event.turnId) {
+        if ((event.type === 'command.bound' || event.type === 'command.appended') && commandId && event.turnId) {
             localOutboxJournal = localOutboxJournal.map((row) => (row.itemId === commandId ? { ...row, turnId: event.turnId } : row));
         }
         if (event.type === 'command.failed' && commandId) {

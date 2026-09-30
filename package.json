@@ -1,6 +1,6 @@
 {
   "name": "@codycodeagent/cody-web-core",
-  "version": "0.40.0",
+  "version": "0.42.0",
   "description": "Shared Codex protocol, runtime, and conversation primitives for CodyWeb products",
   "license": "MIT",
   "type": "module",
@@ -22,6 +22,10 @@
     "./runtime": {
       "types": "./packages/core/dist/runtime/index.d.ts",
       "import": "./packages/core/dist/runtime/index.js"
+    },
+    "./acp": {
+      "types": "./packages/core/dist/acp/index.d.ts",
+      "import": "./packages/core/dist/acp/index.js"
     },
     "./session": {
       "types": "./packages/core/dist/session/index.d.ts",

@@ -1,6 +1,56 @@
 import { spawn } from 'node:child_process';
 import { isNotification, isServerRequest, normalizeRpcResponse, } from '../protocol/index.js';
-export const CODY_WEB_CORE_VERSION = '0.40.0';
+export const CODY_WEB_CORE_VERSION = '0.42.0';
+/**
+ * Immutable, framework-neutral catalog of installed AI Runtimes.
+ *
+ * It provides the common validation and lookup contract shared by products,
+ * while each product owns concrete adapters, persistence, and UI policy.
+ */
+export class RuntimeRegistry {
+    descriptorsById;
+    defaultId;
+    constructor(options) {
+        const descriptorsById = new Map();
+        for (const descriptor of options.descriptors) {
+            const id = descriptor.id.trim();
+            const label = descriptor.label.trim();
+            if (!id)
+                throw new Error('Runtime descriptor id cannot be empty');
+            if (!label)
+                throw new Error(`Runtime descriptor ${id} must provide a label`);
+            if (id !== descriptor.id)
+                throw new Error(`Runtime descriptor id must not contain leading or trailing whitespace: ${descriptor.id}`);
+            if (descriptorsById.has(id))
+                throw new Error(`Runtime descriptor id is already registered: ${id}`);
+            descriptorsById.set(id, Object.freeze({ ...descriptor, id, label }));
+        }
+        if (descriptorsById.size === 0)
+            throw new Error('Runtime registry requires at least one descriptor');
+        if (!descriptorsById.has(options.defaultId))
+            throw new Error(`Default Runtime is not registered: ${options.defaultId}`);
+        this.descriptorsById = descriptorsById;
+        this.defaultId = options.defaultId;
+    }
+    list() {
+        return Object.freeze([...this.descriptorsById.values()]);
+    }
+    has(id) {
+        return typeof id === 'string' && this.descriptorsById.has(id);
+    }
+    get(id) {
+        return this.descriptorsById.get(id);
+    }
+    require(id) {
+        const descriptor = this.get(id);
+        if (!descriptor)
+            throw new Error(`Runtime is not registered: ${id}`);
+        return descriptor;
+    }
+    create(id, config) {
+        return this.require(id).create(config);
+    }
+}
 export function appServerRuntimeProfile(kind, command) {
     if (kind === 'traex') {
         return {

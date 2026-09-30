@@ -18,7 +18,9 @@ export type ConversationMessage = {
   text: string
   images?: string[]
   skills?: Array<{ name: string; path: string; displayName?: string }>
-  outbox?: { status: 'queued' | 'sending' | 'failed'; lastError?: string }
+  /** `delivered` means the Runtime accepted this message into its active task.
+   * It is not a claim that the task itself has completed. */
+  outbox?: { status: 'queued' | 'sending' | 'delivered' | 'failed'; lastError?: string }
   tool?: ConversationTool | null
   messageType?: string
   rawPayload?: unknown

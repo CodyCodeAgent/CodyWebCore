@@ -9,9 +9,85 @@ import {
   normalizeRpcResponse,
 } from '../protocol/index.js'
 
-export const CODY_WEB_CORE_VERSION = '0.40.0'
+export const CODY_WEB_CORE_VERSION = '0.42.0'
 
 export type AppServerRuntimeKind = 'codex' | 'traex'
+
+/**
+ * Product-owned definition of an installed AI Runtime.
+ *
+ * Core deliberately does not define a concrete adapter, configuration shape, or
+ * product capability set. A Runtime can therefore represent an App Server, ACP
+ * client, or another provider without leaking product policy into Core.
+ */
+export type RuntimeDescriptor<TAdapter, TConfig = void, TCapabilities = undefined> = Readonly<{
+  /** Stable persistence and routing identifier, for example `codex` or `trae`. */
+  id: string
+  /** Human-readable name safe to render in product selectors and channel cards. */
+  label: string
+  /** Optional product-facing help text. */
+  description?: string
+  /** Optional product-defined capabilities such as model, cache, or reporting support. */
+  capabilities?: TCapabilities
+  /** Creates a product adapter from its product-owned configuration. */
+  create: (config: TConfig) => TAdapter
+}>
+
+export type RuntimeRegistryOptions<TAdapter, TConfig = void, TCapabilities = undefined> = Readonly<{
+  descriptors: readonly RuntimeDescriptor<TAdapter, TConfig, TCapabilities>[]
+  /** The installed Runtime selected when a caller has not made an explicit choice. */
+  defaultId: string
+}>
+
+/**
+ * Immutable, framework-neutral catalog of installed AI Runtimes.
+ *
+ * It provides the common validation and lookup contract shared by products,
+ * while each product owns concrete adapters, persistence, and UI policy.
+ */
+export class RuntimeRegistry<TAdapter, TConfig = void, TCapabilities = undefined> {
+  private readonly descriptorsById: ReadonlyMap<string, RuntimeDescriptor<TAdapter, TConfig, TCapabilities>>
+  readonly defaultId: string
+
+  constructor(options: RuntimeRegistryOptions<TAdapter, TConfig, TCapabilities>) {
+    const descriptorsById = new Map<string, RuntimeDescriptor<TAdapter, TConfig, TCapabilities>>()
+    for (const descriptor of options.descriptors) {
+      const id = descriptor.id.trim()
+      const label = descriptor.label.trim()
+      if (!id) throw new Error('Runtime descriptor id cannot be empty')
+      if (!label) throw new Error(`Runtime descriptor ${id} must provide a label`)
+      if (id !== descriptor.id) throw new Error(`Runtime descriptor id must not contain leading or trailing whitespace: ${descriptor.id}`)
+      if (descriptorsById.has(id)) throw new Error(`Runtime descriptor id is already registered: ${id}`)
+      descriptorsById.set(id, Object.freeze({ ...descriptor, id, label }))
+    }
+    if (descriptorsById.size === 0) throw new Error('Runtime registry requires at least one descriptor')
+    if (!descriptorsById.has(options.defaultId)) throw new Error(`Default Runtime is not registered: ${options.defaultId}`)
+    this.descriptorsById = descriptorsById
+    this.defaultId = options.defaultId
+  }
+
+  list(): readonly RuntimeDescriptor<TAdapter, TConfig, TCapabilities>[] {
+    return Object.freeze([...this.descriptorsById.values()])
+  }
+
+  has(id: string | null | undefined): id is string {
+    return typeof id === 'string' && this.descriptorsById.has(id)
+  }
+
+  get(id: string): RuntimeDescriptor<TAdapter, TConfig, TCapabilities> | undefined {
+    return this.descriptorsById.get(id)
+  }
+
+  require(id: string): RuntimeDescriptor<TAdapter, TConfig, TCapabilities> {
+    const descriptor = this.get(id)
+    if (!descriptor) throw new Error(`Runtime is not registered: ${id}`)
+    return descriptor
+  }
+
+  create(id: string, config: TConfig): TAdapter {
+    return this.require(id).create(config)
+  }
+}
 
 export type AppServerRuntimeProfile = Readonly<{
   kind: AppServerRuntimeKind
