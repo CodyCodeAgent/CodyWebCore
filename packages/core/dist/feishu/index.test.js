@@ -259,10 +259,10 @@ describe('Feishu interactive cards', () => {
     });
     it('renders external URL buttons without creating a callback payload', () => {
         const card = feishuTextCard('Done', 'Result', { actions: [{ text: 'Open', url: 'https://work.example/session/1', type: 'primary' }] });
-        expect(card).toMatchObject({ elements: [
-                { tag: 'markdown' },
-                { tag: 'action', actions: [{ tag: 'button', type: 'primary', url: 'https://work.example/session/1' }] },
-            ] });
+        expect(card).toMatchObject({ schema: '2.0', body: { elements: [
+                    { tag: 'markdown' },
+                    { tag: 'button', type: 'primary', behaviors: [{ type: 'open_url', default_url: 'https://work.example/session/1' }] },
+                ] } });
         expect(JSON.stringify(card)).not.toContain('"value"');
     });
     it('round-trips structured selection values through the selected option', () => {

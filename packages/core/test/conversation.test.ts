@@ -362,6 +362,32 @@ describe('conversation core', () => {
     expect(state.messages[0]?.outbox).toBeUndefined()
   })
 
+  it('marks a supplemental command as delivered to the active task without fabricating another Turn', () => {
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { id: 'start', type: 'turn.started', threadId: 'thread-1', turnId: 'turn-1', atIso: '2026-01-01T00:00:00.000Z', data: {} },
+      { id: 'queued', type: 'command.queued', threadId: 'thread-1', itemId: 'command-append', atIso: '2026-01-01T00:00:00.100Z', data: { text: 'also include the failing test' } },
+      { id: 'appended', type: 'command.appended', threadId: 'thread-1', turnId: 'turn-1', itemId: 'command-append', atIso: '2026-01-01T00:00:00.120Z', data: { clientCommandId: 'command-append' } },
+    ])
+
+    expect(state.turns).toHaveProperty('turn-1')
+    expect(Object.keys(state.turns)).toHaveLength(1)
+    expect(state.messages).toMatchObject([{
+      id: 'user:command-append', turnId: 'turn-1', text: 'also include the failing test', outbox: { status: 'delivered' },
+    }])
+  })
+
+  it('moves an unaccepted supplemental command back to the normal queue with a visible reason', () => {
+    const state = reduceConversationEvents(createConversationState('thread-1'), [
+      { id: 'queued', type: 'command.queued', threadId: 'thread-1', itemId: 'command-append', atIso: '2026-01-01T00:00:00.000Z', data: { text: 'the next instruction' } },
+      { id: 'appended', type: 'command.appended', threadId: 'thread-1', turnId: 'turn-1', itemId: 'command-append', atIso: '2026-01-01T00:00:00.100Z', data: {} },
+      { id: 'requeued', type: 'command.requeued', threadId: 'thread-1', itemId: 'command-append', atIso: '2026-01-01T00:00:00.200Z', data: { reason: 'Runtime 暂未接受追加' } },
+    ])
+
+    expect(state.messages).toMatchObject([{
+      id: 'user:command-append', turnId: undefined, outbox: { status: 'queued', lastError: 'Runtime 暂未接受追加' },
+    }])
+  })
+
   it('uses command binding to converge structured Skill metadata missing from native history', () => {
     const skill = { name: 'review', path: '/skills/review/SKILL.md', displayName: 'Review' }
     const state = reduceConversationEvents(createConversationState('thread-1'), [

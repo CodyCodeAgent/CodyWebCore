@@ -16,7 +16,7 @@
             </button>
           </div>
           <div v-if="entry.message.outbox" :class="['cody-message-outbox', entry.message.outbox.status]" role="status">
-            <span>{{ entry.message.outbox.status === 'failed' ? `发送失败${entry.message.outbox.lastError ? `：${entry.message.outbox.lastError}` : ''}` : entry.message.outbox.status === 'queued' ? '已加入发送队列' : '正在发送…' }}</span>
+            <span>{{ outboxStatusLabel(entry.message.outbox.status, entry.message.outbox.lastError) }}</span>
             <button v-if="entry.message.outbox.status === 'failed'" class="cody-message-retry" type="button" @click="emit('retryMessage', entry.message)">重试此消息</button>
           </div>
           <button v-if="entry.message.text" class="cody-copy-button" type="button" @click="emit('copy', entry.message.text)">复制</button>
@@ -80,6 +80,13 @@ const emit = defineEmits<{
 
 const expandedToolIds = ref<Record<string, boolean>>({})
 const previewImageUrl = ref('')
+
+function outboxStatusLabel(status: 'queued' | 'sending' | 'delivered' | 'failed', lastError?: string): string {
+  if (status === 'failed') return `发送失败${lastError ? `：${lastError}` : ''}`
+  if (status === 'queued') return `已加入发送队列${lastError ? `：${lastError}` : ''}`
+  if (status === 'delivered') return '已发送给当前任务'
+  return '正在发送…'
+}
 
 function toggleToolOutput(entryId: string): void {
   expandedToolIds.value = {

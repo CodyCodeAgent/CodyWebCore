@@ -155,6 +155,10 @@ export declare class FeishuProvider {
     private setState;
     private messageId;
 }
+/** Card-v2 accepts interactive components only as direct body elements. */
+export declare function feishuCardButtonElements(actions: FeishuCardButton[]): Record<string, unknown>[];
+/** Converts legacy action containers stored in an outbox before sending a v2 card. */
+export declare function normalizeFeishuV2Card(card: FeishuCard): FeishuCard;
 export declare function feishuTextCard(title: string, markdown: string, options?: {
     color?: string;
     actions?: FeishuCardButton[];

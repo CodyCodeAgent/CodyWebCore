@@ -1,7 +1,47 @@
 import { type ChildProcessWithoutNullStreams, type SpawnOptionsWithoutStdio } from 'node:child_process';
 import { type RuntimeNotification, type ServerRequest } from '../protocol/index.js';
-export declare const CODY_WEB_CORE_VERSION = "0.40.0";
+export declare const CODY_WEB_CORE_VERSION = "0.42.0";
 export type AppServerRuntimeKind = 'codex' | 'traex';
+/**
+ * Product-owned definition of an installed AI Runtime.
+ *
+ * Core deliberately does not define a concrete adapter, configuration shape, or
+ * product capability set. A Runtime can therefore represent an App Server, ACP
+ * client, or another provider without leaking product policy into Core.
+ */
+export type RuntimeDescriptor<TAdapter, TConfig = void, TCapabilities = undefined> = Readonly<{
+    /** Stable persistence and routing identifier, for example `codex` or `trae`. */
+    id: string;
+    /** Human-readable name safe to render in product selectors and channel cards. */
+    label: string;
+    /** Optional product-facing help text. */
+    description?: string;
+    /** Optional product-defined capabilities such as model, cache, or reporting support. */
+    capabilities?: TCapabilities;
+    /** Creates a product adapter from its product-owned configuration. */
+    create: (config: TConfig) => TAdapter;
+}>;
+export type RuntimeRegistryOptions<TAdapter, TConfig = void, TCapabilities = undefined> = Readonly<{
+    descriptors: readonly RuntimeDescriptor<TAdapter, TConfig, TCapabilities>[];
+    /** The installed Runtime selected when a caller has not made an explicit choice. */
+    defaultId: string;
+}>;
+/**
+ * Immutable, framework-neutral catalog of installed AI Runtimes.
+ *
+ * It provides the common validation and lookup contract shared by products,
+ * while each product owns concrete adapters, persistence, and UI policy.
+ */
+export declare class RuntimeRegistry<TAdapter, TConfig = void, TCapabilities = undefined> {
+    private readonly descriptorsById;
+    readonly defaultId: string;
+    constructor(options: RuntimeRegistryOptions<TAdapter, TConfig, TCapabilities>);
+    list(): readonly RuntimeDescriptor<TAdapter, TConfig, TCapabilities>[];
+    has(id: string | null | undefined): id is string;
+    get(id: string): RuntimeDescriptor<TAdapter, TConfig, TCapabilities> | undefined;
+    require(id: string): RuntimeDescriptor<TAdapter, TConfig, TCapabilities>;
+    create(id: string, config: TConfig): TAdapter;
+}
 export type AppServerRuntimeProfile = Readonly<{
     kind: AppServerRuntimeKind;
     label: string;

@@ -772,15 +772,15 @@ export class FeishuProvider {
         return this.messageId(response);
     }
     async sendCard(chatId, card, uuid) {
-        const response = await this.client.im.v1.message.create({ params: { receive_id_type: 'chat_id' }, data: { receive_id: chatId, msg_type: 'interactive', content: JSON.stringify(card), ...(uuid ? { uuid } : {}) } });
+        const response = await this.client.im.v1.message.create({ params: { receive_id_type: 'chat_id' }, data: { receive_id: chatId, msg_type: 'interactive', content: JSON.stringify(normalizeFeishuV2Card(card)), ...(uuid ? { uuid } : {}) } });
         return this.messageId(response);
     }
     async replyCard(messageId, card, replyInThread = false, uuid) {
-        const response = await this.client.im.v1.message.reply({ path: { message_id: messageId }, data: { msg_type: 'interactive', content: JSON.stringify(card), ...(replyInThread ? { reply_in_thread: true } : {}), ...(uuid ? { uuid } : {}) } });
+        const response = await this.client.im.v1.message.reply({ path: { message_id: messageId }, data: { msg_type: 'interactive', content: JSON.stringify(normalizeFeishuV2Card(card)), ...(replyInThread ? { reply_in_thread: true } : {}), ...(uuid ? { uuid } : {}) } });
         return this.messageId(response);
     }
     async sendUserCard(openId, card, uuid) {
-        const response = await this.client.im.v1.message.create({ params: { receive_id_type: 'open_id' }, data: { receive_id: openId, msg_type: 'interactive', content: JSON.stringify(card), ...(uuid ? { uuid } : {}) } });
+        const response = await this.client.im.v1.message.create({ params: { receive_id_type: 'open_id' }, data: { receive_id: openId, msg_type: 'interactive', content: JSON.stringify(normalizeFeishuV2Card(card)), ...(uuid ? { uuid } : {}) } });
         return this.messageId(response);
     }
     async sendImage(chatId, imageKey, uuid) {
@@ -798,7 +798,7 @@ export class FeishuProvider {
         return this.messageId(response);
     }
     async updateCard(messageId, card) {
-        const response = await this.client.im.v1.message.patch({ path: { message_id: messageId }, data: { content: JSON.stringify(card) } });
+        const response = await this.client.im.v1.message.patch({ path: { message_id: messageId }, data: { content: JSON.stringify(normalizeFeishuV2Card(card)) } });
         if (response.code !== 0)
             throw new Error(`Feishu card patch failed: ${response.msg ?? 'unknown'} (${response.code ?? 'unknown'})`);
     }
@@ -873,19 +873,53 @@ export class FeishuProvider {
         return response.data.message_id;
     }
 }
+/** Card-v2 accepts interactive components only as direct body elements. */
+export function feishuCardButtonElements(actions) {
+    return actions.map(action => ({ tag: 'button', text: { tag: 'plain_text', content: action.text.slice(0, 80) }, type: action.type ?? 'default', behaviors: 'url' in action ? [{ type: 'open_url', default_url: action.url }] : [{ type: 'callback', value: action.value }] }));
+}
+/** Converts legacy action containers stored in an outbox before sending a v2 card. */
+export function normalizeFeishuV2Card(card) {
+    if (card.schema !== '2.0')
+        return card;
+    const body = record(card.body);
+    const elements = Array.isArray(body?.elements) ? body.elements : null;
+    if (!body || !elements)
+        return card;
+    let changed = false;
+    const normalized = elements.flatMap(element => {
+        const row = record(element);
+        if (row?.tag !== 'action' || !Array.isArray(row.actions))
+            return [element];
+        changed = true;
+        return row.actions.flatMap(legacyFeishuV2ActionElement);
+    });
+    return changed ? { ...card, body: { ...body, elements: normalized } } : card;
+}
+function legacyFeishuV2ActionElement(value) {
+    const action = record(value);
+    if (!action)
+        return [];
+    if (action.tag === 'button') {
+        const text = record(action.text);
+        const content = string(text?.content).slice(0, 80);
+        const url = string(action.url);
+        const callbackValue = record(action.value);
+        return [{ tag: 'button', text: { tag: 'plain_text', content: content || '打开' }, type: string(action.type) || 'default', behaviors: url ? [{ type: 'open_url', default_url: url }] : [{ type: 'callback', value: callbackValue ?? {} }] }];
+    }
+    if (action.tag === 'select_static')
+        return [{ tag: 'select_static', placeholder: record(action.placeholder) ?? { tag: 'plain_text', content: '请选择' }, options: Array.isArray(action.options) ? action.options : [], behaviors: [{ type: 'callback', value: record(action.value) ?? { source: 'legacy_feishu_selection' } }] }];
+    return [action];
+}
 export function feishuTextCard(title, markdown, options = {}) {
     const elements = [{ tag: 'markdown', content: feishuCardMarkdown(markdown) }];
     if (options.actions?.length)
-        elements.push({ tag: 'action', actions: options.actions.map(action => ({
-                tag: 'button', text: { tag: 'plain_text', content: action.text.slice(0, 80) }, type: action.type ?? 'default',
-                ...('url' in action ? { url: action.url } : { value: action.value }),
-            })) });
+        elements.push(...feishuCardButtonElements(options.actions));
     if (options.note)
-        elements.push({ tag: 'note', elements: [{ tag: 'plain_text', content: options.note.slice(0, 500) }] });
+        elements.push(feishuV2Note(options.note));
     return {
-        config: { wide_screen_mode: true },
+        schema: '2.0', config: { update_multi: true },
         header: { template: options.color ?? 'blue', title: { tag: 'plain_text', content: title.slice(0, 80) } },
-        elements,
+        body: { direction: 'vertical', elements },
     };
 }
 /** Renders an assistant response as native Feishu card Markdown without adding
@@ -1146,17 +1180,18 @@ function splitOversizedFeishuElement(element) {
 export function feishuSelectionCard(title, markdown, options, note = '') {
     const elements = [
         { tag: 'markdown', content: markdown.slice(0, 28_000) || ' ' },
-        { tag: 'action', actions: [{
-                    tag: 'select_static', placeholder: { tag: 'plain_text', content: '请选择' },
-                    options: options.slice(0, 100).map(option => ({ text: { tag: 'plain_text', content: option.text.slice(0, 80) }, value: JSON.stringify(option.value) })),
-                }] },
+        {
+            tag: 'select_static', placeholder: { tag: 'plain_text', content: '请选择' },
+            options: options.slice(0, 100).map(option => ({ text: { tag: 'plain_text', content: option.text.slice(0, 80) }, value: JSON.stringify(option.value) })),
+            behaviors: [{ type: 'callback', value: { source: 'feishu_selection' } }],
+        },
     ];
     if (note || options.length > 100)
-        elements.push({ tag: 'note', elements: [{ tag: 'plain_text', content: (note || '选项超过 100 个，请先在 CodyWork 中整理。').slice(0, 500) }] });
+        elements.push(feishuV2Note(note || '选项超过 100 个，请先在 CodyWork 中整理。'));
     return {
-        config: { wide_screen_mode: true },
+        schema: '2.0', config: { update_multi: true },
         header: { template: 'blue', title: { tag: 'plain_text', content: title.slice(0, 80) } },
-        elements,
+        body: { direction: 'vertical', elements },
     };
 }
 //# sourceMappingURL=index.js.map

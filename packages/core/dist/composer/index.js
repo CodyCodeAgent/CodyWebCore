@@ -84,7 +84,7 @@ export function normalizeComposerSubmission(submission) {
     return { ...normalized, hasContent: composerHasContent(normalized) };
 }
 export function resolveComposerSubmitMode(isTurnRunning, selectedMode) {
-    return isTurnRunning && selectedMode === 'steer' ? 'steer' : 'queue';
+    return isTurnRunning && (selectedMode === 'steer' || selectedMode === 'append') ? selectedMode : 'queue';
 }
 export function materializeComposerContextText(text, contexts, heading = 'Attached Workspace Context') {
     const trimmedText = text.trim();

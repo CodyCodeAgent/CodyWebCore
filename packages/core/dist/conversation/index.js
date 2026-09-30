@@ -1,5 +1,6 @@
 /** Deterministic conversation state primitives. They deliberately contain no Vue/React state. */
 export * from './history-window.js';
+export * from './journal.js';
 export * from './messages.js';
 import { mergeMessages, upsertLiveDelta, areUserMessagesEquivalent, } from './messages.js';
 /** Assistant and plan messages that should overlay durable history. */
@@ -474,6 +475,39 @@ export function reduceConversationEvent(previous, event) {
             ? { ...state, messages, presentation }
             : state;
     }
+    if (event.type === 'command.appended') {
+        const commandId = event.itemId || '';
+        if (!commandId || !event.turnId)
+            return state;
+        const messageId = `user:${commandId}`;
+        const messages = state.messages.map((message) => message.id === messageId
+            ? { ...message, turnId: event.turnId, outbox: { status: 'delivered' } }
+            : message);
+        const presentation = state.presentation.map((row) => row.id === messageId
+            ? { ...row, turnId: event.turnId }
+            : row);
+        return messages.some((message, index) => message !== state.messages[index])
+            || presentation.some((row, index) => row !== state.presentation[index])
+            ? { ...state, messages, presentation }
+            : state;
+    }
+    if (event.type === 'command.requeued') {
+        const commandId = event.itemId || '';
+        if (!commandId)
+            return state;
+        const messageId = `user:${commandId}`;
+        const reason = typeof event.data.reason === 'string' ? event.data.reason : eventText(event.data);
+        const messages = state.messages.map((message) => message.id === messageId
+            ? { ...message, turnId: undefined, outbox: { status: 'queued', ...(reason ? { lastError: reason } : {}) } }
+            : message);
+        const presentation = state.presentation.map((row) => row.id === messageId
+            ? { ...row, turnId: undefined }
+            : row);
+        return messages.some((message, index) => message !== state.messages[index])
+            || presentation.some((row, index) => row !== state.presentation[index])
+            ? { ...state, messages, presentation }
+            : state;
+    }
     if (event.type === 'command.failed') {
         const commandId = event.itemId || '';
         if (!commandId)
@@ -497,7 +531,11 @@ export function reduceConversationEvent(previous, event) {
             })
             : [];
         const messageId = `user:${event.itemId || event.id}`;
-        const localOutbox = event.data.localOutbox === 'failed' ? 'failed' : event.data.localOutbox === 'queued' ? 'queued' : event.data.localOutbox === 'sending' ? 'sending' : '';
+        const localOutbox = event.data.localOutbox === 'failed' ? 'failed'
+            : event.data.localOutbox === 'queued' ? 'queued'
+                : event.data.localOutbox === 'sending' ? 'sending'
+                    : event.data.localOutbox === 'delivered' ? 'delivered'
+                        : '';
         const optimistic = event.data.optimistic === true;
         const incomingMessage = {
             id: messageId,

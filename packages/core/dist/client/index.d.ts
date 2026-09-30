@@ -68,7 +68,10 @@ export interface ConversationTransport {
 export type ConversationCommand = {
     threadId: string;
     clientCommandId: string;
-    mode: 'queue' | 'steer';
+    /** Admission intent understood by the Runtime.  Keep this in the client
+     * boundary instead of importing Composer: browser command transport may
+     * consume the mode, but must not depend on UI/composer presentation. */
+    mode: 'queue' | 'steer' | 'append';
     input: unknown;
     context?: unknown;
 };

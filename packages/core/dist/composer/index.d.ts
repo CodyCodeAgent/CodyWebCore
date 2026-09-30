@@ -1,6 +1,12 @@
 export declare const KNOWN_REASONING_EFFORTS: readonly ["none", "minimal", "low", "medium", "high", "xhigh"];
 export type KnownReasoningEffort = typeof KNOWN_REASONING_EFFORTS[number];
-export type ComposerSubmitMode = 'queue' | 'steer';
+/**
+ * `append` is deliberately distinct from `steer`: a Runtime may accept a
+ * supplemental prompt while its current task is running without claiming that
+ * it can alter the current Turn's execution plan. Products only expose it
+ * when the Runtime explicitly advertises that behavior.
+ */
+export type ComposerSubmitMode = 'queue' | 'steer' | 'append';
 export type ComposerCollaborationModeKind = 'default' | 'plan';
 /**
  * A Composer preview is product-neutral. Native products may keep a local

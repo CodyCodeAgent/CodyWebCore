@@ -14,9 +14,11 @@ describe('composer core', () => {
     expect(normalized.contexts[0]).not.toBe(submission.contexts[0])
     expect(normalized.contexts[0]?.metadata).not.toBe(submission.contexts[0]?.metadata)
   })
-  it('uses canonical queue and steer semantics', () => {
+  it('uses canonical queue, steer, and active-task append semantics', () => {
     expect(resolveComposerSubmitMode(true, 'steer')).toBe('steer')
     expect(resolveComposerSubmitMode(false, 'steer')).toBe('queue')
+    expect(resolveComposerSubmitMode(true, 'append')).toBe('append')
+    expect(resolveComposerSubmitMode(false, 'append')).toBe('queue')
     expect(resolveComposerSubmitMode(true, 'queue')).toBe('queue')
   })
   it('detects and removes skill and context triggers at the cursor', () => {

@@ -68,14 +68,58 @@ markdown.renderer.rules.code_inline = (tokens, index, options, env, self) => {
   return `<button type="button" class="markdown-file-link" data-markdown-action="open-file" data-file-path="${path}" data-file-line="${line}" title="${labels.openFile(path)}"><code>${markdown.utils.escapeHtml(value)}</code></button>`
 }
 
+type LocalFileLink = { path: string; line: string }
+
+/**
+ * Identifies Markdown links that can be handled by the product's workspace
+ * file preview. External, fragment and protocol links deliberately remain
+ * ordinary anchors so Core never broadens a product's readable roots.
+ */
+function localFileLink(href: string): LocalFileLink | undefined {
+  if (!href || /^(?:[A-Za-z][A-Za-z\d+.-]*:|\/\/|#)/u.test(href)) return undefined
+  const match = href.match(/^(.*?)(?:#L?(\d+))?$/u)
+  const path = match?.[1] ?? href
+  const line = match?.[2] ?? ''
+  if (/[?#]/u.test(path)) return undefined
+  const isExplicitPath = path.startsWith('/') || path.startsWith('./') || path.startsWith('../')
+  const isRelativeFile = /(?:^|\/)[^/?#]+\.[A-Za-z\d_-]{1,12}$/u.test(path)
+  if (!isExplicitPath && !isRelativeFile) return undefined
+  return { path, line }
+}
+
+function matchingLinkOpen(tokens: Parameters<NonNullable<typeof markdown.renderer.rules.link_open>>[0], index: number) {
+  let nestedLinks = 0
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+    if (tokens[cursor].type === 'link_close') nestedLinks += 1
+    if (tokens[cursor].type !== 'link_open') continue
+    if (nestedLinks === 0) return tokens[cursor]
+    nestedLinks -= 1
+  }
+  return undefined
+}
+
 const defaultLinkOpen = markdown.renderer.rules.link_open
 markdown.renderer.rules.link_open = (tokens, index, options, env, self) => {
   const token = tokens[index]
-  if (/^https?:\/\//u.test(token.attrGet('href') ?? '')) {
+  const href = token.attrGet('href') ?? ''
+  const localFile = localFileLink(href)
+  if (localFile) {
+    const labels = (env.labels as CodyMarkdownLabels | undefined) ?? DEFAULT_CODY_MARKDOWN_LABELS
+    const path = markdown.utils.escapeHtml(localFile.path)
+    return `<button type="button" class="markdown-file-link" data-markdown-action="open-file" data-file-path="${path}" data-file-line="${localFile.line}" title="${labels.openFile(path)}">`
+  }
+  if (/^https?:\/\//u.test(href)) {
     token.attrSet('target', '_blank')
     token.attrSet('rel', 'noopener noreferrer')
   }
   return defaultLinkOpen ? defaultLinkOpen(tokens, index, options, env, self) : self.renderToken(tokens, index, options)
+}
+
+const defaultLinkClose = markdown.renderer.rules.link_close
+markdown.renderer.rules.link_close = (tokens, index, options, env, self) => {
+  const href = matchingLinkOpen(tokens, index)?.attrGet('href') ?? ''
+  if (localFileLink(href)) return '</button>'
+  return defaultLinkClose ? defaultLinkClose(tokens, index, options, env, self) : self.renderToken(tokens, index, options)
 }
 
 /** Renders safe, product-neutral Markdown. Raw HTML is intentionally disabled before sanitization. */

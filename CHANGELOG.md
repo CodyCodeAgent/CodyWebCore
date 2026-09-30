@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.42.0
+
+- Treat explicit local Markdown file links as the same reusable `open-file` interaction as inline file references, while preserving web, protocol and document-fragment links as ordinary anchors.
+- Keep the path decision in the product-owned preview policy; Core only emits the interaction event and never widens readable roots.
+
 ## 0.40.0
 
 - Add provider-neutral task lifecycle snapshots, validated transitions, terminal-state helpers and in-process task notifications.
