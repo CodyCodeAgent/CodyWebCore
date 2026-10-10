@@ -37,4 +37,10 @@ describe('renderCodyMarkdown', () => {
   it('makes a partial streaming code fence renderable', () => {
     expect(stabilizeStreamingMarkdown('```ts\nconst answer = 42')).toMatch(/```$/u)
   })
+
+  it('renders Mermaid on a white canvas', () => {
+    const html = renderCodyMarkdown('```mermaid\ngraph TD\nA --> B\n```')
+    expect(html).toContain('markdown-diagram-stage')
+    expect(html).toContain('background:#fff')
+  })
 })

@@ -7,6 +7,7 @@
 import DOMPurify from 'dompurify'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { DEFAULT_CODY_MARKDOWN_LABELS, renderCodyMarkdown, stabilizeStreamingMarkdown, type CodyMarkdownLabels } from './markdown.js'
+import { renderMermaidDiagram } from './mermaid.js'
 import CodyImagePreviewDialog from './CodyImagePreviewDialog.vue'
 
 type DiagramInput = { engine: 'mermaid' | 'plantuml'; source: string; dark: boolean }
@@ -27,7 +28,6 @@ const renderedHtml = ref(renderCodyMarkdown(stabilizeStreamingMarkdown(props.tex
 const previewImageUrl = ref('')
 const expandedCodeBlockIndexes = new Set<number>()
 let renderTimer = 0
-let diagramSequence = 0
 
 const languageLoaders: Record<string, () => Promise<{ default: unknown }>> = {
   javascript: () => import('highlight.js/lib/languages/javascript'),
@@ -111,12 +111,12 @@ async function renderDiagrams(): Promise<void> {
     const source = shell.querySelector('code')?.textContent ?? ''
     const stage = shell.querySelector<HTMLElement>('.markdown-diagram-stage')
     if (!stage) continue
+    stage.style.setProperty('color', '#111827')
+    stage.style.setProperty('background', '#ffffff')
     try {
       let svg = await props.renderDiagram?.({ engine, source, dark: props.dark })
       if (!svg && engine === 'mermaid') {
-        const { default: mermaid } = await import('mermaid')
-        mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: props.dark ? 'dark' : 'default', htmlLabels: false, flowchart: { htmlLabels: false, useMaxWidth: false } })
-        svg = (await mermaid.render(`cody-diagram-${String(++diagramSequence)}`, source)).svg
+        svg = await renderMermaidDiagram(source, stage)
       }
       if (!svg) throw new Error(engine === 'plantuml' ? '当前环境未配置 PlantUML 渲染器' : '图表渲染失败')
       stage.innerHTML = sanitizeDiagramSvg(svg)
