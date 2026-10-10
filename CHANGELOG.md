@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.43.1
+
+- Serialize Mermaid rendering across conversation messages and use globally unique render IDs so later turns and page reloads cannot collide with an earlier diagram.
+- Suppress and defensively remove Mermaid error artifacts instead of leaking syntax-error SVGs into the page root.
+- Render Mermaid diagrams on a stable white canvas with the light theme.
+
 ## 0.43.0
 
 - Add ACP Session lifecycle and registry primitives, durable conversation-event journaling, and append/requeue reconciliation for ACP-compatible runtimes.
