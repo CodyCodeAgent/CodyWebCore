@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.37.34
+
+- Restart an App Server that exits unexpectedly when the next operation initializes the runtime.
+- Reattach existing thread bindings once after recovery without replaying a failed active turn.
+
 ## 0.37.33
 
 - Reconcile an accepted Skill-backed command with its exact native user item after refresh, retaining structured Skill and image metadata without rendering a duplicate optimistic message.

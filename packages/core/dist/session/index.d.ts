@@ -128,6 +128,7 @@ export declare class CodexSessionManager {
     private readonly pendingRequests;
     private readonly requestResolutions;
     private readonly resolvedRequests;
+    private readonly reattachPromises;
     private readonly commands;
     private readonly catalog;
     private readonly nowIso;
@@ -203,6 +204,7 @@ export declare class CodexSessionManager {
     dispose(): Promise<void>;
     private attachLocal;
     private requireUsable;
+    private ensureRuntimeAvailable;
     private require;
     private steerSubmission;
     private ensureSessionReady;
