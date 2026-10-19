@@ -100,17 +100,17 @@ describe('AppServerHost', () => {
     let spawnCount = 0
     const spawn: SpawnAppServer = (...args) => { spawnCount += 1; return fakeAppServer('hang-read')(...args) }
     const host = createAppServerHost({ spawn, rpcTimeoutMs: 250 })
-    await host.ensureInitialized()
+    await Promise.all([host.ensureInitialized(), host.ensureInitialized(), host.ensureInitialized()])
     await expect(host.call('thread/read')).rejects.toThrow('thread/read timed out')
 
-    await host.ensureInitialized()
+    await Promise.all([host.ensureInitialized(), host.ensureInitialized(), host.ensureInitialized()])
     await expect(host.call<{ initialized: number }>('stats')).resolves.toEqual({ initialized: 1 })
     expect(spawnCount).toBe(1)
     expect(host.diagnostics()).toMatchObject({ status: 'running', lifecycle: 'running', startCount: 1, initialized: true })
     await host.dispose()
   })
 
-  it('does not implicitly start before initialization or restart after an unexpected exit', async () => {
+  it('does not implicitly start before initialization and replaces an App Server after an unexpected exit', async () => {
     let spawnCount = 0
     const spawn: SpawnAppServer = (...args) => { spawnCount += 1; return fakeAppServer()(...args) }
     const host = createAppServerHost({ spawn })
@@ -120,10 +120,16 @@ describe('AppServerHost', () => {
 
     await host.ensureInitialized()
     await expect(host.call('exit')).rejects.toThrow('exited')
-    await expect(host.ensureInitialized()).rejects.toThrow('will not be restarted automatically')
-    await expect(host.call('stats')).rejects.toThrow('will not be restarted automatically')
-    expect(spawnCount).toBe(1)
     expect(host.diagnostics()).toMatchObject({ status: 'stopped', lifecycle: 'unavailable', startCount: 1, initialized: false })
+
+    await Promise.all([host.ensureInitialized(), host.ensureInitialized(), host.ensureInitialized()])
+    await expect(host.call<{ initialized: number }>('stats')).resolves.toEqual({ initialized: 1 })
+    expect(spawnCount).toBe(2)
+    expect(host.diagnostics()).toMatchObject({ status: 'running', lifecycle: 'running', startCount: 2, initialized: true })
+    expect(host.diagnostics().recentLogs).toContainEqual(expect.objectContaining({
+      level: 'info', message: 'App Server replacement initialized (attempt 2).',
+    }))
+    await host.dispose()
   })
 
   it('reports process exits with pending request timing but without payloads', async () => {
@@ -174,7 +180,7 @@ describe('AppServerHost', () => {
     expect(host.failureReport()).toEqual(expect.objectContaining({
       phase: 'transport', cause: 'stdin_error', failedMethod: 'pipe-error',
     }))
-    await expect(host.call('stats')).rejects.toThrow('will not be restarted automatically')
+    await expect(host.call('stats')).rejects.toThrow('App Server is unavailable')
     expect(host.diagnostics()).toMatchObject({ lifecycle: 'unavailable', startCount: 1 })
     expect(disconnects).toHaveLength(1)
     await host.dispose()
