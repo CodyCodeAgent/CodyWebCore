@@ -234,6 +234,7 @@ export class CodexSessionManager {
   private readonly pendingRequests = new Map<string, PendingServerRequest>()
   private readonly requestResolutions = new Map<string, Promise<void>>()
   private readonly resolvedRequests = new Set<string>()
+  private readonly reattachPromises = new Map<string, Promise<void>>()
   private readonly commands: CodexThreadCommands
   private readonly catalog: CodexSessionCatalog
   private readonly nowIso: () => string
@@ -339,8 +340,7 @@ export class CodexSessionManager {
   }
 
   async create(bindingId: string, context: ExecutionContext): Promise<ThreadBinding> {
-    this.requireUsable()
-    await this.options.host.ensureInitialized()
+    await this.ensureRuntimeAvailable()
     const threadId = await this.commands.startThread({
       ...context.thread,
       experimentalRawEvents: context.thread.experimentalRawEvents ?? false,
@@ -360,8 +360,7 @@ export class CodexSessionManager {
    * manager.
    */
   async startThread(context: ExecutionContext): Promise<ThreadBinding> {
-    this.requireUsable()
-    await this.options.host.ensureInitialized()
+    await this.ensureRuntimeAvailable()
     const threadId = await this.commands.startThread({
       ...context.thread,
       experimentalRawEvents: context.thread.experimentalRawEvents ?? false,
@@ -376,86 +375,72 @@ export class CodexSessionManager {
    * here prevents product browsers from using a generic RPC tunnel for the
    * same native threads that this manager serializes. */
   async listThreads(options: ListCodexThreadsOptions = {}): Promise<CodexThreadSummary[]> {
-    this.requireUsable()
-    await this.options.host.ensureInitialized()
+    await this.ensureRuntimeAvailable()
     return this.catalog.listThreads(options)
   }
 
   async listModels(): Promise<CodexModelOption[]> {
-    this.requireUsable()
-    await this.options.host.ensureInitialized()
+    await this.ensureRuntimeAvailable()
     return this.catalog.listModels()
   }
 
   async listCollaborationModes(): Promise<CodexCollaborationModeOption[]> {
-    this.requireUsable()
-    await this.options.host.ensureInitialized()
+    await this.ensureRuntimeAvailable()
     return this.catalog.listCollaborationModes()
   }
 
   async readConfig(): Promise<ConfigReadResponse> {
-    this.requireUsable()
-    await this.options.host.ensureInitialized()
+    await this.ensureRuntimeAvailable()
     return this.catalog.readConfig()
   }
 
   async reloadMcpServers(): Promise<McpServerRefreshResponse> {
-    this.requireUsable()
-    await this.options.host.ensureInitialized()
+    await this.ensureRuntimeAvailable()
     return this.catalog.reloadMcpServers()
   }
 
   async readAccountRateLimits(): Promise<GetAccountRateLimitsResponse> {
-    this.requireUsable()
-    await this.options.host.ensureInitialized()
+    await this.ensureRuntimeAvailable()
     return this.catalog.readAccountRateLimits()
   }
 
   async listSkills(cwds: string[], forceReload = false): Promise<CodexSkillOption[]> {
-    this.requireUsable()
-    await this.options.host.ensureInitialized()
+    await this.ensureRuntimeAvailable()
     return this.catalog.listSkills(cwds, forceReload)
   }
 
   async listSkillCatalog(cwds: string[]): Promise<CodexSkillCatalogGroup[]> {
-    this.requireUsable()
-    await this.options.host.ensureInitialized()
+    await this.ensureRuntimeAvailable()
     return this.catalog.listSkillCatalog(cwds)
   }
 
   async setSkillEnabled(path: string, enabled: boolean): Promise<void> {
-    this.requireUsable()
-    await this.options.host.ensureInitialized()
+    await this.ensureRuntimeAvailable()
     await this.catalog.setSkillEnabled(path, enabled)
   }
 
   async renameThread(threadId: string, name: string): Promise<void> {
-    this.requireUsable()
-    await this.options.host.ensureInitialized()
+    await this.ensureRuntimeAvailable()
     await this.commands.renameThread(threadId, name)
   }
 
   async forkThread(threadId: string): Promise<string> {
-    this.requireUsable()
-    await this.options.host.ensureInitialized()
+    await this.ensureRuntimeAvailable()
     return this.commands.forkThread(threadId)
   }
 
   async compactThread(threadId: string): Promise<void> {
-    this.requireUsable()
-    await this.options.host.ensureInitialized()
+    await this.ensureRuntimeAvailable()
     await this.commands.compactThread(threadId)
   }
 
   async archiveThread(threadId: string): Promise<void> {
-    this.requireUsable()
-    await this.options.host.ensureInitialized()
+    await this.ensureRuntimeAvailable()
     await this.commands.archiveThread(threadId)
   }
 
   async resume(binding: ThreadBinding, context: ExecutionContext): Promise<void> {
-    this.requireUsable()
-    await this.options.host.ensureInitialized()
+    await this.ensureRuntimeAvailable()
     await this.commands.resumeThread(binding.threadId, context.thread as Omit<ThreadResumeParams, 'threadId'>)
     const snapshot = await this.catalog.readThreadSnapshot(binding.threadId)
     this.forgetTerminalEvents(binding.threadId)
@@ -731,6 +716,7 @@ export class CodexSessionManager {
     this.operationalFailures.clear()
     this.turnEvents.clear()
     this.submissions.clear()
+    this.reattachPromises.clear()
     for (const rows of this.waiters.values()) for (const waiter of rows) waiter.reject(new Error('Codex session manager disposed'))
     this.waiters.clear()
     this.pendingRequests.clear()
@@ -762,7 +748,13 @@ export class CodexSessionManager {
 
   private requireUsable(): void {
     if (this.disposed) throw new Error('Codex session manager is disposed')
-    if (this.runtimeUnavailable) throw new Error('Codex App Server is unavailable. Restart the product service to create a new owner process.')
+  }
+
+  private async ensureRuntimeAvailable(): Promise<void> {
+    this.requireUsable()
+    await this.options.host.ensureInitialized()
+    this.requireUsable()
+    this.runtimeUnavailable = false
   }
 
   private require(bindingId: string): AttachedSession {
@@ -779,9 +771,30 @@ export class CodexSessionManager {
 
   private async ensureSessionReady(session: AttachedSession): Promise<void> {
     if (session.quarantinedReason) throw new Error(session.quarantinedReason)
-    if (session.attached) return
-    if (this.runtimeUnavailable) throw new Error('Codex App Server is unavailable. Restart the product service to create a new owner process.')
-    throw new Error(`Codex thread binding ${session.binding.id} is detached`)
+    if (session.attached && !this.runtimeUnavailable) return
+    const existing = this.reattachPromises.get(session.binding.id)
+    if (existing) return existing
+    const operation = (async () => {
+      await this.ensureRuntimeAvailable()
+      if (session.attached) return
+      await this.commands.resumeThread(session.binding.threadId, session.context.thread as Omit<ThreadResumeParams, 'threadId'>)
+      const snapshot = await this.catalog.readThreadSnapshot(session.binding.threadId)
+      this.requireUsable()
+      session.attached = true
+      const activeTurn = [...snapshot.turns].reverse().find((turn) => /progress|running|active|started/iu.test(turn.status))
+      if (activeTurn && session.activeTurnId !== activeTurn.turnId) {
+        session.activeTurnId = activeTurn.turnId
+        session.queueTail = this.waitForTurn({ threadId: session.binding.threadId, turnId: activeTurn.turnId })
+          .then(() => undefined)
+      }
+      this.emit({ type: 'thread.attached', threadId: session.binding.threadId, data: { bindingId: session.binding.id, mode: 'resumed' } })
+    })()
+    this.reattachPromises.set(session.binding.id, operation)
+    try {
+      await operation
+    } finally {
+      if (this.reattachPromises.get(session.binding.id) === operation) this.reattachPromises.delete(session.binding.id)
+    }
   }
 
   private forgetTerminalEvents(threadId: string): void {

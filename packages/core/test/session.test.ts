@@ -980,13 +980,16 @@ describe('CodexSessionManager', () => {
     await manager.dispose()
   })
 
-  it('never resumes or restarts the owner process after a host disconnect', async () => {
+  it('reinitializes the runtime and resumes a detached thread after a host disconnect', async () => {
     const host = new FakeHost()
     const manager = new CodexSessionManager({ host })
     await manager.create('conversation-1', context)
     host.emit('runtime/disconnected', { error: 'process exited' })
-    await expect(manager.read('conversation-1')).rejects.toThrow('Restart the product service')
-    expect(host.calls.map(call => call.method)).toEqual(['thread/start'])
+    await expect(Promise.all([manager.read('conversation-1'), manager.read('conversation-1')])).resolves.toEqual([[], []])
+    expect(host.initialized).toBe(2)
+    expect(host.calls.filter(call => call.method === 'thread/resume')).toHaveLength(1)
+    expect(host.calls.filter(call => call.method === 'thread/read')).toHaveLength(3)
+    expect(manager.snapshot('conversation-1')).toMatchObject({ attached: true, runtimeAvailable: true })
     await manager.dispose()
   })
 
