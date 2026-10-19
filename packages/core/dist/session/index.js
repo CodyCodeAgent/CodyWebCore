@@ -36,6 +36,7 @@ export class CodexSessionManager {
     pendingRequests = new Map();
     requestResolutions = new Map();
     resolvedRequests = new Set();
+    reattachPromises = new Map();
     commands;
     catalog;
     nowIso;
@@ -139,8 +140,7 @@ export class CodexSessionManager {
         };
     }
     async create(bindingId, context) {
-        this.requireUsable();
-        await this.options.host.ensureInitialized();
+        await this.ensureRuntimeAvailable();
         const threadId = await this.commands.startThread({
             ...context.thread,
             experimentalRawEvents: context.thread.experimentalRawEvents ?? false,
@@ -159,8 +159,7 @@ export class CodexSessionManager {
      * manager.
      */
     async startThread(context) {
-        this.requireUsable();
-        await this.options.host.ensureInitialized();
+        await this.ensureRuntimeAvailable();
         const threadId = await this.commands.startThread({
             ...context.thread,
             experimentalRawEvents: context.thread.experimentalRawEvents ?? false,
@@ -174,73 +173,59 @@ export class CodexSessionManager {
      * here prevents product browsers from using a generic RPC tunnel for the
      * same native threads that this manager serializes. */
     async listThreads(options = {}) {
-        this.requireUsable();
-        await this.options.host.ensureInitialized();
+        await this.ensureRuntimeAvailable();
         return this.catalog.listThreads(options);
     }
     async listModels() {
-        this.requireUsable();
-        await this.options.host.ensureInitialized();
+        await this.ensureRuntimeAvailable();
         return this.catalog.listModels();
     }
     async listCollaborationModes() {
-        this.requireUsable();
-        await this.options.host.ensureInitialized();
+        await this.ensureRuntimeAvailable();
         return this.catalog.listCollaborationModes();
     }
     async readConfig() {
-        this.requireUsable();
-        await this.options.host.ensureInitialized();
+        await this.ensureRuntimeAvailable();
         return this.catalog.readConfig();
     }
     async reloadMcpServers() {
-        this.requireUsable();
-        await this.options.host.ensureInitialized();
+        await this.ensureRuntimeAvailable();
         return this.catalog.reloadMcpServers();
     }
     async readAccountRateLimits() {
-        this.requireUsable();
-        await this.options.host.ensureInitialized();
+        await this.ensureRuntimeAvailable();
         return this.catalog.readAccountRateLimits();
     }
     async listSkills(cwds, forceReload = false) {
-        this.requireUsable();
-        await this.options.host.ensureInitialized();
+        await this.ensureRuntimeAvailable();
         return this.catalog.listSkills(cwds, forceReload);
     }
     async listSkillCatalog(cwds) {
-        this.requireUsable();
-        await this.options.host.ensureInitialized();
+        await this.ensureRuntimeAvailable();
         return this.catalog.listSkillCatalog(cwds);
     }
     async setSkillEnabled(path, enabled) {
-        this.requireUsable();
-        await this.options.host.ensureInitialized();
+        await this.ensureRuntimeAvailable();
         await this.catalog.setSkillEnabled(path, enabled);
     }
     async renameThread(threadId, name) {
-        this.requireUsable();
-        await this.options.host.ensureInitialized();
+        await this.ensureRuntimeAvailable();
         await this.commands.renameThread(threadId, name);
     }
     async forkThread(threadId) {
-        this.requireUsable();
-        await this.options.host.ensureInitialized();
+        await this.ensureRuntimeAvailable();
         return this.commands.forkThread(threadId);
     }
     async compactThread(threadId) {
-        this.requireUsable();
-        await this.options.host.ensureInitialized();
+        await this.ensureRuntimeAvailable();
         await this.commands.compactThread(threadId);
     }
     async archiveThread(threadId) {
-        this.requireUsable();
-        await this.options.host.ensureInitialized();
+        await this.ensureRuntimeAvailable();
         await this.commands.archiveThread(threadId);
     }
     async resume(binding, context) {
-        this.requireUsable();
-        await this.options.host.ensureInitialized();
+        await this.ensureRuntimeAvailable();
         await this.commands.resumeThread(binding.threadId, context.thread);
         const snapshot = await this.catalog.readThreadSnapshot(binding.threadId);
         this.forgetTerminalEvents(binding.threadId);
@@ -513,6 +498,7 @@ export class CodexSessionManager {
         this.operationalFailures.clear();
         this.turnEvents.clear();
         this.submissions.clear();
+        this.reattachPromises.clear();
         for (const rows of this.waiters.values())
             for (const waiter of rows)
                 waiter.reject(new Error('Codex session manager disposed'));
@@ -546,8 +532,12 @@ export class CodexSessionManager {
     requireUsable() {
         if (this.disposed)
             throw new Error('Codex session manager is disposed');
-        if (this.runtimeUnavailable)
-            throw new Error('Codex App Server is unavailable. Restart the product service to create a new owner process.');
+    }
+    async ensureRuntimeAvailable() {
+        this.requireUsable();
+        await this.options.host.ensureInitialized();
+        this.requireUsable();
+        this.runtimeUnavailable = false;
     }
     require(bindingId) {
         const session = this.sessions.get(bindingId);
@@ -564,11 +554,35 @@ export class CodexSessionManager {
     async ensureSessionReady(session) {
         if (session.quarantinedReason)
             throw new Error(session.quarantinedReason);
-        if (session.attached)
+        if (session.attached && !this.runtimeUnavailable)
             return;
-        if (this.runtimeUnavailable)
-            throw new Error('Codex App Server is unavailable. Restart the product service to create a new owner process.');
-        throw new Error(`Codex thread binding ${session.binding.id} is detached`);
+        const existing = this.reattachPromises.get(session.binding.id);
+        if (existing)
+            return existing;
+        const operation = (async () => {
+            await this.ensureRuntimeAvailable();
+            if (session.attached)
+                return;
+            await this.commands.resumeThread(session.binding.threadId, session.context.thread);
+            const snapshot = await this.catalog.readThreadSnapshot(session.binding.threadId);
+            this.requireUsable();
+            session.attached = true;
+            const activeTurn = [...snapshot.turns].reverse().find((turn) => /progress|running|active|started/iu.test(turn.status));
+            if (activeTurn && session.activeTurnId !== activeTurn.turnId) {
+                session.activeTurnId = activeTurn.turnId;
+                session.queueTail = this.waitForTurn({ threadId: session.binding.threadId, turnId: activeTurn.turnId })
+                    .then(() => undefined);
+            }
+            this.emit({ type: 'thread.attached', threadId: session.binding.threadId, data: { bindingId: session.binding.id, mode: 'resumed' } });
+        })();
+        this.reattachPromises.set(session.binding.id, operation);
+        try {
+            await operation;
+        }
+        finally {
+            if (this.reattachPromises.get(session.binding.id) === operation)
+                this.reattachPromises.delete(session.binding.id);
+        }
     }
     forgetTerminalEvents(threadId) {
         const prefix = `${threadId}\u0000`;

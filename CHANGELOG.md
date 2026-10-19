@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.43.2
+
+- Restart an App Server that exits unexpectedly when the next operation initializes the runtime.
+- Reattach existing thread bindings once after recovery without replaying a failed active turn.
+
 ## 0.43.1
 
 - Serialize Mermaid rendering across conversation messages and use globally unique render IDs so later turns and page reloads cannot collide with an earlier diagram.
