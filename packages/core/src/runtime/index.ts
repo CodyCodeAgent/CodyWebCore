@@ -271,8 +271,8 @@ function hintsFor(cause: AppServerFailureCause): readonly string[] {
   switch (cause) {
     case 'initialize_timeout': return ['Verify the Codex App Server command starts successfully and is compatible with this Core version.', 'Initialization may be slow; inspect the redacted logs before considering a larger RPC timeout.']
     case 'rpc_timeout': return ['Check whether the reported method is still making progress before retrying.', 'If slow requests are expected, consider a method-level timeout after ruling out a stalled App Server.']
-    case 'process_exit': return ['Inspect the exit code, signal, and redacted stderr for a likely cause.', 'The runtime will remain unavailable until the owning service is restarted or redeployed.']
-    case 'stdin_error': return ['The App Server input pipe may have closed; check process state before retrying.', 'The runtime will not restart the App Server automatically; restart or redeploy the owning service after investigating.']
+    case 'process_exit': return ['Inspect the exit code, signal, and redacted stderr for a likely cause.', 'The runtime will start a replacement App Server when the next operation initializes it.']
+    case 'stdin_error': return ['The App Server input pipe may have closed; check process state before retrying.', 'If the App Server exits, the runtime will start a replacement when the next operation initializes it.']
     case 'malformed_json': return ['Check App Server compatibility and ensure stdout contains only JSON-RPC lines.', 'Use stderr for diagnostic text; repeated malformed stdout can indicate a wrapper or protocol mismatch.']
   }
 }
@@ -433,11 +433,6 @@ export function createAppServerHost(options: AppServerHostOptions = {}): AppServ
   const start = (): void => {
     if (process) return
     if (lifecycle === 'disposed') throw new Error(`${runtimeLabel} App Server host has been disposed`)
-    if (startCount > 0) {
-      throw new Error(unavailableReason
-        ? `${runtimeLabel} App Server is unavailable and will not be restarted automatically: ${unavailableReason}`
-        : `${runtimeLabel} App Server is unavailable and will not be restarted automatically`)
-    }
     const [command, ...fromCommand] = splitCommand(options.command ?? 'codex app-server --stdio')
     const args = options.args ?? fromCommand
     stopping = false
@@ -520,7 +515,7 @@ export function createAppServerHost(options: AppServerHostOptions = {}): AppServ
       const message = lifecycle === 'disposed'
         ? `${runtimeLabel} App Server host has been disposed`
         : unavailableReason
-          ? `${runtimeLabel} App Server is unavailable and will not be restarted automatically: ${unavailableReason}`
+          ? `${runtimeLabel} App Server is unavailable: ${unavailableReason}`
           : `${runtimeLabel} App Server has not been initialized`
       return Promise.reject(new Error(message))
     }
@@ -572,7 +567,7 @@ export function createAppServerHost(options: AppServerHostOptions = {}): AppServ
     if (initialized) return
     if (initializePromise) return initializePromise
     if (!process) start()
-    initializePromise = (async () => {
+    const operation = (async () => {
       try {
         await call('initialize', options.initializeParams ?? {
           clientInfo: { name: 'cody-web-core', title: 'Cody Web Core', version: CODY_WEB_CORE_VERSION },
@@ -583,8 +578,14 @@ export function createAppServerHost(options: AppServerHostOptions = {}): AppServ
         pushLog('warning', 'bridge', 'App Server was already initialized; reusing the current process.')
       }
       initialized = true
-    })().finally(() => { initializePromise = null })
-    return initializePromise
+      if (startCount > 1) pushLog('info', 'bridge', `App Server replacement initialized (attempt ${String(startCount)}).`)
+    })()
+    initializePromise = operation
+    try {
+      await operation
+    } finally {
+      if (initializePromise === operation) initializePromise = null
+    }
   }
 
   const stopProcess = async (): Promise<void> => {
