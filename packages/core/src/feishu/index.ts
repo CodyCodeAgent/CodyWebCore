@@ -67,7 +67,7 @@ export type FeishuProviderHandlers = {
 export type FeishuChatMode = 'group' | 'p2p' | 'topic'
 export type FeishuChatMetadata = { id: string; name: string; mode: FeishuChatMode }
 export type FeishuChatBotMetadata = { id: string; name: string }
-export type FeishuUserMetadata = { id: string; name: string }
+export type FeishuUserMetadata = { id: string; name: string; email?: string }
 
 /** Message kinds whose content and resources are normalized by this adapter. */
 export const FEISHU_MESSAGE_TYPES = ['text', 'post', 'image', 'file', 'audio', 'media', 'interactive'] as const
@@ -681,9 +681,9 @@ export class FeishuProvider {
     }
   }
 
-  /** Resolve a user display name in the current application's Open ID
-   * namespace. The name field requires contact:user.base:readonly and may be
-   * empty when the app has not received or published that permission. */
+  /** Resolve a user profile in the current application's Open ID namespace.
+   * Name requires contact:user.base:readonly; email additionally requires
+   * contact:user.email:readonly and may be absent even on a successful lookup. */
   async userMetadata(openId: string, refresh = false): Promise<FeishuUserMetadata> {
     const cached = this.userMetadataCache.get(openId)
     if (!refresh && cached && cached.expiresAtMs > Date.now()) return cached.value
@@ -692,7 +692,9 @@ export class FeishuProvider {
       params: { user_id_type: 'open_id' },
     }).then(response => {
       if (response.code !== 0) throw new Error(`Feishu user identity failed: ${response.msg ?? 'unknown'} (${response.code ?? 'unknown'})`)
-      return { id: openId, name: response.data?.user?.name?.trim() ?? '' }
+      const user = response.data?.user
+      const email = user?.enterprise_email?.trim() || user?.email?.trim()
+      return { id: openId, name: user?.name?.trim() ?? '', ...(email ? { email } : {}) }
     })
     this.userMetadataCache.set(openId, { expiresAtMs: Date.now() + 5 * 60_000, value })
     try { return await value }

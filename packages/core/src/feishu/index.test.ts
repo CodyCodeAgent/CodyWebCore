@@ -358,11 +358,21 @@ describe('Feishu application administration', () => {
   it('resolves and caches user-facing user metadata', async () => {
     const provider = new FeishuProvider({ accountId: 'bot-1', appId: 'cli_test', appSecret: 'secret' })
     let calls = 0
-    const get = async () => { calls += 1; return { code: 0, data: { user: { name: '勾超' } } } }
+    const get = async () => { calls += 1; return { code: 0, data: { user: { name: '勾超', enterprise_email: 'gouchao@example.com' } } } }
     Object.assign(provider as unknown as { client: unknown }, { client: { contact: { v3: { user: { get } } } } })
-    await expect(provider.userMetadata('ou_user')).resolves.toEqual({ id: 'ou_user', name: '勾超' })
-    await expect(provider.userMetadata('ou_user')).resolves.toEqual({ id: 'ou_user', name: '勾超' })
+    await expect(provider.userMetadata('ou_user')).resolves.toEqual({ id: 'ou_user', name: '勾超', email: 'gouchao@example.com' })
+    await expect(provider.userMetadata('ou_user')).resolves.toEqual({ id: 'ou_user', name: '勾超', email: 'gouchao@example.com' })
     expect(calls).toBe(1)
+  })
+
+  it('falls back to a personal email and tolerates an absent email', async () => {
+    const provider = new FeishuProvider({ accountId: 'bot-1', appId: 'cli_test', appSecret: 'secret' })
+    const get = async ({ path }: { path: { user_id: string } }) => ({ code: 0, data: { user: path.user_id === 'ou_personal'
+      ? { name: '用户一', enterprise_email: ' ', email: 'one@example.com' }
+      : { name: '用户二' } } })
+    Object.assign(provider as unknown as { client: unknown }, { client: { contact: { v3: { user: { get } } } } })
+    await expect(provider.userMetadata('ou_personal')).resolves.toEqual({ id: 'ou_personal', name: '用户一', email: 'one@example.com' })
+    await expect(provider.userMetadata('ou_none')).resolves.toEqual({ id: 'ou_none', name: '用户二' })
   })
 
   it('resolves and caches user-facing chat metadata', async () => {

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.43.3
+
+- Expose a Feishu user's visible enterprise or personal email through the cached, app-scoped user metadata lookup. Email remains optional when the app lacks contact email access or the user's profile has no email.
+
 ## 0.43.2
 
 - Restart an App Server that exits unexpectedly when the next operation initializes the runtime.

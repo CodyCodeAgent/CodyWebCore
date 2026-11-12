@@ -653,9 +653,9 @@ export class FeishuProvider {
             throw error;
         }
     }
-    /** Resolve a user display name in the current application's Open ID
-     * namespace. The name field requires contact:user.base:readonly and may be
-     * empty when the app has not received or published that permission. */
+    /** Resolve a user profile in the current application's Open ID namespace.
+     * Name requires contact:user.base:readonly; email additionally requires
+     * contact:user.email:readonly and may be absent even on a successful lookup. */
     async userMetadata(openId, refresh = false) {
         const cached = this.userMetadataCache.get(openId);
         if (!refresh && cached && cached.expiresAtMs > Date.now())
@@ -666,7 +666,9 @@ export class FeishuProvider {
         }).then(response => {
             if (response.code !== 0)
                 throw new Error(`Feishu user identity failed: ${response.msg ?? 'unknown'} (${response.code ?? 'unknown'})`);
-            return { id: openId, name: response.data?.user?.name?.trim() ?? '' };
+            const user = response.data?.user;
+            const email = user?.enterprise_email?.trim() || user?.email?.trim();
+            return { id: openId, name: user?.name?.trim() ?? '', ...(email ? { email } : {}) };
         });
         this.userMetadataCache.set(openId, { expiresAtMs: Date.now() + 5 * 60_000, value });
         try {

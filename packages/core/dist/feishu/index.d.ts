@@ -64,6 +64,7 @@ export type FeishuChatBotMetadata = {
 export type FeishuUserMetadata = {
     id: string;
     name: string;
+    email?: string;
 };
 /** Message kinds whose content and resources are normalized by this adapter. */
 export declare const FEISHU_MESSAGE_TYPES: readonly ["text", "post", "image", "file", "audio", "media", "interactive"];
@@ -124,9 +125,9 @@ export declare class FeishuProvider {
      * IDs. Feishu mention Open IDs are application-scoped, so products must not
      * substitute identities discovered under another application. */
     chatBots(chatId: string, refresh?: boolean): Promise<FeishuChatBotMetadata[]>;
-    /** Resolve a user display name in the current application's Open ID
-     * namespace. The name field requires contact:user.base:readonly and may be
-     * empty when the app has not received or published that permission. */
+    /** Resolve a user profile in the current application's Open ID namespace.
+     * Name requires contact:user.base:readonly; email additionally requires
+     * contact:user.email:readonly and may be absent even on a successful lookup. */
     userMetadata(openId: string, refresh?: boolean): Promise<FeishuUserMetadata>;
     private resolveChatMode;
     private normalizeInbound;
