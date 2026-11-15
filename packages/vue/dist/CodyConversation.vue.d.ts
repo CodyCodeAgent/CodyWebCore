@@ -5,7 +5,26 @@ type __VLS_Props = {
     variant?: 'standalone' | 'embedded';
 };
 declare var __VLS_1: {}, __VLS_3: {
-    message: import("@codycodeagent/cody-web-core/conversation", { with: { "resolution-mode": "import" } }).ConversationMessage;
+    message: {
+        text: string;
+        id: string;
+        turnId?: string;
+        role: import("@codycodeagent/cody-web-core/conversation", { with: { "resolution-mode": "import" } }).MessageRole;
+        images?: string[];
+        skills?: Array<{
+            name: string;
+            path: string;
+            displayName?: string;
+        }>;
+        outbox?: {
+            status: "queued" | "sending" | "delivered" | "failed";
+            lastError?: string;
+        };
+        tool?: import("@codycodeagent/cody-web-core/conversation", { with: { "resolution-mode": "import" } }).ConversationTool | null;
+        messageType?: string;
+        rawPayload?: unknown;
+        isUnhandled?: boolean;
+    };
 }, __VLS_19: {
     request: import("@codycodeagent/cody-web-core/conversation", { with: { "resolution-mode": "import" } }).ConversationRequest;
 };

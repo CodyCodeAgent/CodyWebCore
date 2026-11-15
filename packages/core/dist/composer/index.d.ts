@@ -19,6 +19,7 @@ export type ComposerImage = {
     path?: string;
     url: string;
     mimeType: string;
+    size?: number;
 };
 export type ComposerSkill = {
     name: string;
@@ -118,4 +119,28 @@ export declare function validateComposerImage(file: ComposerFileCandidate, polic
     maxBytes: number;
     supportedMimeTypes: readonly string[];
 }): ComposerImageValidation;
+/** Files are accepted independently of whether a runtime can interpret their format. */
+export type ComposerAttachment = {
+    id: string;
+    name: string;
+    mimeType: string;
+    size?: number;
+    url?: string;
+    path?: string;
+};
+export declare const DEFAULT_ATTACHMENT_POLICY: {
+    readonly maxCount: 8;
+    readonly maxBytes: number;
+};
+export declare function isImageAttachment(file: {
+    mimeType: string;
+}): boolean;
+export declare function parseAttachmentText(value: string): {
+    text: string;
+    attachments: ComposerAttachment[];
+};
+/** Kept in native user text so history, reconnects and retries share one durable source. */
+export declare function materializeAttachmentText(text: string, attachments: readonly ComposerAttachment[]): string;
+/** Only same-origin download URLs are eligible for attachment links. */
+export declare function attachmentDownloadUrl(url?: string): string | undefined;
 //# sourceMappingURL=index.d.ts.map

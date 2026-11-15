@@ -1,12 +1,12 @@
-import { defineComponent as Z, ref as _, watch as ae, nextTick as re, onMounted as we, onBeforeUnmount as Ce, openBlock as r, createElementBlock as d, withModifiers as ie, createElementVNode as c, createCommentVNode as D, computed as R, Fragment as U, createVNode as N, reactive as De, toDisplayString as L, renderList as P, createTextVNode as de, normalizeClass as ue, withDirectives as Te, withKeys as Ee, vModelDynamic as Ie, renderSlot as ee, unref as V, h as se, useId as Ue, createBlock as pe, shallowRef as Re, getCurrentScope as Oe, onScopeDispose as _e } from "vue";
-import { buildApprovalRiskSummary as Be, toolStatusTone as fe, buildToolOutputPreview as Fe, isToolOutputTruncated as Pe, toolOutputToggleLabel as ze } from "@codycodeagent/cody-web-core/presentation";
-import Se from "dompurify";
-import je from "markdown-it";
-import Ve from "markdown-it-footnote";
-import We from "markdown-it-task-lists";
-import { conversationFeedFromState as He, formatTurnDuration as Ne, createConversationState as le } from "@codycodeagent/cody-web-core/conversation";
-import { composerHasContent as Ke, removeComposerTrigger as Ge, findComposerTrigger as Qe } from "@codycodeagent/cody-web-core/composer";
-import { createConversationController as Ze } from "@codycodeagent/cody-web-core/client";
+import { defineComponent as Z, ref as P, watch as ne, nextTick as ce, onMounted as xe, onBeforeUnmount as Ae, openBlock as l, createElementBlock as r, withModifiers as de, createElementVNode as u, createCommentVNode as D, computed as B, Fragment as I, createVNode as N, reactive as Ie, toDisplayString as $, renderList as z, createTextVNode as ae, normalizeClass as ue, withDirectives as _e, withKeys as Re, vModelDynamic as Be, renderSlot as te, unref as R, h as le, useId as Oe, createBlock as fe, shallowRef as Fe, getCurrentScope as Pe, onScopeDispose as ze } from "vue";
+import { parseAttachmentText as ie, attachmentDownloadUrl as ge, composerHasContent as je, isImageAttachment as ve, removeComposerTrigger as Ve, findComposerTrigger as We } from "@codycodeagent/cody-web-core/composer";
+import { buildApprovalRiskSummary as He, toolStatusTone as ye, buildToolOutputPreview as Ke, isToolOutputTruncated as Ne, toolOutputToggleLabel as Ge } from "@codycodeagent/cody-web-core/presentation";
+import Le from "dompurify";
+import Qe from "markdown-it";
+import Ze from "markdown-it-footnote";
+import Xe from "markdown-it-task-lists";
+import { conversationFeedFromState as Ye, formatTurnDuration as Je, createConversationState as re } from "@codycodeagent/cody-web-core/conversation";
+import { createConversationController as et } from "@codycodeagent/cody-web-core/client";
 const X = {
   zoomOut: "缩小",
   fit: "适应",
@@ -25,95 +25,95 @@ const X = {
   lineCount: (e) => `${String(e)} 行`,
   expandCode: (e) => `展开全部 · 共 ${String(e)} 行`,
   collapseCode: "收起代码"
-}, I = new je({ breaks: !0, html: !1, linkify: !0, typographer: !1 });
-I.use(We, { enabled: !1, label: !0, labelAfter: !0 });
-I.use(Ve);
-function F(e, a) {
-  return `<button type="button" class="markdown-tool-button" data-markdown-action="${e}" aria-label="${a}" title="${a}">${a}</button>`;
+}, _ = new Qe({ breaks: !0, html: !1, linkify: !0, typographer: !1 });
+_.use(Xe, { enabled: !1, label: !0, labelAfter: !0 });
+_.use(Ze);
+function V(e, s) {
+  return `<button type="button" class="markdown-tool-button" data-markdown-action="${e}" aria-label="${s}" title="${s}">${s}</button>`;
 }
-function xe(e, a = "", o = X) {
-  const n = a.toLowerCase();
-  if (n === "mermaid" || n === "plantuml" || n === "puml") {
-    const h = n === "mermaid" ? "mermaid" : "plantuml";
-    return `<div class="markdown-diagram-shell" data-diagram-engine="${h}"><header class="markdown-diagram-toolbar"><span>${h}</span><span class="markdown-diagram-actions">${F("diagram-zoom-out", o.zoomOut)}${F("diagram-fit", o.fit)}${F("diagram-zoom-in", o.zoomIn)}${F("diagram-source", o.source)}${F("diagram-fullscreen", o.fullscreen)}${F("diagram-export-svg", "SVG")}${F("diagram-export-png", "PNG")}</span></header><div class="markdown-diagram-stage" role="img" aria-label="${o.diagramAria(h)}" style="color:#111827;background:#fff"><p class="markdown-diagram-status">${o.rendering(h)}</p></div><pre class="markdown-diagram-source" hidden><code>${I.utils.escapeHtml(e)}</code></pre></div>
+function qe(e, s = "", n = X) {
+  const a = s.toLowerCase();
+  if (a === "mermaid" || a === "plantuml" || a === "puml") {
+    const T = a === "mermaid" ? "mermaid" : "plantuml";
+    return `<div class="markdown-diagram-shell" data-diagram-engine="${T}"><header class="markdown-diagram-toolbar"><span>${T}</span><span class="markdown-diagram-actions">${V("diagram-zoom-out", n.zoomOut)}${V("diagram-fit", n.fit)}${V("diagram-zoom-in", n.zoomIn)}${V("diagram-source", n.source)}${V("diagram-fullscreen", n.fullscreen)}${V("diagram-export-svg", "SVG")}${V("diagram-export-png", "PNG")}</span></header><div class="markdown-diagram-stage" role="img" aria-label="${n.diagramAria(T)}" style="color:#111827;background:#fff"><p class="markdown-diagram-status">${n.rendering(T)}</p></div><pre class="markdown-diagram-source" hidden><code>${_.utils.escapeHtml(e)}</code></pre></div>
 `;
   }
   const t = e.replace(/\n$/u, "").split(`
-`), u = t.length <= 2 && t.every((h) => h.length <= 96), v = t.length > 10, m = a || "text", $ = [u ? "is-compact-code" : "", /^[A-Za-z0-9_-]+$/u.test(a) ? `language-${a}` : ""].filter(Boolean).join(" "), f = $ ? ` class="${$}"` : "", p = [u ? "is-compact" : "", v ? "is-collapsible is-collapsed" : ""].filter(Boolean).join(" "), s = v ? `${m} · ${o.lineCount(t.length)}` : m, S = v ? `<button type="button" class="markdown-tool-button markdown-code-collapse" data-markdown-action="toggle-code" aria-label="${o.collapseCode}" title="${o.collapseCode}" aria-expanded="false">${o.collapseCode}</button>` : "", A = v ? `<div class="markdown-code-expand"><button type="button" data-markdown-action="toggle-code" aria-expanded="false">${o.expandCode(t.length)}</button></div>` : "";
-  return `<div class="markdown-code-host"><div class="markdown-code-shell${p ? ` ${p}` : ""}" data-language="${m}" data-code-lines="${String(t.length)}"><header class="markdown-code-toolbar"><span>${s}</span><span class="markdown-code-actions">${S}${F("wrap-code", o.wrap)}${F("copy-code", o.copy)}${F("save-code", o.save)}</span></header><pre class="markdown-code-block${u ? " is-compact" : ""}"><code${f}>${I.utils.escapeHtml(e)}</code></pre>${A}</div></div>
+`), c = t.length <= 2 && t.every((T) => T.length <= 96), y = t.length > 10, m = s || "text", h = [c ? "is-compact-code" : "", /^[A-Za-z0-9_-]+$/u.test(s) ? `language-${s}` : ""].filter(Boolean).join(" "), w = h ? ` class="${h}"` : "", v = [c ? "is-compact" : "", y ? "is-collapsible is-collapsed" : ""].filter(Boolean).join(" "), f = y ? `${m} · ${n.lineCount(t.length)}` : m, o = y ? `<button type="button" class="markdown-tool-button markdown-code-collapse" data-markdown-action="toggle-code" aria-label="${n.collapseCode}" title="${n.collapseCode}" aria-expanded="false">${n.collapseCode}</button>` : "", x = y ? `<div class="markdown-code-expand"><button type="button" data-markdown-action="toggle-code" aria-expanded="false">${n.expandCode(t.length)}</button></div>` : "";
+  return `<div class="markdown-code-host"><div class="markdown-code-shell${v ? ` ${v}` : ""}" data-language="${m}" data-code-lines="${String(t.length)}"><header class="markdown-code-toolbar"><span>${f}</span><span class="markdown-code-actions">${o}${V("wrap-code", n.wrap)}${V("copy-code", n.copy)}${V("save-code", n.save)}</span></header><pre class="markdown-code-block${c ? " is-compact" : ""}"><code${w}>${_.utils.escapeHtml(e)}</code></pre>${x}</div></div>
 `;
 }
-I.renderer.rules.fence = (e, a, o, n) => {
-  const t = e[a];
-  return xe(t.content, t.info.trim().split(/\s+/u)[0] ?? "", n.labels);
+_.renderer.rules.fence = (e, s, n, a) => {
+  const t = e[s];
+  return qe(t.content, t.info.trim().split(/\s+/u)[0] ?? "", a.labels);
 };
-I.renderer.rules.code_block = (e, a, o, n) => xe(e[a].content, "", n.labels);
-I.renderer.rules.table_open = (e, a, o, n) => {
-  const t = n.labels ?? X;
-  return `<section class="markdown-table-shell" role="region" aria-label="${t.dataTable}" tabindex="0"><header class="markdown-table-toolbar">${F("copy-table", t.copyCsv)}</header><div class="markdown-table-scroll"><table>
+_.renderer.rules.code_block = (e, s, n, a) => qe(e[s].content, "", a.labels);
+_.renderer.rules.table_open = (e, s, n, a) => {
+  const t = a.labels ?? X;
+  return `<section class="markdown-table-shell" role="region" aria-label="${t.dataTable}" tabindex="0"><header class="markdown-table-toolbar">${V("copy-table", t.copyCsv)}</header><div class="markdown-table-scroll"><table>
 `;
 };
-I.renderer.rules.table_close = () => `</table></div></section>
+_.renderer.rules.table_close = () => `</table></div></section>
 `;
-const ge = I.renderer.rules.code_inline;
-I.renderer.rules.code_inline = (e, a, o, n, t) => {
-  const u = e[a].content, v = u.match(/^(.+?\.[A-Za-z0-9_-]{1,12})(?::(\d+))?$/u);
-  if (!v || /\s/u.test(u)) return ge ? ge(e, a, o, n, t) : t.renderToken(e, a, o);
-  const m = I.utils.escapeHtml(v[1]), $ = v[2] ?? "", f = n.labels ?? X;
-  return `<button type="button" class="markdown-file-link" data-markdown-action="open-file" data-file-path="${m}" data-file-line="${$}" title="${f.openFile(m)}"><code>${I.utils.escapeHtml(u)}</code></button>`;
+const ke = _.renderer.rules.code_inline;
+_.renderer.rules.code_inline = (e, s, n, a, t) => {
+  const c = e[s].content, y = c.match(/^(.+?\.[A-Za-z0-9_-]{1,12})(?::(\d+))?$/u);
+  if (!y || /\s/u.test(c)) return ke ? ke(e, s, n, a, t) : t.renderToken(e, s, n);
+  const m = _.utils.escapeHtml(y[1]), h = y[2] ?? "", w = a.labels ?? X;
+  return `<button type="button" class="markdown-file-link" data-markdown-action="open-file" data-file-path="${m}" data-file-line="${h}" title="${w.openFile(m)}"><code>${_.utils.escapeHtml(c)}</code></button>`;
 };
-function Ae(e) {
+function Me(e) {
   if (!e || /^(?:[A-Za-z][A-Za-z\d+.-]*:|\/\/|#)/u.test(e)) return;
-  const a = e.match(/^(.*?)(?:#L?(\d+))?$/u), o = (a == null ? void 0 : a[1]) ?? e, n = (a == null ? void 0 : a[2]) ?? "";
-  if (/[?#]/u.test(o)) return;
-  const t = o.startsWith("/") || o.startsWith("./") || o.startsWith("../"), u = /(?:^|\/)[^/?#]+\.[A-Za-z\d_-]{1,12}$/u.test(o);
-  if (!(!t && !u))
-    return { path: o, line: n };
+  const s = e.match(/^(.*?)(?:#L?(\d+))?$/u), n = (s == null ? void 0 : s[1]) ?? e, a = (s == null ? void 0 : s[2]) ?? "";
+  if (/[?#]/u.test(n)) return;
+  const t = n.startsWith("/") || n.startsWith("./") || n.startsWith("../"), c = /(?:^|\/)[^/?#]+\.[A-Za-z\d_-]{1,12}$/u.test(n);
+  if (!(!t && !c))
+    return { path: n, line: a };
 }
-function Xe(e, a) {
-  let o = 0;
-  for (let n = a - 1; n >= 0; n -= 1)
-    if (e[n].type === "link_close" && (o += 1), e[n].type === "link_open") {
-      if (o === 0) return e[n];
-      o -= 1;
+function tt(e, s) {
+  let n = 0;
+  for (let a = s - 1; a >= 0; a -= 1)
+    if (e[a].type === "link_close" && (n += 1), e[a].type === "link_open") {
+      if (n === 0) return e[a];
+      n -= 1;
     }
 }
-const ve = I.renderer.rules.link_open;
-I.renderer.rules.link_open = (e, a, o, n, t) => {
-  const u = e[a], v = u.attrGet("href") ?? "", m = Ae(v);
+const be = _.renderer.rules.link_open;
+_.renderer.rules.link_open = (e, s, n, a, t) => {
+  const c = e[s], y = c.attrGet("href") ?? "", m = Me(y);
   if (m) {
-    const $ = n.labels ?? X, f = I.utils.escapeHtml(m.path);
-    return `<button type="button" class="markdown-file-link" data-markdown-action="open-file" data-file-path="${f}" data-file-line="${m.line}" title="${$.openFile(f)}">`;
+    const h = a.labels ?? X, w = _.utils.escapeHtml(m.path);
+    return `<button type="button" class="markdown-file-link" data-markdown-action="open-file" data-file-path="${w}" data-file-line="${m.line}" title="${h.openFile(w)}">`;
   }
-  return /^https?:\/\//u.test(v) && (u.attrSet("target", "_blank"), u.attrSet("rel", "noopener noreferrer")), ve ? ve(e, a, o, n, t) : t.renderToken(e, a, o);
+  return /^https?:\/\//u.test(y) && (c.attrSet("target", "_blank"), c.attrSet("rel", "noopener noreferrer")), be ? be(e, s, n, a, t) : t.renderToken(e, s, n);
 };
-const ye = I.renderer.rules.link_close;
-I.renderer.rules.link_close = (e, a, o, n, t) => {
-  var v;
-  const u = ((v = Xe(e, a)) == null ? void 0 : v.attrGet("href")) ?? "";
-  return Ae(u) ? "</button>" : ye ? ye(e, a, o, n, t) : t.renderToken(e, a, o);
+const he = _.renderer.rules.link_close;
+_.renderer.rules.link_close = (e, s, n, a, t) => {
+  var y;
+  const c = ((y = tt(e, s)) == null ? void 0 : y.attrGet("href")) ?? "";
+  return Me(c) ? "</button>" : he ? he(e, s, n, a, t) : t.renderToken(e, s, n);
 };
-function ke(e, a = X) {
-  return Se.sanitize(I.render(e, { labels: a }), {
+function $e(e, s = X) {
+  return Le.sanitize(_.render(e, { labels: s }), {
     ADD_ATTR: ["target"],
     ADD_TAGS: ["table", "thead", "tbody", "tr", "th", "td", "h1", "h2", "h3", "h4", "h5", "h6"],
     FORBID_TAGS: ["script", "style", "iframe", "object", "embed"]
   });
 }
-function be(e) {
-  var a;
-  return (((a = e.match(/^\s*```/gmu)) == null ? void 0 : a.length) ?? 0) % 2 === 1 ? `${e}
+function we(e) {
+  var s;
+  return (((s = e.match(/^\s*```/gmu)) == null ? void 0 : s.length) ?? 0) % 2 === 1 ? `${e}
 
 \`\`\`` : e;
 }
-let Ye = 0, he = Promise.resolve();
-const Je = async () => import("mermaid");
-async function et(e, a, o = Je) {
-  const n = `cody-diagram-${String(++Ye)}`, t = he.then(async () => {
-    var u, v, m;
+let ot = 0, Ce = Promise.resolve();
+const at = async () => import("mermaid");
+async function nt(e, s, n = at) {
+  const a = `cody-diagram-${String(++ot)}`, t = Ce.then(async () => {
+    var c, y, m;
     try {
-      const { default: $ } = await o();
-      return $.initialize({
+      const { default: h } = await n();
+      return h.initialize({
         startOnLoad: !1,
         securityLevel: "strict",
         suppressErrorRendering: !0,
@@ -121,35 +121,35 @@ async function et(e, a, o = Je) {
         themeVariables: { background: "#ffffff" },
         htmlLabels: !1,
         flowchart: { htmlLabels: !1, useMaxWidth: !1 }
-      }), (await $.render(n, e, a)).svg;
+      }), (await h.render(a, e, s)).svg;
     } finally {
-      (u = document.getElementById(n)) == null || u.remove(), (v = document.getElementById(`d${n}`)) == null || v.remove(), (m = document.getElementById(`i${n}`)) == null || m.remove();
+      (c = document.getElementById(a)) == null || c.remove(), (y = document.getElementById(`d${a}`)) == null || y.remove(), (m = document.getElementById(`i${a}`)) == null || m.remove();
     }
   });
-  return he = t.then(() => {
+  return Ce = t.then(() => {
   }, () => {
   }), t;
 }
-const tt = ["aria-label"], ot = ["src", "alt"], Le = /* @__PURE__ */ Z({
+const st = ["aria-label"], lt = ["src", "alt"], De = /* @__PURE__ */ Z({
   __name: "CodyImagePreviewDialog",
   props: {
     src: {},
     alt: { default: "图片预览" }
   },
   emits: ["dismiss"],
-  setup(e, { emit: a }) {
-    const o = e, n = a, t = _(null);
-    ae(() => o.src, async (m) => {
-      var $;
-      m && (await re(), ($ = t.value) == null || $.focus());
+  setup(e, { emit: s }) {
+    const n = e, a = s, t = P(null);
+    ne(() => n.src, async (m) => {
+      var h;
+      m && (await ce(), (h = t.value) == null || h.focus());
     }, { flush: "post" });
-    function u() {
-      n("dismiss");
+    function c() {
+      a("dismiss");
     }
-    function v(m) {
-      m.key === "Escape" && o.src && (m.preventDefault(), u());
+    function y(m) {
+      m.key === "Escape" && n.src && (m.preventDefault(), c());
     }
-    return we(() => window.addEventListener("keydown", v)), Ce(() => window.removeEventListener("keydown", v)), (m, $) => e.src ? (r(), d("div", {
+    return xe(() => window.addEventListener("keydown", y)), Ae(() => window.removeEventListener("keydown", y)), (m, h) => e.src ? (l(), r("div", {
       key: 0,
       ref_key: "dialogRef",
       ref: t,
@@ -158,20 +158,20 @@ const tt = ["aria-label"], ot = ["src", "alt"], Le = /* @__PURE__ */ Z({
       "aria-modal": "true",
       "aria-label": e.alt,
       tabindex: "-1",
-      onClick: ie(u, ["self"])
+      onClick: de(c, ["self"])
     }, [
-      c("button", {
+      u("button", {
         type: "button",
         "aria-label": "关闭图片预览",
-        onClick: u
+        onClick: c
       }, "×"),
-      c("img", {
+      u("img", {
         src: e.src,
         alt: e.alt
-      }, null, 8, ot)
-    ], 8, tt)) : D("", !0);
+      }, null, 8, lt)
+    ], 8, st)) : D("", !0);
   }
-}), at = ["innerHTML"], $e = /* @__PURE__ */ Z({
+}), it = ["innerHTML"], Se = /* @__PURE__ */ Z({
   __name: "CodyMarkdown",
   props: {
     text: {},
@@ -183,10 +183,10 @@ const tt = ["aria-label"], ot = ["src", "alt"], Le = /* @__PURE__ */ Z({
     renderDiagram: {}
   },
   emits: ["openFile"],
-  setup(e, { emit: a }) {
-    const o = e, n = a, t = R(() => o.labels ?? X), u = _(null), v = _(ke(be(o.text), t.value)), m = _(""), $ = /* @__PURE__ */ new Set();
-    let f = 0;
-    const p = {
+  setup(e, { emit: s }) {
+    const n = e, a = s, t = B(() => n.labels ?? X), c = P(null), y = P($e(we(n.text), t.value)), m = P(""), h = /* @__PURE__ */ new Set();
+    let w = 0;
+    const v = {
       javascript: () => import("highlight.js/lib/languages/javascript"),
       typescript: () => import("highlight.js/lib/languages/typescript"),
       python: () => import("highlight.js/lib/languages/python"),
@@ -196,400 +196,404 @@ const tt = ["aria-label"], ot = ["src", "alt"], Le = /* @__PURE__ */ Z({
       bash: () => import("highlight.js/lib/languages/bash"),
       sql: () => import("highlight.js/lib/languages/sql")
     };
-    async function s(g) {
-      window.clearTimeout(f), f = window.setTimeout(async () => {
-        v.value = ke(be(g), t.value), await re(), S();
-      }, o.renderDelay);
+    async function f(g) {
+      window.clearTimeout(w), w = window.setTimeout(async () => {
+        y.value = $e(we(g), t.value), await ce(), o();
+      }, n.renderDelay);
     }
-    async function S() {
-      var q, b, k, x, C, z;
-      for (const M of Array.from(((q = u.value) == null ? void 0 : q.querySelectorAll("td")) ?? []))
+    async function o() {
+      var A, b, k, q, S, O;
+      for (const M of Array.from(((A = c.value) == null ? void 0 : A.querySelectorAll("td")) ?? []))
         /^-?[\d,.]+%?$/u.test(((b = M.textContent) == null ? void 0 : b.trim()) ?? "") && (M.dataset.numeric = "true");
-      for (const M of Array.from(((k = u.value) == null ? void 0 : k.querySelectorAll("img")) ?? []))
+      for (const M of Array.from(((k = c.value) == null ? void 0 : k.querySelectorAll("img")) ?? []))
         M.addEventListener("error", () => {
           M.alt = M.alt || "图片加载失败", M.classList.add("is-load-error");
         }, { once: !0 });
-      A();
-      for (const [M, T] of Array.from(((x = u.value) == null ? void 0 : x.querySelectorAll(".markdown-code-shell")) ?? []).entries()) {
-        T.dataset.codeIndex = String(M), T.classList.contains("is-collapsible") && $.has(M) && T.classList.remove("is-collapsed");
-        for (const O of Array.from(T.querySelectorAll('[data-markdown-action="toggle-code"]')))
-          O.setAttribute("aria-expanded", String(!T.classList.contains("is-collapsed")));
-        const B = T.querySelector("pre"), E = T.querySelector('[data-markdown-action="wrap-code"]');
-        B && E && (E.hidden = B.scrollWidth <= B.clientWidth + 2, E.setAttribute("aria-pressed", String(T.classList.contains("is-wrapped"))));
+      x();
+      for (const [M, E] of Array.from(((q = c.value) == null ? void 0 : q.querySelectorAll(".markdown-code-shell")) ?? []).entries()) {
+        E.dataset.codeIndex = String(M), E.classList.contains("is-collapsible") && h.has(M) && E.classList.remove("is-collapsed");
+        for (const F of Array.from(E.querySelectorAll('[data-markdown-action="toggle-code"]')))
+          F.setAttribute("aria-expanded", String(!E.classList.contains("is-collapsed")));
+        const j = E.querySelector("pre"), U = E.querySelector('[data-markdown-action="wrap-code"]');
+        j && U && (U.hidden = j.scrollWidth <= j.clientWidth + 2, U.setAttribute("aria-pressed", String(E.classList.contains("is-wrapped"))));
       }
-      await h();
-      const g = Array.from(((C = u.value) == null ? void 0 : C.querySelectorAll('pre code[class*="language-"]')) ?? []);
+      await T();
+      const g = Array.from(((S = c.value) == null ? void 0 : S.querySelectorAll('pre code[class*="language-"]')) ?? []);
       if (g.length === 0) return;
-      const w = (await import("highlight.js/lib/core")).default;
+      const C = (await import("highlight.js/lib/core")).default;
       for (const M of g) {
-        const T = ((z = Array.from(M.classList).find((O) => O.startsWith("language-"))) == null ? void 0 : z.slice(9)) ?? "", B = p[T];
-        if (!B || M.dataset.highlighted === "yes") continue;
-        const E = await B();
-        w.getLanguage(T) || w.registerLanguage(T, E.default), M.innerHTML = w.highlight(M.textContent ?? "", { language: T }).value, M.dataset.highlighted = "yes";
+        const E = ((O = Array.from(M.classList).find((F) => F.startsWith("language-"))) == null ? void 0 : O.slice(9)) ?? "", j = v[E];
+        if (!j || M.dataset.highlighted === "yes") continue;
+        const U = await j();
+        C.getLanguage(E) || C.registerLanguage(E, U.default), M.innerHTML = C.highlight(M.textContent ?? "", { language: E }).value, M.dataset.highlighted = "yes";
       }
     }
-    function A() {
-      var w;
-      if (!o.resolveAssetUrl) return;
+    function x() {
+      var C;
+      if (!n.resolveAssetUrl) return;
       const g = /\.(?:svg|png|jpe?g|gif|webp)(?:[?#].*)?$/iu;
-      for (const q of Array.from(((w = u.value) == null ? void 0 : w.querySelectorAll("a[href]")) ?? [])) {
-        const b = q.getAttribute("href") ?? "";
+      for (const A of Array.from(((C = c.value) == null ? void 0 : C.querySelectorAll("a[href]")) ?? [])) {
+        const b = A.getAttribute("href") ?? "";
         if (!g.test(b) || /^(?:data|blob):/iu.test(b)) continue;
-        const k = o.resolveAssetUrl(b);
-        k && (q.href = k, q.target = "_blank", q.rel = "noopener noreferrer");
+        const k = n.resolveAssetUrl(b);
+        k && (A.href = k, A.target = "_blank", A.rel = "noopener noreferrer");
       }
     }
-    async function h() {
-      var w, q, b, k;
-      const g = Array.from(((w = u.value) == null ? void 0 : w.querySelectorAll(".markdown-diagram-shell:not([data-rendered])")) ?? []);
-      for (const x of g) {
-        x.dataset.rendered = "loading";
-        const C = x.dataset.diagramEngine === "plantuml" ? "plantuml" : "mermaid", z = ((q = x.querySelector("code")) == null ? void 0 : q.textContent) ?? "", M = x.querySelector(".markdown-diagram-stage");
+    async function T() {
+      var C, A, b, k;
+      const g = Array.from(((C = c.value) == null ? void 0 : C.querySelectorAll(".markdown-diagram-shell:not([data-rendered])")) ?? []);
+      for (const q of g) {
+        q.dataset.rendered = "loading";
+        const S = q.dataset.diagramEngine === "plantuml" ? "plantuml" : "mermaid", O = ((A = q.querySelector("code")) == null ? void 0 : A.textContent) ?? "", M = q.querySelector(".markdown-diagram-stage");
         if (M) {
           M.style.setProperty("color", "#111827"), M.style.setProperty("background", "#ffffff");
           try {
-            let T = await ((b = o.renderDiagram) == null ? void 0 : b.call(o, { engine: C, source: z, dark: o.dark }));
-            if (!T && C === "mermaid" && (T = await et(z, M)), !T) throw new Error(C === "plantuml" ? "当前环境未配置 PlantUML 渲染器" : "图表渲染失败");
-            M.innerHTML = K(T), W(M), x.dataset.rendered = "yes", x.style.setProperty("--diagram-scale", "1");
-          } catch (T) {
-            M.textContent = T instanceof Error ? T.message : "图表渲染失败", M.classList.add("markdown-diagram-error"), (k = x.querySelector(".markdown-diagram-source")) == null || k.removeAttribute("hidden"), x.dataset.rendered = "error";
+            let E = await ((b = n.renderDiagram) == null ? void 0 : b.call(n, { engine: S, source: O, dark: n.dark }));
+            if (!E && S === "mermaid" && (E = await nt(O, M)), !E) throw new Error(S === "plantuml" ? "当前环境未配置 PlantUML 渲染器" : "图表渲染失败");
+            M.innerHTML = L(E), W(M), q.dataset.rendered = "yes", q.style.setProperty("--diagram-scale", "1");
+          } catch (E) {
+            M.textContent = E instanceof Error ? E.message : "图表渲染失败", M.classList.add("markdown-diagram-error"), (k = q.querySelector(".markdown-diagram-source")) == null || k.removeAttribute("hidden"), q.dataset.rendered = "error";
           }
         }
       }
     }
-    function K(g) {
-      const w = Se.sanitize(g, { USE_PROFILES: { svg: !0, svgFilters: !0, html: !0 }, ADD_TAGS: ["foreignObject"], ADD_ATTR: ["xmlns"] }), q = w.trimStart().startsWith("<svg") ? w : `<svg xmlns="http://www.w3.org/2000/svg">${w}</svg>`, b = new DOMParser().parseFromString(q, "image/svg+xml");
+    function L(g) {
+      const C = Le.sanitize(g, { USE_PROFILES: { svg: !0, svgFilters: !0, html: !0 }, ADD_TAGS: ["foreignObject"], ADD_ATTR: ["xmlns"] }), A = C.trimStart().startsWith("<svg") ? C : `<svg xmlns="http://www.w3.org/2000/svg">${C}</svg>`, b = new DOMParser().parseFromString(A, "image/svg+xml");
       if (b.querySelector("parsererror")) return "";
-      for (const k of b.querySelectorAll("*")) for (const x of Array.from(k.attributes)) /^on/iu.test(x.name) && k.removeAttribute(x.name);
+      for (const k of b.querySelectorAll("*")) for (const q of Array.from(k.attributes)) /^on/iu.test(q.name) && k.removeAttribute(q.name);
       return b.querySelectorAll("script").forEach((k) => k.remove()), new XMLSerializer().serializeToString(b.documentElement);
     }
     function W(g) {
       if (g.dataset.panReady === "true") return;
       g.dataset.panReady = "true";
-      let w = 0, q = 0, b = 0, k = 0;
-      g.addEventListener("pointerdown", (C) => {
-        C.button === 0 && (w = C.clientX, q = C.clientY, b = g.scrollLeft, k = g.scrollTop, g.setPointerCapture(C.pointerId), g.classList.add("is-panning"));
-      }), g.addEventListener("pointermove", (C) => {
-        g.hasPointerCapture(C.pointerId) && (g.scrollLeft = b - (C.clientX - w), g.scrollTop = k - (C.clientY - q));
+      let C = 0, A = 0, b = 0, k = 0;
+      g.addEventListener("pointerdown", (S) => {
+        S.button === 0 && (C = S.clientX, A = S.clientY, b = g.scrollLeft, k = g.scrollTop, g.setPointerCapture(S.pointerId), g.classList.add("is-panning"));
+      }), g.addEventListener("pointermove", (S) => {
+        g.hasPointerCapture(S.pointerId) && (g.scrollLeft = b - (S.clientX - C), g.scrollTop = k - (S.clientY - A));
       });
-      const x = (C) => {
-        g.hasPointerCapture(C.pointerId) && g.releasePointerCapture(C.pointerId), g.classList.remove("is-panning");
+      const q = (S) => {
+        g.hasPointerCapture(S.pointerId) && g.releasePointerCapture(S.pointerId), g.classList.remove("is-panning");
       };
-      g.addEventListener("pointerup", x), g.addEventListener("pointercancel", x);
+      g.addEventListener("pointerup", q), g.addEventListener("pointercancel", q);
     }
-    function H(g, w = 0) {
-      const q = Number(g.style.getPropertyValue("--diagram-scale") || "1");
-      g.style.setProperty("--diagram-scale", String(w === 0 ? 1 : Math.min(2.5, Math.max(0.4, q + w))));
+    function K(g, C = 0) {
+      const A = Number(g.style.getPropertyValue("--diagram-scale") || "1");
+      g.style.setProperty("--diagram-scale", String(C === 0 ? 1 : Math.min(2.5, Math.max(0.4, A + C))));
     }
-    function Y(g, w) {
-      const q = document.createElement("a");
-      q.href = URL.createObjectURL(g), q.download = w, q.click(), URL.revokeObjectURL(q.href);
+    function Y(g, C) {
+      const A = document.createElement("a");
+      A.href = URL.createObjectURL(g), A.download = C, A.click(), URL.revokeObjectURL(A.href);
     }
-    async function te(g, w) {
-      const q = w.textContent;
+    async function J(g, C) {
+      const A = C.textContent;
       try {
-        await navigator.clipboard.writeText(g), w.textContent = "已复制";
+        await navigator.clipboard.writeText(g), C.textContent = "已复制";
       } catch {
         const b = document.createElement("textarea");
         b.value = g, b.style.position = "fixed", b.style.opacity = "0", document.body.appendChild(b), b.select();
         const k = document.execCommand("copy");
-        b.remove(), w.textContent = k ? "已复制" : "复制失败";
+        b.remove(), C.textContent = k ? "已复制" : "复制失败";
       }
       window.setTimeout(() => {
-        w.textContent = q;
+        C.textContent = A;
       }, 1200);
     }
-    function oe(g) {
-      return Array.from((g == null ? void 0 : g.rows) ?? []).map((w) => Array.from(w.cells).map((q) => {
+    function se(g) {
+      return Array.from((g == null ? void 0 : g.rows) ?? []).map((C) => Array.from(C.cells).map((A) => {
         var b;
-        return `"${((b = q.textContent) == null ? void 0 : b.trim().replace(/"/gu, '""')) ?? ""}"`;
+        return `"${((b = A.textContent) == null ? void 0 : b.trim().replace(/"/gu, '""')) ?? ""}"`;
       }).join(",")).join(`
 `);
     }
-    function ne(g) {
-      var z, M, T, B;
-      const w = g.target, q = w.closest("img");
-      if (q) {
-        m.value = q.currentSrc || q.src;
+    function oe(g) {
+      var O, M, E, j;
+      const C = g.target, A = C.closest("img");
+      if (A) {
+        m.value = A.currentSrc || A.src;
         return;
       }
-      const b = w.closest("[data-markdown-action]");
+      const b = C.closest("[data-markdown-action]");
       if (!b) return;
-      const k = b.closest(".markdown-code-shell, .markdown-table-shell"), x = b.dataset.markdownAction;
-      if (x === "copy-code" && te(((z = k == null ? void 0 : k.querySelector("code")) == null ? void 0 : z.textContent) ?? "", b), x === "wrap-code") {
-        const E = (k == null ? void 0 : k.classList.toggle("is-wrapped")) ?? !1;
-        b.textContent = E && t.value.scroll || t.value.wrap, b.setAttribute("aria-pressed", String(E));
+      const k = b.closest(".markdown-code-shell, .markdown-table-shell"), q = b.dataset.markdownAction;
+      if (q === "copy-code" && J(((O = k == null ? void 0 : k.querySelector("code")) == null ? void 0 : O.textContent) ?? "", b), q === "wrap-code") {
+        const U = (k == null ? void 0 : k.classList.toggle("is-wrapped")) ?? !1;
+        b.textContent = U && t.value.scroll || t.value.wrap, b.setAttribute("aria-pressed", String(U));
       }
-      if (x === "save-code" && Y(new Blob([((M = k == null ? void 0 : k.querySelector("code")) == null ? void 0 : M.textContent) ?? ""], { type: "text/plain" }), `snippet.${(k == null ? void 0 : k.dataset.language) || "txt"}`), x === "toggle-code" && (k != null && k.classList.contains("is-collapsible"))) {
-        const E = Number(k.dataset.codeIndex ?? -1), O = !k.classList.toggle("is-collapsed");
-        E >= 0 && (O ? $.add(E) : $.delete(E));
-        for (const J of Array.from(k.querySelectorAll('[data-markdown-action="toggle-code"]'))) J.setAttribute("aria-expanded", String(O));
+      if (q === "save-code" && Y(new Blob([((M = k == null ? void 0 : k.querySelector("code")) == null ? void 0 : M.textContent) ?? ""], { type: "text/plain" }), `snippet.${(k == null ? void 0 : k.dataset.language) || "txt"}`), q === "toggle-code" && (k != null && k.classList.contains("is-collapsible"))) {
+        const U = Number(k.dataset.codeIndex ?? -1), F = !k.classList.toggle("is-collapsed");
+        U >= 0 && (F ? h.add(U) : h.delete(U));
+        for (const ee of Array.from(k.querySelectorAll('[data-markdown-action="toggle-code"]'))) ee.setAttribute("aria-expanded", String(F));
       }
-      if (x === "copy-table" && te(oe((k == null ? void 0 : k.querySelector("table")) ?? null), b), x === "open-file") {
-        const E = b.dataset.filePath ?? "", O = ((T = o.cwd) == null ? void 0 : T.replace(/\/$/u, "")) ?? "", J = E.startsWith("/") && O && E.startsWith(`${O}/`) ? E.slice(O.length + 1) : E.replace(/^\.\//u, "");
-        n("openFile", { path: J, line: Number(b.dataset.fileLine || 0) || 1 });
+      if (q === "copy-table" && J(se((k == null ? void 0 : k.querySelector("table")) ?? null), b), q === "open-file") {
+        const U = b.dataset.filePath ?? "", F = ((E = n.cwd) == null ? void 0 : E.replace(/\/$/u, "")) ?? "", ee = U.startsWith("/") && F && U.startsWith(`${F}/`) ? U.slice(F.length + 1) : U.replace(/^\.\//u, "");
+        a("openFile", { path: ee, line: Number(b.dataset.fileLine || 0) || 1 });
       }
-      const C = b.closest(".markdown-diagram-shell");
-      if (C && x === "diagram-zoom-in" && H(C, 0.2), C && x === "diagram-zoom-out" && H(C, -0.2), C && x === "diagram-fit" && H(C), C && x === "diagram-source") {
-        const E = C.querySelector(".markdown-diagram-source");
-        E && (E.hidden = !E.hidden);
+      const S = b.closest(".markdown-diagram-shell");
+      if (S && q === "diagram-zoom-in" && K(S, 0.2), S && q === "diagram-zoom-out" && K(S, -0.2), S && q === "diagram-fit" && K(S), S && q === "diagram-source") {
+        const U = S.querySelector(".markdown-diagram-source");
+        U && (U.hidden = !U.hidden);
       }
-      if (C && x === "diagram-fullscreen" && ((B = C.requestFullscreen) == null || B.call(C)), C && x === "diagram-export-svg") {
-        const E = C.querySelector("svg");
-        E && Y(new Blob([new XMLSerializer().serializeToString(E)], { type: "image/svg+xml" }), "diagram.svg");
+      if (S && q === "diagram-fullscreen" && ((j = S.requestFullscreen) == null || j.call(S)), S && q === "diagram-export-svg") {
+        const U = S.querySelector("svg");
+        U && Y(new Blob([new XMLSerializer().serializeToString(U)], { type: "image/svg+xml" }), "diagram.svg");
       }
     }
-    return ae(() => [o.text, o.labels], ([g]) => {
-      s(g);
-    }, { deep: !0 }), we(() => {
-      S();
-    }), Ce(() => window.clearTimeout(f)), (g, w) => (r(), d(U, null, [
-      c("div", {
+    return ne(() => [n.text, n.labels], ([g]) => {
+      f(g);
+    }, { deep: !0 }), xe(() => {
+      o();
+    }), Ae(() => window.clearTimeout(w)), (g, C) => (l(), r(I, null, [
+      u("div", {
         ref_key: "rootRef",
-        ref: u,
+        ref: c,
         class: "cody-markdown cody-markdown-renderer",
-        innerHTML: v.value,
-        onClick: ne
-      }, null, 8, at),
-      N(Le, {
+        innerHTML: y.value,
+        onClick: oe
+      }, null, 8, it),
+      N(De, {
         src: m.value,
         alt: "Markdown 图片预览",
-        onDismiss: w[0] || (w[0] = (q) => m.value = "")
+        onDismiss: C[0] || (C[0] = (A) => m.value = "")
       }, null, 8, ["src"])
     ], 64));
   }
 });
-function qe(e) {
+function Ee(e) {
   if (!e || typeof e != "object") return [];
-  const a = e;
-  return (Array.isArray(a.questions) ? a.questions : []).flatMap((n, t) => {
-    if (!n || typeof n != "object") return [];
-    const u = n, v = typeof u.question == "string" ? u.question.trim() : "";
-    if (!v) return [];
-    const m = Array.isArray(u.options) ? u.options : [];
+  const s = e;
+  return (Array.isArray(s.questions) ? s.questions : []).flatMap((a, t) => {
+    if (!a || typeof a != "object") return [];
+    const c = a, y = typeof c.question == "string" ? c.question.trim() : "";
+    if (!y) return [];
+    const m = Array.isArray(c.options) ? c.options : [];
     return [{
-      id: typeof u.id == "string" && u.id.trim() ? u.id.trim() : `question-${String(t + 1)}`,
-      header: typeof u.header == "string" ? u.header.trim() : "",
-      question: v,
-      isOther: u.isOther === !0,
-      isSecret: u.isSecret === !0,
-      options: m.flatMap(($) => {
-        if (!$ || typeof $ != "object") return [];
-        const f = $, p = typeof f.label == "string" ? f.label.trim() : "";
-        return p ? [{ label: p, description: typeof f.description == "string" ? f.description.trim() : "" }] : [];
+      id: typeof c.id == "string" && c.id.trim() ? c.id.trim() : `question-${String(t + 1)}`,
+      header: typeof c.header == "string" ? c.header.trim() : "",
+      question: y,
+      isOther: c.isOther === !0,
+      isSecret: c.isSecret === !0,
+      options: m.flatMap((h) => {
+        if (!h || typeof h != "object") return [];
+        const w = h, v = typeof w.label == "string" ? w.label.trim() : "";
+        return v ? [{ label: v, description: typeof w.description == "string" ? w.description.trim() : "" }] : [];
       })
     }];
   });
 }
-function nt(e) {
-  var n;
+function rt(e) {
+  var a;
   if (!e || typeof e != "object") return "Codex 请求执行一项受保护操作。";
-  const a = e, o = a.reason ?? a.question ?? a.command;
-  return typeof o == "string" && o.trim() ? o : ((n = qe(e)[0]) == null ? void 0 : n.question) ?? "Codex 请求执行一项受保护操作。";
+  const s = e, n = s.reason ?? s.question ?? s.command;
+  return typeof n == "string" && n.trim() ? n : ((a = Ee(e)[0]) == null ? void 0 : a.question) ?? "Codex 请求执行一项受保护操作。";
 }
-function Co(e) {
-  var n;
-  const a = [], o = (t) => {
+function Io(e) {
+  var a;
+  const s = [], n = (t) => {
     if (t.kind === "reasoning") {
-      a.push({ id: t.id, kind: "reasoning", text: t.text });
+      s.push({ id: t.id, kind: "reasoning", text: t.text });
       return;
     }
     if (!t.tool.summary && t.tool.details.length === 0 && !t.tool.output && t.tool.kind !== "fileChange") return;
     if (t.tool.kind !== "fileChange") {
-      a.push({ id: t.id, kind: "tool", tool: t.tool });
+      s.push({ id: t.id, kind: "tool", tool: t.tool });
       return;
     }
-    const u = `file-group:${t.turnId ?? t.id}`, v = a.at(-1);
-    if (!v || v.kind !== "tool" || v.id !== u) {
-      const f = [...new Set(t.tool.details)], p = {
-        id: u,
+    const c = `file-group:${t.turnId ?? t.id}`, y = s.at(-1);
+    if (!y || y.kind !== "tool" || y.id !== c) {
+      const w = [...new Set(t.tool.details)], v = {
+        id: c,
         kind: "tool",
         tool: {
           ...t.tool,
-          title: f.length > 1 ? `文件变更 · ${String(f.length)} 个文件` : "文件变更",
-          summary: f.length ? `${String(f.length)} 个文件已更新` : t.tool.summary,
-          details: f
+          title: w.length > 1 ? `文件变更 · ${String(w.length)} 个文件` : "文件变更",
+          summary: w.length ? `${String(w.length)} 个文件已更新` : t.tool.summary,
+          details: w
         }
       };
-      a.push(p);
+      s.push(v);
       return;
     }
-    const m = [.../* @__PURE__ */ new Set([...v.tool.details, ...t.tool.details])], $ = [v.tool.output, t.tool.output].filter(Boolean).join(`
+    const m = [.../* @__PURE__ */ new Set([...y.tool.details, ...t.tool.details])], h = [y.tool.output, t.tool.output].filter(Boolean).join(`
 
 `);
-    v.tool = {
-      ...v.tool,
-      status: /fail|error|cancel|reject/iu.test(`${v.tool.status} ${t.tool.status}`) ? "failed" : t.tool.status,
+    y.tool = {
+      ...y.tool,
+      status: /fail|error|cancel|reject/iu.test(`${y.tool.status} ${t.tool.status}`) ? "failed" : t.tool.status,
       title: m.length > 1 ? `文件变更 · ${String(m.length)} 个文件` : "文件变更",
       summary: m.length ? `${String(m.length)} 个文件已更新` : t.tool.summary,
       details: m,
-      ...$ ? { output: $ } : {}
+      ...h ? { output: h } : {}
     };
   };
-  for (const t of He(e))
-    if (t.kind === "message") a.push({ id: t.id, kind: "message", message: t.message });
-    else if (t.kind === "timeline") o(t.entry);
-    else if (t.kind === "plan") a.push({ id: t.id, kind: "plan", text: t.plan.text });
-    else if (t.kind === "request") a.push({ id: t.id, kind: "request", request: t.request });
-    else if (t.kind === "turn" && t.status === "failed") a.push({ id: t.id, kind: "failure", text: t.error });
+  for (const t of Ye(e))
+    if (t.kind === "message") s.push({ id: t.id, kind: "message", message: t.message });
+    else if (t.kind === "timeline") n(t.entry);
+    else if (t.kind === "plan") s.push({ id: t.id, kind: "plan", text: t.plan.text });
+    else if (t.kind === "request") s.push({ id: t.id, kind: "request", request: t.request });
+    else if (t.kind === "turn" && t.status === "failed") s.push({ id: t.id, kind: "failure", text: t.error });
     else {
       if (t.kind === "turn" && t.status === "interrupted") continue;
-      t.kind === "turn" && t.status === "completed" ? a.push({ id: t.id, kind: "worked", label: `Worked for ${Ne(t.durationMs ?? 0)}` }) : t.kind === "activity" && a.push({
+      t.kind === "turn" && t.status === "completed" ? s.push({ id: t.id, kind: "worked", label: `Worked for ${Je(t.durationMs ?? 0)}` }) : t.kind === "activity" && s.push({
         id: t.id,
         kind: "activity",
-        title: t.status === "waiting" ? ((n = e.pendingRequests.find((u) => !u.turnId || u.turnId === t.turnId)) == null ? void 0 : n.kind) === "approval" ? "等待你的审批" : "等待你的回答" : t.label,
+        title: t.status === "waiting" ? ((a = e.pendingRequests.find((c) => !c.turnId || c.turnId === t.turnId)) == null ? void 0 : a.kind) === "approval" ? "等待你的审批" : "等待你的回答" : t.label,
         detail: t.status === "waiting" ? "处理后 Codex 会继续本次回复" : t.status === "retrying" ? e.connection.status === "disconnected" ? "连接已中断，等待恢复" : "正在恢复本次回复" : e.connection.status === "connected" ? "实时更新中" : "等待恢复连接",
         tone: t.status
       });
     }
-  return a;
+  return s;
 }
-const st = ["data-kind"], lt = { class: "cody-request-heading" }, it = { key: 0 }, rt = {
+const dt = ["data-kind"], ct = { class: "cody-request-heading" }, ut = { key: 0 }, mt = {
   key: 0,
   class: "cody-question-options"
-}, dt = ["onClick"], ut = { key: 0 }, ct = ["onUpdate:modelValue", "type", "placeholder"], mt = { class: "cody-request-actions" }, pt = ["disabled"], ft = { class: "cody-approval-risk-heading" }, gt = ["data-level"], vt = { class: "cody-approval-risk-subject" }, yt = {
+}, pt = ["onClick"], ft = { key: 0 }, gt = ["onUpdate:modelValue", "type", "placeholder"], vt = { class: "cody-request-actions" }, yt = ["disabled"], kt = { class: "cody-approval-risk-heading" }, bt = ["data-level"], ht = { class: "cody-approval-risk-subject" }, $t = {
   key: 0,
   class: "cody-approval-risk-labels"
-}, kt = {
+}, wt = {
   key: 1,
   class: "cody-approval-risk-details"
-}, bt = { class: "cody-approval-risk-recommendation" }, ht = { key: 1 }, $t = {
+}, Ct = { class: "cody-approval-risk-recommendation" }, St = { key: 1 }, xt = {
   key: 2,
   class: "cody-request-actions"
-}, wt = /* @__PURE__ */ Z({
+}, At = /* @__PURE__ */ Z({
   __name: "CodyRequestCard",
   props: {
     request: {}
   },
   emits: ["resolveApproval", "resolveQuestion"],
-  setup(e, { emit: a }) {
-    const o = e, n = a, t = De({}), u = R(() => qe(o.request.params)), v = R(() => nt(o.request.params)), m = R(() => o.request.kind === "approval" ? Be({ method: o.request.method, params: o.request.params }) : null), $ = R(() => u.value.length > 0 && u.value.every((p) => {
-      var s;
-      return !!((s = t[p.id]) != null && s.trim());
+  setup(e, { emit: s }) {
+    const n = e, a = s, t = Ie({}), c = B(() => Ee(n.request.params)), y = B(() => rt(n.request.params)), m = B(() => n.request.kind === "approval" ? He({ method: n.request.method, params: n.request.params }) : null), h = B(() => c.value.length > 0 && c.value.every((v) => {
+      var f;
+      return !!((f = t[v.id]) != null && f.trim());
     }));
-    ae(() => o.request.id, () => {
-      for (const p of Object.keys(t)) delete t[p];
+    ne(() => n.request.id, () => {
+      for (const v of Object.keys(t)) delete t[v];
     });
-    function f() {
-      $.value && n("resolveQuestion", o.request.id, Object.fromEntries(u.value.map((p) => [p.id, { answers: [t[p.id].trim()] }])));
+    function w() {
+      h.value && a("resolveQuestion", n.request.id, Object.fromEntries(c.value.map((v) => [v.id, { answers: [t[v.id].trim()] }])));
     }
-    return (p, s) => (r(), d("article", {
+    return (v, f) => (l(), r("article", {
       class: "cody-request-card",
       "data-kind": e.request.kind
     }, [
-      c("div", lt, [
-        c("strong", null, L(e.request.kind === "approval" ? "需要你的确认" : "Codex 需要补充信息"), 1),
-        s[2] || (s[2] = c("small", null, "Agent 已暂停等待", -1))
+      u("div", ct, [
+        u("strong", null, $(e.request.kind === "approval" ? "需要你的确认" : "Codex 需要补充信息"), 1),
+        f[2] || (f[2] = u("small", null, "Agent 已暂停等待", -1))
       ]),
-      e.request.kind === "question" && u.value.length ? (r(), d(U, { key: 0 }, [
-        (r(!0), d(U, null, P(u.value, (S) => (r(), d("fieldset", {
-          key: S.id,
+      e.request.kind === "question" && c.value.length ? (l(), r(I, { key: 0 }, [
+        (l(!0), r(I, null, z(c.value, (o) => (l(), r("fieldset", {
+          key: o.id,
           class: "cody-question-field"
         }, [
-          c("legend", null, [
-            S.header ? (r(), d("span", it, L(S.header), 1)) : D("", !0),
-            de(L(S.question), 1)
+          u("legend", null, [
+            o.header ? (l(), r("span", ut, $(o.header), 1)) : D("", !0),
+            ae($(o.question), 1)
           ]),
-          S.options.length ? (r(), d("div", rt, [
-            (r(!0), d(U, null, P(S.options, (A) => (r(), d("button", {
-              key: A.label,
+          o.options.length ? (l(), r("div", mt, [
+            (l(!0), r(I, null, z(o.options, (x) => (l(), r("button", {
+              key: x.label,
               type: "button",
-              class: ue({ selected: t[S.id] === A.label }),
-              onClick: (h) => t[S.id] = A.label
+              class: ue({ selected: t[o.id] === x.label }),
+              onClick: (T) => t[o.id] = x.label
             }, [
-              c("strong", null, L(A.label), 1),
-              A.description ? (r(), d("small", ut, L(A.description), 1)) : D("", !0)
-            ], 10, dt))), 128))
+              u("strong", null, $(x.label), 1),
+              x.description ? (l(), r("small", ft, $(x.description), 1)) : D("", !0)
+            ], 10, pt))), 128))
           ])) : D("", !0),
-          S.options.length === 0 || S.isOther ? Te((r(), d("input", {
+          o.options.length === 0 || o.isOther ? _e((l(), r("input", {
             key: 1,
-            "onUpdate:modelValue": (A) => t[S.id] = A,
-            type: S.isSecret ? "password" : "text",
-            placeholder: S.options.length ? "其他回答…" : "输入回答…",
-            onKeyup: Ee(f, ["enter"])
-          }, null, 40, ct)), [
-            [Ie, t[S.id]]
+            "onUpdate:modelValue": (x) => t[o.id] = x,
+            type: o.isSecret ? "password" : "text",
+            placeholder: o.options.length ? "其他回答…" : "输入回答…",
+            onKeyup: Re(w, ["enter"])
+          }, null, 40, gt)), [
+            [Be, t[o.id]]
           ]) : D("", !0)
         ]))), 128)),
-        c("div", mt, [
-          c("button", {
+        u("div", vt, [
+          u("button", {
             type: "button",
-            disabled: !$.value,
-            onClick: f
-          }, "提交回答", 8, pt)
+            disabled: !h.value,
+            onClick: w
+          }, "提交回答", 8, yt)
         ])
-      ], 64)) : (r(), d(U, { key: 1 }, [
-        m.value ? (r(), d(U, { key: 0 }, [
-          c("div", ft, [
-            c("div", null, [
-              c("strong", null, L(m.value.title), 1),
-              c("p", null, L(m.value.description), 1)
+      ], 64)) : (l(), r(I, { key: 1 }, [
+        m.value ? (l(), r(I, { key: 0 }, [
+          u("div", kt, [
+            u("div", null, [
+              u("strong", null, $(m.value.title), 1),
+              u("p", null, $(m.value.description), 1)
             ]),
-            c("span", {
+            u("span", {
               class: "cody-approval-risk-level",
               "data-level": m.value.level
-            }, L(m.value.level), 9, gt)
+            }, $(m.value.level), 9, bt)
           ]),
-          c("code", vt, L(m.value.subject), 1),
-          m.value.riskLabels.length ? (r(), d("ul", yt, [
-            (r(!0), d(U, null, P(m.value.riskLabels, (S) => (r(), d("li", { key: S }, L(S), 1))), 128))
+          u("code", ht, $(m.value.subject), 1),
+          m.value.riskLabels.length ? (l(), r("ul", $t, [
+            (l(!0), r(I, null, z(m.value.riskLabels, (o) => (l(), r("li", { key: o }, $(o), 1))), 128))
           ])) : D("", !0),
-          m.value.impacts.length ? (r(), d("details", kt, [
-            s[3] || (s[3] = c("summary", null, "查看影响", -1)),
-            c("ul", null, [
-              (r(!0), d(U, null, P(m.value.impacts, (S) => (r(), d("li", { key: S }, L(S), 1))), 128))
+          m.value.impacts.length ? (l(), r("details", wt, [
+            f[3] || (f[3] = u("summary", null, "查看影响", -1)),
+            u("ul", null, [
+              (l(!0), r(I, null, z(m.value.impacts, (o) => (l(), r("li", { key: o }, $(o), 1))), 128))
             ])
           ])) : D("", !0),
-          c("p", bt, L(m.value.recommendation), 1)
-        ], 64)) : (r(), d("p", ht, L(v.value), 1)),
-        e.request.kind === "approval" ? (r(), d("div", $t, [
-          c("button", {
+          u("p", Ct, $(m.value.recommendation), 1)
+        ], 64)) : (l(), r("p", St, $(y.value), 1)),
+        e.request.kind === "approval" ? (l(), r("div", xt, [
+          u("button", {
             type: "button",
-            onClick: s[0] || (s[0] = (S) => n("resolveApproval", e.request.id, "accept"))
+            onClick: f[0] || (f[0] = (o) => a("resolveApproval", e.request.id, "accept"))
           }, "允许一次"),
-          c("button", {
+          u("button", {
             type: "button",
             "data-tone": "danger",
-            onClick: s[1] || (s[1] = (S) => n("resolveApproval", e.request.id, "decline"))
+            onClick: f[1] || (f[1] = (o) => a("resolveApproval", e.request.id, "decline"))
           }, "拒绝")
         ])) : D("", !0)
       ], 64))
-    ], 8, st));
+    ], 8, dt));
   }
-}), Ct = ["data-variant"], St = {
+}), Lt = ["data-variant"], qt = {
   key: 0,
   class: "cody-conversation-loading",
   role: "status"
-}, xt = {
+}, Mt = {
   key: 1,
   class: "cody-conversation-empty"
-}, At = {
+}, Dt = {
   key: 0,
   class: "cody-worked-divider"
-}, Lt = ["data-role"], qt = ["data-role"], Mt = { class: "cody-message-stack" }, Dt = { class: "cody-message-label" }, Tt = {
+}, Et = ["data-role"], Ut = ["data-role"], Tt = { class: "cody-message-stack" }, It = { class: "cody-message-label" }, _t = {
   key: 0,
   class: "cody-message-skills"
-}, Et = {
+}, Rt = {
   key: 1,
   class: "cody-message-body"
-}, It = {
+}, Bt = {
   key: 2,
+  class: "cody-message-files",
+  "aria-label": "消息附件"
+}, Ot = ["href", "download"], Ft = { key: 0 }, Pt = { key: 1 }, zt = {
+  key: 3,
   class: "cody-message-images"
-}, Ut = ["onClick"], Rt = ["src"], Ot = ["onClick"], _t = ["onClick"], Bt = ["data-tone", "open"], Ft = { key: 0 }, Pt = ["onClick"], zt = {
+}, jt = ["onClick"], Vt = ["src"], Wt = ["onClick"], Ht = ["onClick"], Kt = ["data-tone", "open"], Nt = { key: 0 }, Gt = ["onClick"], Qt = {
   key: 3,
   class: "cody-reasoning-card"
-}, jt = {
+}, Zt = {
   key: 4,
   class: "cody-plan-card",
   open: ""
-}, Vt = {
+}, Xt = {
   key: 6,
   class: "cody-failure-card"
-}, Wt = {
+}, Yt = {
   key: 7,
   class: "cody-interrupted-card",
   role: "status"
-}, Ht = ["data-tone"], So = /* @__PURE__ */ Z({
+}, Jt = ["data-tone"], _o = /* @__PURE__ */ Z({
   __name: "CodyConversation",
   props: {
     entries: {},
@@ -597,195 +601,213 @@ const st = ["data-kind"], lt = { class: "cody-request-heading" }, it = { key: 0 
     variant: { default: "standalone" }
   },
   emits: ["copy", "openFile", "retryMessage", "resolveApproval", "resolveQuestion"],
-  setup(e, { emit: a }) {
-    const o = a, n = _({}), t = _("");
-    function u(f, p) {
-      return f === "failed" ? `发送失败${p ? `：${p}` : ""}` : f === "queued" ? `已加入发送队列${p ? `：${p}` : ""}` : f === "delivered" ? "已发送给当前任务" : "正在发送…";
+  setup(e, { emit: s }) {
+    const n = s;
+    function a(v) {
+      return v.role === "user" ? ie(v.text).text : v.text;
     }
-    function v(f) {
-      n.value = {
-        ...n.value,
-        [f]: n.value[f] !== !0
+    const t = P({}), c = P("");
+    function y(v, f) {
+      return v === "failed" ? `发送失败${f ? `：${f}` : ""}` : v === "queued" ? `已加入发送队列${f ? `：${f}` : ""}` : v === "delivered" ? "已发送给当前任务" : "正在发送…";
+    }
+    function m(v) {
+      t.value = {
+        ...t.value,
+        [v]: t.value[v] !== !0
       };
     }
-    function m(f, p) {
-      o("resolveApproval", f, p);
+    function h(v, f) {
+      n("resolveApproval", v, f);
     }
-    function $(f, p) {
-      o("resolveQuestion", f, p);
+    function w(v, f) {
+      n("resolveQuestion", v, f);
     }
-    return (f, p) => (r(), d("section", {
+    return (v, f) => (l(), r("section", {
       class: "cody-conversation",
       "data-variant": e.variant,
       "data-cody-component": "conversation-surface"
     }, [
-      e.loading ? (r(), d("div", St, "正在同步对话…")) : e.entries.length === 0 ? (r(), d("div", xt, [
-        ee(f.$slots, "empty", {}, () => [
-          p[3] || (p[3] = de("开始这个需求的开发", -1))
+      e.loading ? (l(), r("div", qt, "正在同步对话…")) : e.entries.length === 0 ? (l(), r("div", Mt, [
+        te(v.$slots, "empty", {}, () => [
+          f[3] || (f[3] = ae("开始这个需求的开发", -1))
         ])
-      ])) : (r(!0), d(U, { key: 2 }, P(e.entries, (s) => {
-        var S, A;
-        return r(), d(U, {
-          key: s.id
+      ])) : (l(!0), r(I, { key: 2 }, z(e.entries, (o) => {
+        var x, T;
+        return l(), r(I, {
+          key: o.id
         }, [
-          s.kind === "worked" ? (r(), d("div", At, [
-            c("span", null, L(s.label), 1)
-          ])) : s.kind === "message" ? (r(), d("article", {
+          o.kind === "worked" ? (l(), r("div", Dt, [
+            u("span", null, $(o.label), 1)
+          ])) : o.kind === "message" ? (l(), r("article", {
             key: 1,
             class: "cody-message",
-            "data-role": s.message.role
+            "data-role": o.message.role
           }, [
-            c("div", {
+            u("div", {
               class: "cody-message-identity",
-              "data-role": s.message.role
-            }, L(s.message.role === "user" ? "你" : "CW"), 9, qt),
-            c("div", Mt, [
-              c("div", Dt, L(s.message.role === "user" ? "你" : s.message.role === "assistant" ? "Codex Agent" : "系统"), 1),
-              (S = s.message.skills) != null && S.length ? (r(), d("ul", Tt, [
-                (r(!0), d(U, null, P(s.message.skills, (h) => (r(), d("li", {
-                  key: `${h.name}:${h.path}`
-                }, "$" + L(h.displayName || h.name), 1))), 128))
+              "data-role": o.message.role
+            }, $(o.message.role === "user" ? "你" : "CW"), 9, Ut),
+            u("div", Tt, [
+              u("div", It, $(o.message.role === "user" ? "你" : o.message.role === "assistant" ? "Codex Agent" : "系统"), 1),
+              (x = o.message.skills) != null && x.length ? (l(), r("ul", _t, [
+                (l(!0), r(I, null, z(o.message.skills, (L) => (l(), r("li", {
+                  key: `${L.name}:${L.path}`
+                }, "$" + $(L.displayName || L.name), 1))), 128))
               ])) : D("", !0),
-              s.message.text ? (r(), d("div", Et, [
-                ee(f.$slots, "markdown", {
-                  message: s.message
+              o.message.text ? (l(), r("div", Rt, [
+                te(v.$slots, "markdown", {
+                  message: { ...o.message, text: a(o.message) }
                 }, () => [
-                  N($e, {
-                    text: s.message.text,
-                    onOpenFile: p[0] || (p[0] = (h) => o("openFile", h))
+                  N(Se, {
+                    text: a(o.message),
+                    onOpenFile: f[0] || (f[0] = (L) => n("openFile", L))
                   }, null, 8, ["text"])
                 ])
               ])) : D("", !0),
-              (A = s.message.images) != null && A.length ? (r(), d("div", It, [
-                (r(!0), d(U, null, P(s.message.images, (h) => (r(), d("button", {
-                  key: h,
+              o.message.role === "user" && R(ie)(o.message.text).attachments.length ? (l(), r("ul", Bt, [
+                (l(!0), r(I, null, z(R(ie)(o.message.text).attachments, (L) => (l(), r("li", {
+                  key: L.id
+                }, [
+                  R(ge)(L.url) ? (l(), r("a", {
+                    key: 0,
+                    href: R(ge)(L.url),
+                    download: L.name
+                  }, [
+                    ae($(L.name), 1),
+                    L.size !== void 0 ? (l(), r("small", Ft, " · " + $(Math.ceil(L.size / 1024)) + " KB", 1)) : D("", !0)
+                  ], 8, Ot)) : (l(), r("span", Pt, $(L.name), 1))
+                ]))), 128))
+              ])) : D("", !0),
+              (T = o.message.images) != null && T.length ? (l(), r("div", zt, [
+                (l(!0), r(I, null, z(o.message.images, (L) => (l(), r("button", {
+                  key: L,
                   type: "button",
                   "aria-label": "打开对话图片预览",
-                  onClick: (K) => t.value = h
+                  onClick: (W) => c.value = L
                 }, [
-                  c("img", {
-                    src: h,
+                  u("img", {
+                    src: L,
                     alt: "对话图片",
                     loading: "lazy"
-                  }, null, 8, Rt)
-                ], 8, Ut))), 128))
+                  }, null, 8, Vt)
+                ], 8, jt))), 128))
               ])) : D("", !0),
-              s.message.outbox ? (r(), d("div", {
-                key: 3,
-                class: ue(["cody-message-outbox", s.message.outbox.status]),
+              o.message.outbox ? (l(), r("div", {
+                key: 4,
+                class: ue(["cody-message-outbox", o.message.outbox.status]),
                 role: "status"
               }, [
-                c("span", null, L(u(s.message.outbox.status, s.message.outbox.lastError)), 1),
-                s.message.outbox.status === "failed" ? (r(), d("button", {
+                u("span", null, $(y(o.message.outbox.status, o.message.outbox.lastError)), 1),
+                o.message.outbox.status === "failed" ? (l(), r("button", {
                   key: 0,
                   class: "cody-message-retry",
                   type: "button",
-                  onClick: (h) => o("retryMessage", s.message)
-                }, "重试此消息", 8, Ot)) : D("", !0)
+                  onClick: (L) => n("retryMessage", o.message)
+                }, "重试此消息", 8, Wt)) : D("", !0)
               ], 2)) : D("", !0),
-              s.message.text ? (r(), d("button", {
-                key: 4,
+              o.message.text ? (l(), r("button", {
+                key: 5,
                 class: "cody-copy-button",
                 type: "button",
-                onClick: (h) => o("copy", s.message.text)
-              }, "复制", 8, _t)) : D("", !0)
+                onClick: (L) => n("copy", o.message.text)
+              }, "复制", 8, Ht)) : D("", !0)
             ])
-          ], 8, Lt)) : s.kind === "tool" ? (r(), d("details", {
+          ], 8, Et)) : o.kind === "tool" ? (l(), r("details", {
             key: 2,
             class: "cody-tool-card",
-            "data-tone": V(fe)(s.tool.status),
-            open: V(fe)(s.tool.status) === "working"
+            "data-tone": R(ye)(o.tool.status),
+            open: R(ye)(o.tool.status) === "working"
           }, [
-            c("summary", null, [
-              p[4] || (p[4] = c("span", null, "⌁", -1)),
-              c("strong", null, L(s.tool.title), 1),
-              c("small", null, L(s.tool.status), 1)
+            u("summary", null, [
+              f[4] || (f[4] = u("span", null, "⌁", -1)),
+              u("strong", null, $(o.tool.title), 1),
+              u("small", null, $(o.tool.status), 1)
             ]),
-            c("p", null, L(s.tool.summary), 1),
-            s.tool.details.length ? (r(), d("ul", Ft, [
-              (r(!0), d(U, null, P(s.tool.details, (h) => (r(), d("li", { key: h }, L(h), 1))), 128))
+            u("p", null, $(o.tool.summary), 1),
+            o.tool.details.length ? (l(), r("ul", Nt, [
+              (l(!0), r(I, null, z(o.tool.details, (L) => (l(), r("li", { key: L }, $(L), 1))), 128))
             ])) : D("", !0),
-            s.tool.output ? (r(), d(U, { key: 1 }, [
-              c("pre", null, L(n.value[s.id] ? s.tool.output : V(Fe)(s.tool.output)), 1),
-              V(Pe)(s.tool.output) ? (r(), d("button", {
+            o.tool.output ? (l(), r(I, { key: 1 }, [
+              u("pre", null, $(t.value[o.id] ? o.tool.output : R(Ke)(o.tool.output)), 1),
+              R(Ne)(o.tool.output) ? (l(), r("button", {
                 key: 0,
                 class: "cody-tool-output-toggle",
                 type: "button",
-                onClick: (h) => v(s.id)
-              }, L(V(ze)(n.value[s.id] === !0)), 9, Pt)) : D("", !0)
+                onClick: (L) => m(o.id)
+              }, $(R(Ge)(t.value[o.id] === !0)), 9, Gt)) : D("", !0)
             ], 64)) : D("", !0)
-          ], 8, Bt)) : s.kind === "reasoning" ? (r(), d("details", zt, [
-            c("summary", null, "✦ " + L(s.title || "推理过程"), 1),
-            c("pre", null, L(s.text), 1)
-          ])) : s.kind === "plan" ? (r(), d("details", jt, [
-            p[5] || (p[5] = c("summary", null, "计划", -1)),
-            N($e, {
-              text: s.text,
-              onOpenFile: p[1] || (p[1] = (h) => o("openFile", h))
+          ], 8, Kt)) : o.kind === "reasoning" ? (l(), r("details", Qt, [
+            u("summary", null, "✦ " + $(o.title || "推理过程"), 1),
+            u("pre", null, $(o.text), 1)
+          ])) : o.kind === "plan" ? (l(), r("details", Zt, [
+            f[5] || (f[5] = u("summary", null, "计划", -1)),
+            N(Se, {
+              text: o.text,
+              onOpenFile: f[1] || (f[1] = (L) => n("openFile", L))
             }, null, 8, ["text"])
-          ])) : s.kind === "request" ? ee(f.$slots, "request", {
-            request: s.request
+          ])) : o.kind === "request" ? te(v.$slots, "request", {
+            request: o.request
           }, () => [
-            N(wt, {
-              request: s.request,
-              onResolveApproval: m,
-              onResolveQuestion: $
+            N(At, {
+              request: o.request,
+              onResolveApproval: h,
+              onResolveQuestion: w
             }, null, 8, ["request"])
-          ], void 0, 5) : s.kind === "failure" ? (r(), d("details", Vt, [
-            p[6] || (p[6] = c("summary", null, "本次回复失败", -1)),
-            c("p", null, L(s.text), 1)
-          ])) : s.kind === "interrupted" ? (r(), d("article", Wt, L(s.text), 1)) : s.kind === "activity" ? (r(), d("article", {
+          ], void 0, 5) : o.kind === "failure" ? (l(), r("details", Xt, [
+            f[6] || (f[6] = u("summary", null, "本次回复失败", -1)),
+            u("p", null, $(o.text), 1)
+          ])) : o.kind === "interrupted" ? (l(), r("article", Yt, $(o.text), 1)) : o.kind === "activity" ? (l(), r("article", {
             key: 8,
             class: "cody-conversation-activity",
-            "data-tone": s.tone,
+            "data-tone": o.tone,
             role: "status",
             "aria-live": "polite"
           }, [
-            p[7] || (p[7] = c("span", {
+            f[7] || (f[7] = u("span", {
               class: "cody-activity-pulse",
               "aria-hidden": "true"
             }, null, -1)),
-            c("strong", null, L(s.title), 1),
-            c("small", null, L(s.detail), 1)
-          ], 8, Ht)) : D("", !0)
+            u("strong", null, $(o.title), 1),
+            u("small", null, $(o.detail), 1)
+          ], 8, Jt)) : D("", !0)
         ], 64);
       }), 128)),
-      N(Le, {
-        src: t.value,
+      N(De, {
+        src: c.value,
         alt: "对话图片预览",
-        onDismiss: p[2] || (p[2] = (s) => t.value = "")
+        onDismiss: f[2] || (f[2] = (o) => c.value = "")
       }, null, 8, ["src"])
-    ], 8, Ct));
+    ], 8, Lt));
   }
-}), Nt = ["data-variant"], Kt = ["data-image-drag-active"], Gt = {
+}), eo = ["data-variant"], to = ["data-image-drag-active"], oo = ["accept"], ao = {
   key: 0,
   class: "cody-composer-images",
-  "aria-label": "已添加图片"
-}, Qt = ["src", "alt"], Zt = ["disabled", "aria-label", "onClick"], Xt = {
+  "aria-label": "已添加附件"
+}, no = ["data-kind"], so = ["src", "alt"], lo = ["title"], io = ["disabled", "aria-label", "onClick"], ro = {
   key: 1,
   class: "cody-composer-selected",
   "aria-label": "已引用 Skills"
-}, Yt = ["disabled", "aria-label", "onClick"], Jt = ["value", "disabled", "placeholder", "aria-expanded", "aria-controls", "aria-activedescendant"], eo = {
+}, co = ["disabled", "aria-label", "onClick"], uo = ["value", "disabled", "placeholder", "aria-expanded", "aria-controls", "aria-activedescendant"], mo = {
   key: 0,
   class: "cody-composer-skill-status"
-}, to = ["id", "aria-selected", "onMouseenter", "onMousedown"], oo = { class: "cody-composer-skill-option-name" }, ao = {
+}, po = ["id", "aria-selected", "onMouseenter", "onMousedown"], fo = { class: "cody-composer-skill-option-name" }, go = {
   key: 0,
   class: "cody-composer-skill-option-description"
-}, no = { class: "cody-composer-controls" }, so = {
+}, vo = { class: "cody-composer-controls" }, yo = {
   class: "cody-composer-settings",
   "aria-label": "运行设置"
-}, lo = ["disabled"], io = { class: "cody-composer-actions" }, ro = ["disabled"], uo = ["disabled", "aria-label", "title"], co = {
+}, ko = ["disabled", "aria-label", "title"], bo = { class: "cody-composer-actions" }, ho = ["disabled"], $o = ["disabled", "aria-label", "title"], wo = {
   key: 3,
   class: "cody-composer-policy"
-}, mo = {
+}, Co = {
   key: 4,
   class: "cody-composer-image-error",
   role: "alert"
-}, po = {
+}, So = {
   key: 5,
   class: "cody-composer-image-status",
   role: "status"
-}, xo = /* @__PURE__ */ Z({
+}, Ro = /* @__PURE__ */ Z({
   __name: "CodyComposer",
   props: {
     draft: {},
@@ -805,372 +827,380 @@ const st = ["data-kind"], lt = { class: "cody-request-heading" }, it = { key: 0 
     skills: { default: () => [] },
     selectedSkills: { default: () => [] },
     images: { default: () => [] },
+    attachments: { default: () => [] },
+    fileUploadEnabled: { type: Boolean },
     imageUploadEnabled: { type: Boolean },
     isUploadingImages: { type: Boolean },
     imageError: {},
     variant: { default: "standalone" }
   },
-  emits: ["update:draft", "update:collaboration-mode", "update:submit-mode", "update:model", "update:reasoning", "update:permission", "update:selected-skills", "attach-images", "remove-image", "send", "stop"],
-  setup(e, { emit: a }) {
-    const o = Z({
+  emits: ["update:draft", "update:collaboration-mode", "update:submit-mode", "update:model", "update:reasoning", "update:permission", "update:selected-skills", "attach-files", "remove-attachment", "attach-images", "remove-image", "send", "stop"],
+  setup(e, { emit: s }) {
+    const n = Z({
       name: "CodyComposerSelect",
       props: { label: { type: String, required: !0 }, modelValue: { type: String, required: !0 }, options: { type: Array, required: !0 }, disabled: Boolean },
       emits: ["update:modelValue"],
-      setup(l, { emit: i }) {
-        return () => se("label", { class: "cody-composer-compact-control", title: l.label, "data-control": l.label }, [
-          se("select", { value: l.modelValue, disabled: l.disabled, "aria-label": l.label, onChange: (y) => i("update:modelValue", y.target.value) }, l.options.map((y) => se("option", { value: y.value }, y.label)))
+      setup(i, { emit: d }) {
+        return () => le("label", { class: "cody-composer-compact-control", title: i.label, "data-control": i.label }, [
+          le("select", { value: i.modelValue, disabled: i.disabled, "aria-label": i.label, onChange: (p) => d("update:modelValue", p.target.value) }, i.options.map((p) => le("option", { value: p.value }, p.label)))
         ]);
       }
-    }), n = e, t = a, u = _(null), v = _(null), m = _(n.draft), $ = _(null), f = _(0), p = _(0), s = Ue(), S = `${s}-skill-menu`, A = R(() => {
-      const l = $.value;
-      return l ? n.skills.filter((i) => !n.selectedSkills.includes(i.value)).filter((i) => l.query ? `${i.label}
-${i.description ?? ""}`.toLowerCase().includes(l.query) : !0).slice(0, 8) : [];
-    }), h = R(() => $.value !== null), K = R(() => h.value && A.value.length ? g(Math.min(f.value, A.value.length - 1)) : void 0), W = R(() => {
-      var l;
-      return ((l = n.permissionOptions.find((i) => i.value === n.selectedPermission)) == null ? void 0 : l.description) ?? "";
-    }), H = R(() => !n.disabled && !n.isUploadingImages && Ke({ text: n.draft, images: n.images, skills: n.selectedSkills })), Y = R(() => n.isRunning ? n.selectedSubmitMode === "steer" ? "发送引导" : n.selectedSubmitMode === "append" ? "追加到当前任务" : "加入队列" : "发送"), te = R(() => n.imageUploadEnabled && p.value > 0);
-    ae(() => n.draft, (l) => {
-      m.value = l;
+    }), a = e, t = s, c = P(null), y = P(null), m = P(a.draft), h = P(null), w = P(0), v = P(0), f = Oe(), o = `${f}-skill-menu`, x = B(() => {
+      const i = h.value;
+      return i ? a.skills.filter((d) => !a.selectedSkills.includes(d.value)).filter((d) => i.query ? `${d.label}
+${d.description ?? ""}`.toLowerCase().includes(i.query) : !0).slice(0, 8) : [];
+    }), T = B(() => h.value !== null), L = B(() => T.value && x.value.length ? C(Math.min(w.value, x.value.length - 1)) : void 0), W = B(() => {
+      var i;
+      return ((i = a.permissionOptions.find((d) => d.value === a.selectedPermission)) == null ? void 0 : i.description) ?? "";
+    }), K = B(() => [...a.images, ...a.attachments]), Y = B(() => !a.disabled && !a.isUploadingImages && je({ text: a.draft, images: K.value, skills: a.selectedSkills })), J = B(() => a.isRunning ? a.selectedSubmitMode === "steer" ? "发送引导" : a.selectedSubmitMode === "append" ? "追加到当前任务" : "加入队列" : "发送"), se = B(() => (a.imageUploadEnabled || a.fileUploadEnabled) && v.value > 0);
+    ne(() => a.draft, (i) => {
+      m.value = i;
     });
-    function oe(l, i) {
-      var y;
-      return ((y = l.find((j) => j.value === i)) == null ? void 0 : y.label) ?? i;
+    function oe(i, d) {
+      var p;
+      return ((p = i.find((H) => H.value === d)) == null ? void 0 : p.label) ?? d;
     }
-    function ne(l) {
-      t("update:selected-skills", n.selectedSkills.filter((i) => i !== l));
+    function g(i) {
+      t("update:selected-skills", a.selectedSkills.filter((d) => d !== i));
     }
-    function g(l) {
-      return `${s}-skill-option-${String(l)}`;
+    function C(i) {
+      return `${f}-skill-option-${String(i)}`;
     }
-    function w(l, i) {
-      $.value = Qe(l, i, "$"), f.value = 0;
+    function A(i, d) {
+      h.value = We(i, d, "$"), w.value = 0;
     }
-    function q(l) {
-      const i = l.target;
-      m.value = i.value, t("update:draft", i.value), w(i.value, i.selectionStart);
+    function b(i) {
+      const d = i.target;
+      m.value = d.value, t("update:draft", d.value), A(d.value, d.selectionStart);
     }
-    function b(l) {
-      const i = l.target;
-      w(i.value, i.selectionStart);
+    function k(i) {
+      const d = i.target;
+      A(d.value, d.selectionStart);
     }
-    function k() {
+    function q() {
       window.setTimeout(() => {
-        $.value = null;
+        h.value = null;
       }, 0);
     }
-    function x(l) {
-      return Array.from(l).filter((i) => i.type.startsWith("image/"));
+    function S(i) {
+      return Array.from(i).filter((d) => a.fileUploadEnabled || d.type.startsWith("image/"));
     }
-    function C(l) {
-      if (!n.imageUploadEnabled || n.disabled || n.isUploadingImages) return;
-      const i = x(l);
-      i.length && t("attach-images", i);
+    function O(i) {
+      if (!(a.imageUploadEnabled || a.fileUploadEnabled) || a.disabled || a.isUploadingImages) return;
+      const d = S(i);
+      d.length && (a.fileUploadEnabled ? t("attach-files", d) : t("attach-images", d));
     }
-    function z() {
-      var l;
-      (l = v.value) == null || l.click();
-    }
-    function M(l) {
-      const i = l.target;
-      i.files && C(i.files), i.value = "";
-    }
-    function T(l) {
-      var y;
-      const i = (y = l.clipboardData) == null ? void 0 : y.files;
-      !(i != null && i.length) || x(i).length === 0 || (l.preventDefault(), C(i));
-    }
-    function B(l) {
+    function M() {
       var i;
-      !n.imageUploadEnabled || x(((i = l.dataTransfer) == null ? void 0 : i.files) ?? []).length === 0 || (l.preventDefault(), p.value += 1);
+      (i = y.value) == null || i.click();
     }
-    function E(l) {
-      var i;
-      !n.imageUploadEnabled || x(((i = l.dataTransfer) == null ? void 0 : i.files) ?? []).length === 0 || (l.preventDefault(), l.dataTransfer && (l.dataTransfer.dropEffect = "copy"));
+    function E(i) {
+      const d = i.target;
+      d.files && O(d.files), d.value = "";
     }
-    function O(l) {
-      !n.imageUploadEnabled || p.value === 0 || (l.preventDefault(), p.value = Math.max(0, p.value - 1));
+    function j(i) {
+      var p;
+      const d = (p = i.clipboardData) == null ? void 0 : p.files;
+      !(d != null && d.length) || S(d).length === 0 || (i.preventDefault(), O(d));
     }
-    function J(l) {
-      var i;
-      !n.imageUploadEnabled || !((i = l.dataTransfer) != null && i.files.length) || x(l.dataTransfer.files).length !== 0 && (l.preventDefault(), p.value = 0, C(l.dataTransfer.files));
+    function U(i) {
+      var d;
+      !(a.imageUploadEnabled || a.fileUploadEnabled) || !Array.from(((d = i.dataTransfer) == null ? void 0 : d.types) ?? []).includes("Files") || (i.preventDefault(), v.value += 1);
     }
-    function ce(l) {
-      const i = $.value;
-      if (!i) return;
-      const y = u.value, j = (y == null ? void 0 : y.value) || m.value, G = Ge(j, i);
-      n.selectedSkills.includes(l) || t("update:selected-skills", [...n.selectedSkills, l]), t("update:draft", G.text), m.value = G.text, $.value = null, re(() => {
-        const Q = u.value;
+    function F(i) {
+      var d;
+      !(a.imageUploadEnabled || a.fileUploadEnabled) || !Array.from(((d = i.dataTransfer) == null ? void 0 : d.types) ?? []).includes("Files") || (i.preventDefault(), i.dataTransfer && (i.dataTransfer.dropEffect = "copy"));
+    }
+    function ee(i) {
+      !(a.imageUploadEnabled || a.fileUploadEnabled) || v.value === 0 || (i.preventDefault(), v.value = Math.max(0, v.value - 1));
+    }
+    function Ue(i) {
+      var d;
+      !(a.imageUploadEnabled || a.fileUploadEnabled) || !((d = i.dataTransfer) != null && d.files.length) || S(i.dataTransfer.files).length !== 0 && (i.preventDefault(), v.value = 0, O(i.dataTransfer.files));
+    }
+    function me(i) {
+      const d = h.value;
+      if (!d) return;
+      const p = c.value, H = (p == null ? void 0 : p.value) || m.value, G = Ve(H, d);
+      a.selectedSkills.includes(i) || t("update:selected-skills", [...a.selectedSkills, i]), t("update:draft", G.text), m.value = G.text, h.value = null, ce(() => {
+        const Q = c.value;
         Q == null || Q.focus(), Q == null || Q.setSelectionRange(G.cursor, G.cursor);
       });
     }
-    function Me(l) {
-      if (h.value) {
-        if (l.key === "Escape") {
-          l.preventDefault(), $.value = null;
+    function Te(i) {
+      if (T.value) {
+        if (i.key === "Escape") {
+          i.preventDefault(), h.value = null;
           return;
         }
-        if (l.key === "ArrowDown" || l.key === "ArrowUp") {
-          l.preventDefault();
-          const i = A.value.length;
-          i && (f.value = (f.value + (l.key === "ArrowDown" ? 1 : -1) + i) % i);
+        if (i.key === "ArrowDown" || i.key === "ArrowUp") {
+          i.preventDefault();
+          const d = x.value.length;
+          d && (w.value = (w.value + (i.key === "ArrowDown" ? 1 : -1) + d) % d);
           return;
         }
-        if (l.key === "Enter" && !l.ctrlKey && !l.metaKey && A.value.length) {
-          l.preventDefault(), ce(A.value[Math.min(f.value, A.value.length - 1)].value);
+        if (i.key === "Enter" && !i.ctrlKey && !i.metaKey && x.value.length) {
+          i.preventDefault(), me(x.value[Math.min(w.value, x.value.length - 1)].value);
           return;
         }
       }
-      l.key !== "Enter" || l.isComposing || !l.ctrlKey && !l.metaKey || (l.preventDefault(), me());
+      i.key !== "Enter" || i.isComposing || !i.ctrlKey && !i.metaKey || (i.preventDefault(), pe());
     }
-    function me() {
-      H.value && t("send");
+    function pe() {
+      Y.value && t("send");
     }
-    return (l, i) => (r(), d("form", {
+    return (i, d) => (l(), r("form", {
       class: "cody-composer",
       "data-variant": e.variant,
       "data-cody-component": "composer-surface",
-      onSubmit: ie(me, ["prevent"])
+      onSubmit: de(pe, ["prevent"])
     }, [
-      c("div", {
+      u("div", {
         class: "cody-composer-shell",
-        "data-image-drag-active": te.value,
-        onDragenter: B,
-        onDragover: E,
-        onDragleave: O,
-        onDrop: J
+        "data-image-drag-active": se.value,
+        onDragenter: U,
+        onDragover: F,
+        onDragleave: ee,
+        onDrop: Ue
       }, [
-        c("input", {
+        u("input", {
           ref_key: "imageInputRef",
-          ref: v,
+          ref: y,
           class: "cody-composer-image-input",
           type: "file",
-          accept: "image/png,image/jpeg,image/webp,image/gif",
+          accept: e.fileUploadEnabled ? void 0 : "image/png,image/jpeg,image/webp,image/gif",
           multiple: "",
           tabindex: "-1",
           "aria-hidden": "true",
-          onChange: M
-        }, null, 544),
-        e.images.length ? (r(), d("ul", Gt, [
-          (r(!0), d(U, null, P(e.images, (y) => (r(), d("li", {
-            key: y.id,
-            class: "cody-composer-image"
+          onChange: E
+        }, null, 40, oo),
+        K.value.length ? (l(), r("ul", ao, [
+          (l(!0), r(I, null, z(K.value, (p) => (l(), r("li", {
+            key: p.id,
+            class: "cody-composer-image",
+            "data-kind": R(ve)(p) ? "image" : "file"
           }, [
-            c("img", {
-              src: y.url,
-              alt: y.name || "待发送图片"
-            }, null, 8, Qt),
-            c("button", {
+            R(ve)(p) ? (l(), r("img", {
+              key: 0,
+              src: p.url,
+              alt: p.name || "待发送图片"
+            }, null, 8, so)) : (l(), r("span", {
+              key: 1,
+              class: "cody-composer-file-name",
+              title: p.name
+            }, $(p.name), 9, lo)),
+            u("button", {
               type: "button",
               disabled: e.disabled,
-              "aria-label": `移除图片 ${y.name || "附件"}`,
-              onClick: (j) => t("remove-image", y.id)
-            }, "×", 8, Zt)
-          ]))), 128))
+              "aria-label": `移除附件 ${p.name || "附件"}`,
+              onClick: (H) => e.fileUploadEnabled ? t("remove-attachment", p.id) : t("remove-image", p.id)
+            }, "×", 8, io)
+          ], 8, no))), 128))
         ])) : D("", !0),
-        e.selectedSkills.length ? (r(), d("div", Xt, [
-          (r(!0), d(U, null, P(e.selectedSkills, (y) => (r(), d("span", {
-            key: y,
+        e.selectedSkills.length ? (l(), r("div", ro, [
+          (l(!0), r(I, null, z(e.selectedSkills, (p) => (l(), r("span", {
+            key: p,
             class: "cody-composer-chip"
           }, [
-            de(" $" + L(oe(e.skills, y)) + " ", 1),
-            c("button", {
+            ae(" $" + $(oe(e.skills, p)) + " ", 1),
+            u("button", {
               type: "button",
               disabled: e.disabled,
-              "aria-label": `移除 Skill ${oe(e.skills, y)}`,
-              onClick: (j) => ne(y)
-            }, "×", 8, Yt)
+              "aria-label": `移除 Skill ${oe(e.skills, p)}`,
+              onClick: (H) => g(p)
+            }, "×", 8, co)
           ]))), 128))
         ])) : D("", !0),
-        c("textarea", {
+        u("textarea", {
           ref_key: "draftInputRef",
-          ref: u,
+          ref: c,
           value: e.draft,
           rows: "1",
           disabled: e.disabled,
           placeholder: e.placeholder,
-          "aria-expanded": h.value,
-          "aria-controls": h.value ? S : void 0,
-          "aria-activedescendant": K.value,
+          "aria-expanded": T.value,
+          "aria-controls": T.value ? o : void 0,
+          "aria-activedescendant": L.value,
           "aria-autocomplete": "list",
-          onInput: q,
-          onClick: b,
-          onKeyup: b,
-          onBlur: k,
-          onPaste: T,
-          onKeydown: Me
-        }, null, 40, Jt),
-        h.value ? (r(), d("div", {
+          onInput: b,
+          onClick: k,
+          onKeyup: k,
+          onBlur: q,
+          onPaste: j,
+          onKeydown: Te
+        }, null, 40, uo),
+        T.value ? (l(), r("div", {
           key: 2,
-          id: S,
+          id: o,
           class: "cody-composer-skill-menu",
           role: "listbox",
           "aria-label": "可引用 Skills"
         }, [
-          A.value.length === 0 ? (r(), d("p", eo, "没有匹配的 Skill")) : (r(!0), d(U, { key: 1 }, P(A.value, (y, j) => (r(), d("button", {
-            id: g(j),
-            key: y.value,
-            class: ue(["cody-composer-skill-option", { active: j === f.value }]),
+          x.value.length === 0 ? (l(), r("p", mo, "没有匹配的 Skill")) : (l(!0), r(I, { key: 1 }, z(x.value, (p, H) => (l(), r("button", {
+            id: C(H),
+            key: p.value,
+            class: ue(["cody-composer-skill-option", { active: H === w.value }]),
             type: "button",
             role: "option",
-            "aria-selected": j === f.value,
-            onMouseenter: (G) => f.value = j,
-            onMousedown: ie((G) => ce(y.value), ["prevent"])
+            "aria-selected": H === w.value,
+            onMouseenter: (G) => w.value = H,
+            onMousedown: de((G) => me(p.value), ["prevent"])
           }, [
-            c("span", oo, "$" + L(y.label), 1),
-            y.description ? (r(), d("span", ao, L(y.description), 1)) : D("", !0)
-          ], 42, to))), 128))
+            u("span", fo, "$" + $(p.label), 1),
+            p.description ? (l(), r("span", go, $(p.description), 1)) : D("", !0)
+          ], 42, po))), 128))
         ])) : D("", !0),
-        c("div", no, [
-          c("div", so, [
-            e.imageUploadEnabled ? (r(), d("button", {
+        u("div", vo, [
+          u("div", yo, [
+            e.imageUploadEnabled || e.fileUploadEnabled ? (l(), r("button", {
               key: 0,
               class: "cody-composer-image-picker",
               type: "button",
               disabled: e.disabled || e.isUploadingImages,
-              "aria-label": "添加图片",
-              title: "添加图片（也可粘贴或拖拽）",
-              onClick: z
-            }, [...i[6] || (i[6] = [
-              c("svg", {
+              "aria-label": e.fileUploadEnabled ? "添加附件" : "添加图片",
+              title: e.fileUploadEnabled ? "添加附件（任意格式，也可拖拽）" : "添加图片（也可粘贴或拖拽）",
+              onClick: M
+            }, [...d[6] || (d[6] = [
+              u("svg", {
                 viewBox: "0 0 24 24",
                 "aria-hidden": "true"
               }, [
-                c("path", { d: "M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5v-13Z" }),
-                c("circle", {
+                u("path", { d: "M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5v-13Z" }),
+                u("circle", {
                   cx: "8.5",
                   cy: "8.5",
                   r: "1.5"
                 }),
-                c("path", { d: "m5 18 5.1-5.1a1.5 1.5 0 0 1 2.1 0l2.1 2.1 1.1-1.1a1.5 1.5 0 0 1 2.1 0L20 16.4" })
+                u("path", { d: "m5 18 5.1-5.1a1.5 1.5 0 0 1 2.1 0l2.1 2.1 1.1-1.1a1.5 1.5 0 0 1 2.1 0L20 16.4" })
               ], -1)
-            ])], 8, lo)) : D("", !0),
-            ee(l.$slots, "leading"),
-            e.collaborationModes.length ? (r(), pe(V(o), {
+            ])], 8, ko)) : D("", !0),
+            te(i.$slots, "leading"),
+            e.collaborationModes.length ? (l(), fe(R(n), {
               key: 1,
               label: "协作模式",
               "model-value": e.selectedCollaborationMode,
               options: e.collaborationModes,
               disabled: e.disabled || e.isRunning,
-              "onUpdate:modelValue": i[0] || (i[0] = (y) => t("update:collaboration-mode", y))
+              "onUpdate:modelValue": d[0] || (d[0] = (p) => t("update:collaboration-mode", p))
             }, null, 8, ["model-value", "options", "disabled"])) : D("", !0),
-            N(V(o), {
+            N(R(n), {
               label: "提交策略",
               "model-value": e.selectedSubmitMode,
               options: e.submitModes,
               disabled: e.disabled,
-              "onUpdate:modelValue": i[1] || (i[1] = (y) => t("update:submit-mode", y))
+              "onUpdate:modelValue": d[1] || (d[1] = (p) => t("update:submit-mode", p))
             }, null, 8, ["model-value", "options", "disabled"]),
-            e.models.length ? (r(), pe(V(o), {
+            e.models.length ? (l(), fe(R(n), {
               key: 2,
               label: "模型",
               "model-value": e.selectedModel,
               options: e.models,
               disabled: e.disabled || e.isRunning,
-              "onUpdate:modelValue": i[2] || (i[2] = (y) => t("update:model", y))
+              "onUpdate:modelValue": d[2] || (d[2] = (p) => t("update:model", p))
             }, null, 8, ["model-value", "options", "disabled"])) : D("", !0),
-            N(V(o), {
+            N(R(n), {
               label: "推理强度",
               "model-value": e.selectedReasoning,
               options: e.reasoningOptions,
               disabled: e.disabled || e.isRunning,
-              "onUpdate:modelValue": i[3] || (i[3] = (y) => t("update:reasoning", y))
+              "onUpdate:modelValue": d[3] || (d[3] = (p) => t("update:reasoning", p))
             }, null, 8, ["model-value", "options", "disabled"]),
-            N(V(o), {
+            N(R(n), {
               label: "权限",
               "model-value": e.selectedPermission,
               options: e.permissionOptions,
               disabled: e.disabled || e.isRunning,
-              "onUpdate:modelValue": i[4] || (i[4] = (y) => t("update:permission", y))
+              "onUpdate:modelValue": d[4] || (d[4] = (p) => t("update:permission", p))
             }, null, 8, ["model-value", "options", "disabled"]),
-            ee(l.$slots, "controls")
+            te(i.$slots, "controls")
           ]),
-          c("div", io, [
-            e.isRunning ? (r(), d("button", {
+          u("div", bo, [
+            e.isRunning ? (l(), r("button", {
               key: 0,
               class: "cody-composer-stop",
               type: "button",
               disabled: e.disabled,
               "aria-label": "停止当前回复",
               title: "停止当前回复",
-              onClick: i[5] || (i[5] = (y) => t("stop"))
-            }, [...i[7] || (i[7] = [
-              c("span", {
+              onClick: d[5] || (d[5] = (p) => t("stop"))
+            }, [...d[7] || (d[7] = [
+              u("span", {
                 class: "cody-composer-stop-icon",
                 "aria-hidden": "true"
               }, null, -1)
-            ])], 8, ro)) : D("", !0),
-            c("button", {
+            ])], 8, ho)) : D("", !0),
+            u("button", {
               class: "cody-composer-send",
               type: "submit",
-              disabled: !H.value,
-              "aria-label": Y.value,
-              title: Y.value
-            }, [...i[8] || (i[8] = [
-              c("svg", {
+              disabled: !Y.value,
+              "aria-label": J.value,
+              title: J.value
+            }, [...d[8] || (d[8] = [
+              u("svg", {
                 viewBox: "0 0 24 24",
                 "aria-hidden": "true"
               }, [
-                c("path", { d: "M12 19V5m0 0-6 6m6-6 6 6" })
+                u("path", { d: "M12 19V5m0 0-6 6m6-6 6 6" })
               ], -1)
-            ])], 8, uo)
+            ])], 8, $o)
           ])
         ]),
-        W.value ? (r(), d("p", co, L(W.value), 1)) : D("", !0),
-        e.imageError ? (r(), d("p", mo, L(e.imageError), 1)) : e.imageUploadEnabled && e.isUploadingImages ? (r(), d("p", po, "正在处理图片…")) : D("", !0)
-      ], 40, Kt)
-    ], 40, Nt));
+        W.value ? (l(), r("p", wo, $(W.value), 1)) : D("", !0),
+        e.imageError ? (l(), r("p", Co, $(e.imageError), 1)) : e.imageUploadEnabled && e.isUploadingImages ? (l(), r("p", So, "正在上传附件…")) : D("", !0)
+      ], 40, to)
+    ], 40, eo));
   }
 });
-function Ao() {
-  const e = Re(le());
-  let a = null, o = null, n = 0;
+function Bo() {
+  const e = Fe(re());
+  let s = null, n = null, a = 0;
   const t = () => {
-    n += 1, o == null || o(), o = null, a == null || a.dispose(), a = null;
-  }, u = async (A, h) => {
-    t(), e.value = le(A);
-    const K = n, W = Ze(A, h);
-    a = W, o = W.subscribe((H) => {
-      a === W && n === K && (e.value = H);
+    a += 1, n == null || n(), n = null, s == null || s.dispose(), s = null;
+  }, c = async (x, T) => {
+    t(), e.value = re(x);
+    const L = a, W = et(x, T);
+    s = W, n = W.subscribe((K) => {
+      s === W && a === L && (e.value = K);
     }), await W.start();
-  }, v = async () => {
-    await (a == null ? void 0 : a.refresh());
-  }, m = async (A, h) => {
-    if (!a) throw new Error("Conversation controller is not connected.");
-    return a.submitUserMessage(A, h);
-  }, $ = async (A, h) => {
-    if (!a) throw new Error("Conversation controller is not connected.");
-    return a.retryFailedUserMessage(A, h);
-  }, f = (A) => a == null ? void 0 : a.discardFailedUserMessage(A), p = async () => {
-    if (!a) throw new Error("Conversation controller is not connected.");
-    await a.interrupt();
-  }, s = (A = "") => {
-    t(), e.value = le(A);
-  }, S = () => {
+  }, y = async () => {
+    await (s == null ? void 0 : s.refresh());
+  }, m = async (x, T) => {
+    if (!s) throw new Error("Conversation controller is not connected.");
+    return s.submitUserMessage(x, T);
+  }, h = async (x, T) => {
+    if (!s) throw new Error("Conversation controller is not connected.");
+    return s.retryFailedUserMessage(x, T);
+  }, w = (x) => s == null ? void 0 : s.discardFailedUserMessage(x), v = async () => {
+    if (!s) throw new Error("Conversation controller is not connected.");
+    await s.interrupt();
+  }, f = (x = "") => {
+    t(), e.value = re(x);
+  }, o = () => {
     t();
   };
-  return Oe() && _e(S), {
-    state: R(() => e.value),
-    connect: u,
+  return Pe() && ze(o), {
+    state: B(() => e.value),
+    connect: c,
     submitUserMessage: m,
-    retryFailedUserMessage: $,
-    discardFailedUserMessage: f,
-    interrupt: p,
-    refresh: v,
-    reset: s,
-    dispose: S
+    retryFailedUserMessage: h,
+    discardFailedUserMessage: w,
+    interrupt: v,
+    refresh: y,
+    reset: f,
+    dispose: o
   };
 }
 export {
-  xo as CodyComposer,
-  So as CodyConversation,
-  Le as CodyImagePreviewDialog,
-  $e as CodyMarkdown,
-  wt as CodyRequestCard,
+  Ro as CodyComposer,
+  _o as CodyConversation,
+  De as CodyImagePreviewDialog,
+  Se as CodyMarkdown,
+  At as CodyRequestCard,
   X as DEFAULT_CODY_MARKDOWN_LABELS,
-  Co as conversationEntriesFromState,
-  qe as questionFieldsFromParams,
-  ke as renderCodyMarkdown,
-  nt as requestSummary,
-  be as stabilizeStreamingMarkdown,
-  Ao as useConversationController
+  Io as conversationEntriesFromState,
+  Ee as questionFieldsFromParams,
+  $e as renderCodyMarkdown,
+  rt as requestSummary,
+  we as stabilizeStreamingMarkdown,
+  Bo as useConversationController
 };

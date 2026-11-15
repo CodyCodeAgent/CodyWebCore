@@ -19,6 +19,8 @@ type __VLS_Props = {
     selectedSkills?: string[];
     /** Product-owned uploads are passed back for shared preview, paste, and drag/drop UI. */
     images?: ComposerImage[];
+    attachments?: ComposerImage[];
+    fileUploadEnabled?: boolean;
     imageUploadEnabled?: boolean;
     isUploadingImages?: boolean;
     imageError?: string;
@@ -40,6 +42,8 @@ declare const __VLS_component: import("vue").DefineComponent<__VLS_Props, {}, {}
     "update:reasoning": (value: string) => any;
     "update:permission": (value: string) => any;
     "update:selected-skills": (value: string[]) => any;
+    "attach-files": (files: File[]) => any;
+    "remove-attachment": (id: string) => any;
     "attach-images": (files: File[]) => any;
     "remove-image": (imageId: string) => any;
     send: () => any;
@@ -52,6 +56,8 @@ declare const __VLS_component: import("vue").DefineComponent<__VLS_Props, {}, {}
     "onUpdate:reasoning"?: ((value: string) => any) | undefined;
     "onUpdate:permission"?: ((value: string) => any) | undefined;
     "onUpdate:selected-skills"?: ((value: string[]) => any) | undefined;
+    "onAttach-files"?: ((files: File[]) => any) | undefined;
+    "onRemove-attachment"?: ((id: string) => any) | undefined;
     "onAttach-images"?: ((files: File[]) => any) | undefined;
     "onRemove-image"?: ((imageId: string) => any) | undefined;
     onSend?: (() => any) | undefined;
@@ -71,6 +77,7 @@ declare const __VLS_component: import("vue").DefineComponent<__VLS_Props, {}, {}
     skills: CodyComposerOption[];
     selectedSkills: string[];
     images: ComposerImage[];
+    attachments: ComposerImage[];
 }, {}, {}, {}, string, import("vue").ComponentProvideOptions, false, {}, any>;
 declare const _default: __VLS_WithSlots<typeof __VLS_component, __VLS_Slots>;
 export default _default;

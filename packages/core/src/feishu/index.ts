@@ -1,12 +1,11 @@
+import { LocalAttachmentStorage } from '../attachments/index.js'
+import { DEFAULT_ATTACHMENT_POLICY } from '../composer/index.js'
 import * as Lark from '@larksuiteoapi/node-sdk'
 import MarkdownIt from 'markdown-it'
 import type Token from 'markdown-it/lib/token.mjs'
 import { createHash } from 'node:crypto'
-import { createWriteStream } from 'node:fs'
-import { mkdir, rename, stat, unlink } from 'node:fs/promises'
 import { basename, extname, join, resolve } from 'node:path'
 import type { Readable } from 'node:stream'
-import { pipeline } from 'node:stream/promises'
 import type { ChannelAttachment, ChannelDeliveryError, ChannelIdentityType, ChannelInboundMessage, ChannelMention, ChannelQuotedMessage } from '../channel/index.js'
 
 export type FeishuDomain = 'feishu' | 'lark'
@@ -858,29 +857,14 @@ export class FeishuProvider {
     return response.image_key
   }
 
-  async downloadAttachment(messageId: string, attachment: ChannelAttachment, rootDir: string, maxBytes = 100 * 1024 * 1024): Promise<{ path: string; sizeBytes: number }> {
-    const root = resolve(rootDir)
-    await mkdir(root, { recursive: true })
-    const target = join(root, safeAttachmentName(attachment.name, attachment.id, attachment.type))
-    const partial = `${target}.part`
+  async downloadAttachment(messageId: string, attachment: ChannelAttachment, rootDir: string, maxBytes = DEFAULT_ATTACHMENT_POLICY.maxBytes as number): Promise<{ path: string; sizeBytes: number }> {
+    const storage = new LocalAttachmentStorage(rootDir, maxBytes)
     const response = await this.client.request<Readable>({
       method: 'GET', url: `/open-apis/im/v1/messages/${encodeURIComponent(messageId)}/resources/${encodeURIComponent(attachment.id)}`,
       params: { type: attachment.type === 'image' ? 'image' : 'file' }, responseType: 'stream',
     })
-    let bytes = 0
-    const limiter = new (await import('node:stream')).Transform({ transform(chunk: Buffer, _encoding, callback) {
-      bytes += chunk.length
-      callback(bytes > maxBytes ? new Error(`Feishu attachment exceeds ${maxBytes} bytes`) : null, chunk)
-    } })
-    try {
-      await pipeline(response, limiter, createWriteStream(partial, { flags: 'wx', mode: 0o600 }))
-      await rename(partial, target)
-      const metadata = await stat(target)
-      return { path: target, sizeBytes: metadata.size }
-    } catch (error) {
-      await unlink(partial).catch(() => undefined)
-      throw error
-    }
+    const stored = await storage.putStream({ stream: response, name: safeAttachmentName(attachment.name, attachment.id, attachment.type), mimeType: attachment.mimeType })
+    return { path: stored.path, sizeBytes: stored.size }
   }
 
   classifyError(error: unknown): ChannelDeliveryError {
