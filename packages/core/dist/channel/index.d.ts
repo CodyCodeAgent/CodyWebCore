@@ -228,4 +228,5 @@ export declare function projectChannelTurn(state: ConversationState, turnId: str
 /** Stable across provider redelivery and process restart. */
 export declare function channelCommandId(message: Pick<ChannelInboundMessage, 'provider' | 'accountId' | 'eventId' | 'messageId'>): string;
 export declare function channelConversationKey(message: Pick<ChannelInboundMessage, 'provider' | 'accountId' | 'conversation'>): string;
+export * from './collaboration.js';
 //# sourceMappingURL=index.d.ts.map

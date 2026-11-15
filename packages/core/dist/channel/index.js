@@ -140,4 +140,5 @@ export function channelConversationKey(message) {
     const { provider, accountId, conversation } = message;
     return [provider, accountId, conversation.scope, conversation.id, conversation.rootId ?? ''].join(':');
 }
+export * from './collaboration.js';
 //# sourceMappingURL=index.js.map

@@ -377,6 +377,23 @@ describe('CodexSessionManager', () => {
     await manager.dispose()
   })
 
+  it('rechecks a queued command fence before native start without interrupting the active turn', async () => {
+    const host = new FakeHost()
+    const manager = new CodexSessionManager({ host })
+    await manager.create('conversation-1', context)
+    const first = manager.submit('conversation-1', { input: [{ type: 'text', text: 'human', text_elements: [] }] }, 'queue', 'human')
+    const handle = await first.started
+    let active = true
+    const second = manager.submit('conversation-1', { input: [{ type: 'text', text: 'discussion', text_elements: [] }] }, 'queue', 'discussion', () => { if (!active) throw new Error('discussion stopped') })
+    active = false
+    host.emit('turn/completed', { threadId: 'thread-1', turn: { id: handle.turnId, status: 'completed' } })
+    await expect(second.started).rejects.toThrow('discussion stopped')
+    await expect(second.completed).rejects.toThrow('discussion stopped')
+    expect(host.calls.filter(call => call.method === 'turn/start')).toHaveLength(1)
+    expect(host.calls.some(call => call.method === 'turn/interrupt')).toBe(false)
+    await manager.dispose()
+  })
+
   it('replays one active command followed by queued commands in owner order to every tab', async () => {
     const host = new FakeHost()
     const manager = new CodexSessionManager({ host })
