@@ -1,5 +1,5 @@
 <template>
-  <form class="cody-composer" :data-variant="variant" data-cody-component="composer-surface" @submit.prevent="send">
+  <form class="cody-composer" :data-variant="variant" :data-compact="compact" data-cody-component="composer-surface" @submit.prevent="send">
     <div class="cody-composer-shell" :data-image-drag-active="isDraggingImages" @dragenter="onDragEnter" @dragover="onDragOver" @dragleave="onDragLeave" @drop="onDrop">
       <input ref="imageInputRef" class="cody-composer-image-input" type="file" :accept="fileUploadEnabled ? undefined : 'image/png,image/jpeg,image/webp,image/gif'" multiple tabindex="-1" aria-hidden="true" @change="onImageInputChange" />
       <ul v-if="composerFiles.length" class="cody-composer-images" aria-label="已添加附件">
@@ -52,7 +52,7 @@
         </button>
       </div>
       <div class="cody-composer-controls">
-        <div class="cody-composer-settings" aria-label="运行设置">
+        <div v-show="!compact" class="cody-composer-settings" aria-label="运行设置">
           <button v-if="imageUploadEnabled || fileUploadEnabled" class="cody-composer-image-picker" type="button" :disabled="disabled || isUploadingImages" :aria-label="fileUploadEnabled ? '添加附件' : '添加图片'" :title="fileUploadEnabled ? '添加附件（任意格式，也可拖拽）' : '添加图片（也可粘贴或拖拽）'" @click="openImagePicker">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5v-13Z" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m5 18 5.1-5.1a1.5 1.5 0 0 1 2.1 0l2.1 2.1 1.1-1.1a1.5 1.5 0 0 1 2.1 0L20 16.4" /></svg>
           </button>
@@ -71,9 +71,12 @@
           <button class="cody-composer-send" type="submit" :disabled="!canSend" :aria-label="submitLabel" :title="submitLabel">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m0 0-6 6m6-6 6 6" /></svg>
           </button>
+          <button v-if="collapsible" class="cody-composer-layout-toggle" type="button" :aria-expanded="!compact" :aria-label="compact ? '展开输入设置' : '收起输入设置'" :title="compact ? '展开输入设置' : '收起输入设置'" @click="emit('update:compact', !compact)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path :d="compact ? 'm7 14 5-5 5 5' : 'm7 10 5 5 5-5'" /></svg>
+          </button>
         </div>
       </div>
-      <p v-if="selectedPermissionDescription" class="cody-composer-policy">{{ selectedPermissionDescription }}</p>
+      <p v-if="!compact && selectedPermissionDescription" class="cody-composer-policy">{{ selectedPermissionDescription }}</p>
       <p v-if="imageError" class="cody-composer-image-error" role="alert">{{ imageError }}</p>
       <p v-else-if="imageUploadEnabled && isUploadingImages" class="cody-composer-image-status" role="status">正在上传附件…</p>
     </div>
@@ -81,7 +84,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, nextTick, ref, useId, watch } from 'vue'
+import { computed, defineComponent, h, nextTick, onMounted, onBeforeUnmount, ref, useId, watch } from 'vue'
 import { isImageAttachment, composerHasContent, findComposerTrigger, removeComposerTrigger, type ComposerImage, type ComposerTrigger } from '@codycodeagent/cody-web-core/composer'
 import type { CodyComposerOption } from './types.js'
 
@@ -98,6 +101,8 @@ const ComposerSelect = defineComponent({
 
 const props = withDefaults(defineProps<{
   draft: string
+  compact?: boolean
+  collapsible?: boolean
   disabled?: boolean
   isRunning?: boolean
   placeholder?: string
@@ -126,6 +131,7 @@ const props = withDefaults(defineProps<{
   placeholder: '输入消息…', collaborationModes: () => [], selectedCollaborationMode: '', submitModes: () => [], selectedSubmitMode: '', models: () => [], selectedModel: '', reasoningOptions: () => [], selectedReasoning: '', permissionOptions: () => [], selectedPermission: '', skills: () => [], selectedSkills: () => [], images: () => [], attachments: () => [], variant: 'standalone',
 })
 const emit = defineEmits<{
+  'update:compact': [value: boolean]
   'update:draft': [value: string]
   'update:collaboration-mode': [value: string]
   'update:submit-mode': [value: string]
@@ -175,6 +181,29 @@ const submitLabel = computed(() => {
 })
 const isDraggingImages = computed(() => (props.imageUploadEnabled || props.fileUploadEnabled) && dragDepth.value > 0)
 watch(() => props.draft, value => { latestDraft.value = value })
+function resizeDraft(): void {
+  const input = draftInputRef.value
+  if (!input) return
+  input.style.height = ''
+  if (props.compact) {
+    input.style.height = '0px'
+    input.style.height = `${Math.min(160, Math.max(40, input.scrollHeight))}px`
+  }
+}
+let resizeObserver: ResizeObserver | undefined
+watch(() => [props.draft, props.compact], () => { void nextTick(resizeDraft) }, { flush: 'post' })
+onMounted(() => {
+  resizeDraft()
+  let lastWidth = 0
+  if (typeof ResizeObserver !== 'undefined' && draftInputRef.value) {
+    resizeObserver = new ResizeObserver(entries => {
+      const width = entries[0]?.contentRect.width ?? 0
+      if (width !== lastWidth) { lastWidth = width; resizeDraft() }
+    })
+    resizeObserver.observe(draftInputRef.value)
+  }
+})
+onBeforeUnmount(() => resizeObserver?.disconnect())
 function optionLabel(options: CodyComposerOption[], value: string): string { return options.find(option => option.value === value)?.label ?? value }
 function removeSkill(value: string): void { emit('update:selected-skills', props.selectedSkills.filter(skill => skill !== value)) }
 function skillOptionId(index: number): string { return `${componentId}-skill-option-${String(index)}` }
@@ -185,6 +214,7 @@ function updateSkillTrigger(text: string, cursor: number): void {
 function onDraftInput(event: Event): void {
   const input = event.target as HTMLTextAreaElement
   latestDraft.value = input.value
+  resizeDraft()
   emit('update:draft', input.value)
   updateSkillTrigger(input.value, input.selectionStart)
 }

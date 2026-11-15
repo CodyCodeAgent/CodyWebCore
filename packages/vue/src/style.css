@@ -77,3 +77,16 @@
 
 .cody-composer-image[data-kind="file"] { width: min(240px, 100%); height: auto; min-height: 44px; }
 .cody-composer-image[data-kind="file"] .cody-composer-file-name { width: auto; }
+
+/* Compact mode preserves the composer instance, draft, attachments and run actions. */
+.cody-composer-layout-toggle { display:inline-flex; align-items:center; justify-content:center; flex:0 0 32px; width:32px; height:36px; padding:0; border:1px solid var(--cody-chat-line); border-radius:8px; color:var(--cody-chat-muted); background:transparent; cursor:pointer; }
+.cody-composer-layout-toggle svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.cody-composer-layout-toggle:focus-visible { outline:2px solid var(--cody-chat-accent); outline-offset:2px; }
+.cody-composer[data-compact="true"] .cody-composer-shell { display:grid; grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"files files" "skills skills" "input actions" "menu menu" "status status"; column-gap:8px; padding:8px; }
+.cody-composer[data-compact="true"] textarea { grid-area:input; box-sizing:border-box; min-height:40px; max-height:160px; padding:9px 6px; margin:0; resize:none; overflow-y:auto; }
+.cody-composer[data-compact="true"] .cody-composer-controls { grid-area:actions; align-self:end; padding:0; border:0; }
+.cody-composer[data-compact="true"] .cody-composer-actions { gap:4px; }
+.cody-composer[data-compact="true"] .cody-composer-images { grid-area:files; }
+.cody-composer[data-compact="true"] .cody-composer-selected { grid-area:skills; }
+.cody-composer[data-compact="true"] .cody-composer-skill-menu { grid-area:menu; }
+.cody-composer[data-compact="true"] .cody-composer-image-error, .cody-composer[data-compact="true"] .cody-composer-image-status { grid-area:status; }
