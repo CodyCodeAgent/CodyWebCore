@@ -1,11 +1,12 @@
 <template>
   <form class="cody-composer" :data-variant="variant" data-cody-component="composer-surface" @submit.prevent="send">
     <div class="cody-composer-shell" :data-image-drag-active="isDraggingImages" @dragenter="onDragEnter" @dragover="onDragOver" @dragleave="onDragLeave" @drop="onDrop">
-      <input ref="imageInputRef" class="cody-composer-image-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple tabindex="-1" aria-hidden="true" @change="onImageInputChange" />
-      <ul v-if="images.length" class="cody-composer-images" aria-label="已添加图片">
-        <li v-for="image in images" :key="image.id" class="cody-composer-image">
-          <img :src="image.url" :alt="image.name || '待发送图片'" />
-          <button type="button" :disabled="disabled" :aria-label="`移除图片 ${image.name || '附件'}`" @click="emit('remove-image', image.id)">×</button>
+      <input ref="imageInputRef" class="cody-composer-image-input" type="file" :accept="fileUploadEnabled ? undefined : 'image/png,image/jpeg,image/webp,image/gif'" multiple tabindex="-1" aria-hidden="true" @change="onImageInputChange" />
+      <ul v-if="composerFiles.length" class="cody-composer-images" aria-label="已添加附件">
+        <li v-for="image in composerFiles" :key="image.id" class="cody-composer-image" :data-kind="isImageAttachment(image) ? 'image' : 'file'">
+          <img v-if="isImageAttachment(image)" :src="image.url" :alt="image.name || '待发送图片'" />
+          <span v-else class="cody-composer-file-name" :title="image.name">{{ image.name }}</span>
+          <button type="button" :disabled="disabled" :aria-label="`移除附件 ${image.name || '附件'}`" @click="fileUploadEnabled ? emit('remove-attachment', image.id) : emit('remove-image', image.id)">×</button>
         </li>
       </ul>
       <div v-if="selectedSkills.length" class="cody-composer-selected" aria-label="已引用 Skills">
@@ -52,7 +53,7 @@
       </div>
       <div class="cody-composer-controls">
         <div class="cody-composer-settings" aria-label="运行设置">
-          <button v-if="imageUploadEnabled" class="cody-composer-image-picker" type="button" :disabled="disabled || isUploadingImages" aria-label="添加图片" title="添加图片（也可粘贴或拖拽）" @click="openImagePicker">
+          <button v-if="imageUploadEnabled || fileUploadEnabled" class="cody-composer-image-picker" type="button" :disabled="disabled || isUploadingImages" :aria-label="fileUploadEnabled ? '添加附件' : '添加图片'" :title="fileUploadEnabled ? '添加附件（任意格式，也可拖拽）' : '添加图片（也可粘贴或拖拽）'" @click="openImagePicker">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5v-13Z" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m5 18 5.1-5.1a1.5 1.5 0 0 1 2.1 0l2.1 2.1 1.1-1.1a1.5 1.5 0 0 1 2.1 0L20 16.4" /></svg>
           </button>
           <slot name="leading" />
@@ -74,14 +75,14 @@
       </div>
       <p v-if="selectedPermissionDescription" class="cody-composer-policy">{{ selectedPermissionDescription }}</p>
       <p v-if="imageError" class="cody-composer-image-error" role="alert">{{ imageError }}</p>
-      <p v-else-if="imageUploadEnabled && isUploadingImages" class="cody-composer-image-status" role="status">正在处理图片…</p>
+      <p v-else-if="imageUploadEnabled && isUploadingImages" class="cody-composer-image-status" role="status">正在上传附件…</p>
     </div>
   </form>
 </template>
 
 <script setup lang="ts">
 import { computed, defineComponent, h, nextTick, ref, useId, watch } from 'vue'
-import { composerHasContent, findComposerTrigger, removeComposerTrigger, type ComposerImage, type ComposerTrigger } from '@codycodeagent/cody-web-core/composer'
+import { isImageAttachment, composerHasContent, findComposerTrigger, removeComposerTrigger, type ComposerImage, type ComposerTrigger } from '@codycodeagent/cody-web-core/composer'
 import type { CodyComposerOption } from './types.js'
 
 const ComposerSelect = defineComponent({
@@ -114,13 +115,15 @@ const props = withDefaults(defineProps<{
   selectedSkills?: string[]
   /** Product-owned uploads are passed back for shared preview, paste, and drag/drop UI. */
   images?: ComposerImage[]
+  attachments?: ComposerImage[]
+  fileUploadEnabled?: boolean
   imageUploadEnabled?: boolean
   isUploadingImages?: boolean
   imageError?: string
   /** Standalone preserves CodyWeb's dark canvas; embedded inherits the host workbench surface. */
   variant?: 'standalone' | 'embedded'
 }>(), {
-  placeholder: '输入消息…', collaborationModes: () => [], selectedCollaborationMode: '', submitModes: () => [], selectedSubmitMode: '', models: () => [], selectedModel: '', reasoningOptions: () => [], selectedReasoning: '', permissionOptions: () => [], selectedPermission: '', skills: () => [], selectedSkills: () => [], images: () => [], variant: 'standalone',
+  placeholder: '输入消息…', collaborationModes: () => [], selectedCollaborationMode: '', submitModes: () => [], selectedSubmitMode: '', models: () => [], selectedModel: '', reasoningOptions: () => [], selectedReasoning: '', permissionOptions: () => [], selectedPermission: '', skills: () => [], selectedSkills: () => [], images: () => [], attachments: () => [], variant: 'standalone',
 })
 const emit = defineEmits<{
   'update:draft': [value: string]
@@ -130,6 +133,8 @@ const emit = defineEmits<{
   'update:reasoning': [value: string]
   'update:permission': [value: string]
   'update:selected-skills': [value: string[]]
+  'attach-files': [files: File[]]
+  'remove-attachment': [id: string]
   'attach-images': [files: File[]]
   'remove-image': [imageId: string]
   send: []
@@ -160,14 +165,15 @@ const activeSkillOptionId = computed(() => isSkillMenuOpen.value && filteredSkil
   ? skillOptionId(Math.min(highlightedSkillIndex.value, filteredSkills.value.length - 1))
   : undefined)
 const selectedPermissionDescription = computed(() => props.permissionOptions.find(option => option.value === props.selectedPermission)?.description ?? '')
-const canSend = computed(() => !props.disabled && !props.isUploadingImages && composerHasContent({ text: props.draft, images: props.images, skills: props.selectedSkills }))
+const composerFiles = computed(() => [...props.images, ...props.attachments])
+const canSend = computed(() => !props.disabled && !props.isUploadingImages && composerHasContent({ text: props.draft, images: composerFiles.value, skills: props.selectedSkills }))
 const submitLabel = computed(() => {
   if (!props.isRunning) return '发送'
   if (props.selectedSubmitMode === 'steer') return '发送引导'
   if (props.selectedSubmitMode === 'append') return '追加到当前任务'
   return '加入队列'
 })
-const isDraggingImages = computed(() => props.imageUploadEnabled && dragDepth.value > 0)
+const isDraggingImages = computed(() => (props.imageUploadEnabled || props.fileUploadEnabled) && dragDepth.value > 0)
 watch(() => props.draft, value => { latestDraft.value = value })
 function optionLabel(options: CodyComposerOption[], value: string): string { return options.find(option => option.value === value)?.label ?? value }
 function removeSkill(value: string): void { emit('update:selected-skills', props.selectedSkills.filter(skill => skill !== value)) }
@@ -190,12 +196,15 @@ function onDraftBlur(): void {
   window.setTimeout(() => { activeSkillTrigger.value = null }, 0)
 }
 function imageFiles(files: FileList | File[]): File[] {
-  return Array.from(files).filter(file => file.type.startsWith('image/'))
+  return Array.from(files).filter(file => props.fileUploadEnabled || file.type.startsWith('image/'))
 }
 function attachImages(files: FileList | File[]): void {
-  if (!props.imageUploadEnabled || props.disabled || props.isUploadingImages) return
+  if (!(props.imageUploadEnabled || props.fileUploadEnabled) || props.disabled || props.isUploadingImages) return
   const images = imageFiles(files)
-  if (images.length) emit('attach-images', images)
+  if (images.length) {
+    if (props.fileUploadEnabled) emit('attach-files', images)
+    else emit('attach-images', images)
+  }
 }
 function openImagePicker(): void { imageInputRef.value?.click() }
 function onImageInputChange(event: Event): void {
@@ -210,22 +219,22 @@ function onPaste(event: ClipboardEvent): void {
   attachImages(files)
 }
 function onDragEnter(event: DragEvent): void {
-  if (!props.imageUploadEnabled || imageFiles(event.dataTransfer?.files ?? []).length === 0) return
+  if (!(props.imageUploadEnabled || props.fileUploadEnabled) || !Array.from(event.dataTransfer?.types ?? []).includes('Files')) return
   event.preventDefault()
   dragDepth.value += 1
 }
 function onDragOver(event: DragEvent): void {
-  if (!props.imageUploadEnabled || imageFiles(event.dataTransfer?.files ?? []).length === 0) return
+  if (!(props.imageUploadEnabled || props.fileUploadEnabled) || !Array.from(event.dataTransfer?.types ?? []).includes('Files')) return
   event.preventDefault()
   if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
 }
 function onDragLeave(event: DragEvent): void {
-  if (!props.imageUploadEnabled || dragDepth.value === 0) return
+  if (!(props.imageUploadEnabled || props.fileUploadEnabled) || dragDepth.value === 0) return
   event.preventDefault()
   dragDepth.value = Math.max(0, dragDepth.value - 1)
 }
 function onDrop(event: DragEvent): void {
-  if (!props.imageUploadEnabled || !event.dataTransfer?.files.length) return
+  if (!(props.imageUploadEnabled || props.fileUploadEnabled) || !event.dataTransfer?.files.length) return
   if (imageFiles(event.dataTransfer.files).length === 0) return
   event.preventDefault()
   dragDepth.value = 0

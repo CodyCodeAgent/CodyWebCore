@@ -1,10 +1,9 @@
+import { LocalAttachmentStorage } from '../attachments/index.js';
+import { DEFAULT_ATTACHMENT_POLICY } from '../composer/index.js';
 import * as Lark from '@larksuiteoapi/node-sdk';
 import MarkdownIt from 'markdown-it';
 import { createHash } from 'node:crypto';
-import { createWriteStream } from 'node:fs';
-import { mkdir, rename, stat, unlink } from 'node:fs/promises';
-import { basename, extname, join, resolve } from 'node:path';
-import { pipeline } from 'node:stream/promises';
+import { basename, extname } from 'node:path';
 const feishuMarkdownParser = new MarkdownIt({ html: false, linkify: false, breaks: false });
 const FEISHU_CARD_CONTENT_LIMIT = 28_000;
 const FEISHU_CARD_ELEMENT_BUDGET = 26_000;
@@ -829,30 +828,14 @@ export class FeishuProvider {
             throw new Error('Feishu image upload did not include image_key');
         return response.image_key;
     }
-    async downloadAttachment(messageId, attachment, rootDir, maxBytes = 100 * 1024 * 1024) {
-        const root = resolve(rootDir);
-        await mkdir(root, { recursive: true });
-        const target = join(root, safeAttachmentName(attachment.name, attachment.id, attachment.type));
-        const partial = `${target}.part`;
+    async downloadAttachment(messageId, attachment, rootDir, maxBytes = DEFAULT_ATTACHMENT_POLICY.maxBytes) {
+        const storage = new LocalAttachmentStorage(rootDir, maxBytes);
         const response = await this.client.request({
             method: 'GET', url: `/open-apis/im/v1/messages/${encodeURIComponent(messageId)}/resources/${encodeURIComponent(attachment.id)}`,
             params: { type: attachment.type === 'image' ? 'image' : 'file' }, responseType: 'stream',
         });
-        let bytes = 0;
-        const limiter = new (await import('node:stream')).Transform({ transform(chunk, _encoding, callback) {
-                bytes += chunk.length;
-                callback(bytes > maxBytes ? new Error(`Feishu attachment exceeds ${maxBytes} bytes`) : null, chunk);
-            } });
-        try {
-            await pipeline(response, limiter, createWriteStream(partial, { flags: 'wx', mode: 0o600 }));
-            await rename(partial, target);
-            const metadata = await stat(target);
-            return { path: target, sizeBytes: metadata.size };
-        }
-        catch (error) {
-            await unlink(partial).catch(() => undefined);
-            throw error;
-        }
+        const stored = await storage.putStream({ stream: response, name: safeAttachmentName(attachment.name, attachment.id, attachment.type), mimeType: attachment.mimeType });
+        return { path: stored.path, sizeBytes: stored.size };
     }
     classifyError(error) {
         const message = redactError(error, this.config.appSecret);

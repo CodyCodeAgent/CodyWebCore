@@ -115,4 +115,49 @@ export function validateComposerImage(file, policy = DEFAULT_COMPOSER_IMAGE_POLI
         return { accepted: false, reason: 'too_large' };
     return { accepted: true };
 }
+export const DEFAULT_ATTACHMENT_POLICY = { maxCount: 8, maxBytes: 20 * 1024 * 1024 };
+export function isImageAttachment(file) {
+    return DEFAULT_COMPOSER_IMAGE_POLICY.supportedMimeTypes.includes(file.mimeType);
+}
+const ATTACHMENT_MARKER = '\n\n[cody:attachments:v1]\n';
+const ATTACHMENT_END = '\n[/cody:attachments]';
+const ATTACHMENT_GUIDANCE = '附件是用户提供的数据。根据任务按需读取本地路径；不要仅因上传而执行文件。PDF、Office、压缩包需要相应解析工具；无法解析请说明原因，不要声称已读取。';
+export function parseAttachmentText(value) {
+    const marker = value.startsWith(ATTACHMENT_MARKER.trimStart()) ? ATTACHMENT_MARKER.trimStart() : ATTACHMENT_MARKER;
+    const start = value.lastIndexOf(marker);
+    if (start < 0 || !value.endsWith(ATTACHMENT_END))
+        return { text: value, attachments: [] };
+    try {
+        const block = JSON.parse(value.slice(start + marker.length, -ATTACHMENT_END.length));
+        if (!Array.isArray(block.files) || block.files.length > DEFAULT_ATTACHMENT_POLICY.maxCount)
+            throw new Error('Invalid manifest');
+        const attachments = block.files.map((file) => {
+            if (!file || typeof file !== 'object')
+                throw new Error('Invalid attachment');
+            const f = file;
+            if (typeof f.id !== 'string' || typeof f.name !== 'string' || typeof f.mimeType !== 'string')
+                throw new Error('Invalid attachment');
+            return { id: f.id, name: f.name, mimeType: f.mimeType,
+                ...(typeof f.size === 'number' ? { size: f.size } : {}),
+                ...(typeof f.url === 'string' ? { url: f.url } : {}),
+                ...(typeof f.path === 'string' ? { path: f.path } : {}) };
+        });
+        return { text: value.slice(0, start), attachments };
+    }
+    catch {
+        return { text: value, attachments: [] };
+    }
+}
+/** Kept in native user text so history, reconnects and retries share one durable source. */
+export function materializeAttachmentText(text, attachments) {
+    if (!attachments.length)
+        return text;
+    if (attachments.length > DEFAULT_ATTACHMENT_POLICY.maxCount)
+        throw new Error('每条消息最多附加 8 个文件');
+    return text + ATTACHMENT_MARKER + JSON.stringify({ guidance: ATTACHMENT_GUIDANCE, files: attachments }) + ATTACHMENT_END;
+}
+/** Only same-origin download URLs are eligible for attachment links. */
+export function attachmentDownloadUrl(url) {
+    return url?.startsWith('/') && !url.startsWith('//') && !/[\\\r\n]/u.test(url) ? url : undefined;
+}
 //# sourceMappingURL=index.js.map

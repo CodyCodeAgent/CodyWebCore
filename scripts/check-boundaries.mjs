@@ -11,10 +11,11 @@ const allowedCoreDependencies = {
   session: new Set(['session', 'runtime', 'protocol', 'conversation']),
   conversation: new Set(['conversation']),
   composer: new Set(['composer']),
+  attachments: new Set(['attachments', 'composer']),
   presentation: new Set(['presentation', 'protocol', 'conversation']),
   client: new Set(['client', 'conversation']),
   channel: new Set(['channel', 'conversation']),
-  feishu: new Set(['feishu', 'channel']),
+  feishu: new Set(['feishu', 'channel', 'attachments', 'composer']),
 }
 
 async function filesBelow(directory) {

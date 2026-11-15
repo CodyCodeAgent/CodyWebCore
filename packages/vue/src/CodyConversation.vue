@@ -9,7 +9,13 @@
         <div class="cody-message-stack">
           <div class="cody-message-label">{{ entry.message.role === 'user' ? '你' : entry.message.role === 'assistant' ? 'Codex Agent' : '系统' }}</div>
           <ul v-if="entry.message.skills?.length" class="cody-message-skills"><li v-for="skill in entry.message.skills" :key="`${skill.name}:${skill.path}`">${{ skill.displayName || skill.name }}</li></ul>
-          <div v-if="entry.message.text" class="cody-message-body"><slot name="markdown" :message="entry.message"><CodyMarkdown :text="entry.message.text" @open-file="emit('openFile', $event)" /></slot></div>
+          <div v-if="entry.message.text" class="cody-message-body"><slot name="markdown" :message="{ ...entry.message, text: visibleText(entry.message) }"><CodyMarkdown :text="visibleText(entry.message)" @open-file="emit('openFile', $event)" /></slot></div>
+          <ul v-if="entry.message.role === 'user' && parseAttachmentText(entry.message.text).attachments.length" class="cody-message-files" aria-label="消息附件">
+            <li v-for="file in parseAttachmentText(entry.message.text).attachments" :key="file.id">
+              <a v-if="attachmentDownloadUrl(file.url)" :href="attachmentDownloadUrl(file.url)" :download="file.name">{{ file.name }}<small v-if="file.size !== undefined"> · {{ Math.ceil(file.size / 1024) }} KB</small></a>
+              <span v-else>{{ file.name }}</span>
+            </li>
+          </ul>
           <div v-if="entry.message.images?.length" class="cody-message-images">
             <button v-for="image in entry.message.images" :key="image" type="button" aria-label="打开对话图片预览" @click="previewImageUrl = image">
               <img :src="image" alt="对话图片" loading="lazy">
@@ -56,6 +62,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { parseAttachmentText, attachmentDownloadUrl } from '@codycodeagent/cody-web-core/composer'
 import type { CodyConversationEntry, CodyMessage } from './types.js'
 import {
   buildToolOutputPreview,
@@ -78,6 +85,8 @@ const emit = defineEmits<{
   resolveQuestion: [requestId: string, answer: Record<string, { answers: string[] }>]
 }>()
 
+function visibleText(message: CodyMessage): string { return message.role === 'user' ? parseAttachmentText(message.text).text : message.text }
+
 const expandedToolIds = ref<Record<string, boolean>>({})
 const previewImageUrl = ref('')
 
@@ -98,3 +107,4 @@ function toggleToolOutput(entryId: string): void {
 function forwardApproval(requestId: string, decision: 'accept' | 'decline'): void { emit('resolveApproval', requestId, decision) }
 function forwardQuestion(requestId: string, answer: Record<string, { answers: string[] }>): void { emit('resolveQuestion', requestId, answer) }
 </script>
+

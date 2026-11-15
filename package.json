@@ -1,6 +1,6 @@
 {
   "name": "@codycodeagent/cody-web-core",
-  "version": "0.43.3",
+  "version": "0.44.0",
   "description": "Shared Codex protocol, runtime, and conversation primitives for CodyWeb products",
   "license": "MIT",
   "type": "module",
@@ -63,7 +63,11 @@
       "types": "./packages/vue/dist/index.d.ts",
       "import": "./packages/vue/dist/index.js"
     },
-    "./vue/style.css": "./packages/vue/src/style.css"
+    "./vue/style.css": "./packages/vue/src/style.css",
+    "./attachments": {
+      "types": "./packages/core/dist/attachments/index.d.ts",
+      "import": "./packages/core/dist/attachments/index.js"
+    }
   },
   "workspaces": [
     "packages/*"

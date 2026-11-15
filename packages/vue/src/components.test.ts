@@ -66,6 +66,23 @@ describe('shared conversation components', () => {
     expect(wrapper.emitted('remove-image')).toEqual([['image-1']])
   })
 
+  it('accepts arbitrary files through the opt-in attachment UI without image decoding', async () => {
+    const attachment = { id: 'file-1', name: 'report.pdf', mimeType: 'application/pdf', url: '/api/files/1' }
+    const wrapper = mount(CodyComposer, { props: { draft: '', fileUploadEnabled: true, attachments: [attachment] } })
+    expect(wrapper.find('input[type="file"]').attributes('accept')).toBeUndefined()
+    expect(wrapper.find('.cody-composer-image img').exists()).toBe(false)
+    expect(wrapper.text()).toContain('report.pdf')
+    expect((wrapper.find('.cody-composer-send').element as HTMLButtonElement).disabled).toBe(false)
+    const file = new File(['binary'], 'unknown.custom', { type: '' })
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
+    await input.trigger('change')
+    expect(wrapper.emitted('attach-files')?.at(-1)?.[0]).toEqual([file])
+    expect(wrapper.emitted('attach-images')).toBeUndefined()
+    await wrapper.find('.cody-composer-image button').trigger('click')
+    expect(wrapper.emitted('remove-attachment')).toEqual([['file-1']])
+  })
+
   it('selects multiple Skills through inline dollar references instead of a dropdown', async () => {
     const wrapper = mount(CodyComposer, {
       props: {

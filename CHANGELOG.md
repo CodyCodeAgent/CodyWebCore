@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.44.0
+
+- Add shared attachment storage with bounded streaming, safe filenames and per-file size limits.
+- Add native-history attachment manifests, arbitrary-file composer uploads and authenticated file download cards.
+- Reuse shared storage for Feishu file downloads while retaining native image inputs.
+- Support attachment-only messages after runtime whitespace normalization; file upload does not imply automatic PDF or Office parsing.
+
 ## 0.43.3
 
 - Expose a Feishu user's visible enterprise or personal email through the cached, app-scoped user metadata lookup. Email remains optional when the app lacks contact email access or the user's profile has no email.
