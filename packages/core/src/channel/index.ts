@@ -308,3 +308,4 @@ export function channelConversationKey(message: Pick<ChannelInboundMessage, 'pro
   const { provider, accountId, conversation } = message
   return [provider, accountId, conversation.scope, conversation.id, conversation.rootId ?? ''].join(':')
 }
+export * from './collaboration.js'

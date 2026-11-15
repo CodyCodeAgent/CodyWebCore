@@ -268,7 +268,7 @@ export class CodexSessionManager {
         const journal = this.ownerJournalByBindingId.get(bindingId) ?? [];
         return { events: [...history, ...journal.filter(event => (event.ownerRevision ?? 0) <= watermark)], watermark };
     }
-    submit(bindingId, input, mode = 'queue', clientCommandId) {
+    submit(bindingId, input, mode = 'queue', clientCommandId, beforeStart) {
         this.requireUsable();
         const session = this.require(bindingId);
         const commandId = clientCommandId?.trim() || `command:${bindingId}:${String(++this.commandSequence)}`;
@@ -323,7 +323,9 @@ export class CodexSessionManager {
             let handle = null;
             try {
                 this.requireUsable();
+                // Recheck product leases after queue wait and runtime recovery, not only at enqueue.
                 await this.ensureSessionReady(session);
+                beforeStart?.();
                 const turnId = mode === 'steer'
                     ? await this.steerSubmission(session, input)
                     : await this.commands.startTurn(session.binding.threadId, {

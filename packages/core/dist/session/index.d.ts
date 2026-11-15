@@ -195,7 +195,7 @@ export declare class CodexSessionManager {
      * subscribes first and replays only owner events newer than this watermark.
      */
     readSnapshot(bindingId: string): Promise<CodexConversationSnapshot>;
-    submit(bindingId: string, input: TurnInput, mode?: 'queue' | 'steer', clientCommandId?: string): TurnSubmission;
+    submit(bindingId: string, input: TurnInput, mode?: 'queue' | 'steer', clientCommandId?: string, beforeStart?: () => void): TurnSubmission;
     send(bindingId: string, input: TurnInput, mode?: 'queue' | 'steer', clientCommandId?: string): Promise<TurnHandle>;
     run(bindingId: string, input: TurnInput, mode?: 'queue' | 'steer', clientCommandId?: string): Promise<TurnOutcome>;
     interrupt(bindingId: string): Promise<boolean>;
