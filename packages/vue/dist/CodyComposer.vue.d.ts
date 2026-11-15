@@ -2,6 +2,8 @@ import { type ComposerImage } from '@codycodeagent/cody-web-core/composer';
 import type { CodyComposerOption } from './types.js';
 type __VLS_Props = {
     draft: string;
+    compact?: boolean;
+    collapsible?: boolean;
     disabled?: boolean;
     isRunning?: boolean;
     placeholder?: string;
@@ -35,6 +37,7 @@ type __VLS_Slots = {} & {
 };
 declare const __VLS_component: import("vue").DefineComponent<__VLS_Props, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {
     stop: () => any;
+    "update:compact": (value: boolean) => any;
     "update:draft": (value: string) => any;
     "update:collaboration-mode": (value: string) => any;
     "update:submit-mode": (value: string) => any;
@@ -49,6 +52,7 @@ declare const __VLS_component: import("vue").DefineComponent<__VLS_Props, {}, {}
     send: () => any;
 }, string, import("vue").PublicProps, Readonly<__VLS_Props> & Readonly<{
     onStop?: (() => any) | undefined;
+    "onUpdate:compact"?: ((value: boolean) => any) | undefined;
     "onUpdate:draft"?: ((value: string) => any) | undefined;
     "onUpdate:collaboration-mode"?: ((value: string) => any) | undefined;
     "onUpdate:submit-mode"?: ((value: string) => any) | undefined;

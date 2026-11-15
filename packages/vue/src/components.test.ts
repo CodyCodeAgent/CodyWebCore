@@ -8,6 +8,27 @@ import { conversationEntriesFromState } from './types.js'
 import { createConversationState, reduceConversationEvents } from '@codycodeagent/cody-web-core/conversation'
 
 describe('shared conversation components', () => {
+  it('keeps draft, attachment and stop actions available while settings are collapsed', async () => {
+    const wrapper = mount(CodyComposer, { attachTo: document.body, props: {
+      draft: '继续处理', compact: true, collapsible: true, isRunning: true,
+      models: [{ value: 'model-a', label: 'Model A' }], selectedModel: 'model-a',
+      selectedSubmitMode: 'queue', fileUploadEnabled: true,
+      attachments: [{ id: 'file-1', name: 'notes.txt', mimeType: 'text/plain', url: '/files/1' }],
+    } })
+    expect(wrapper.get('textarea').element.value).toBe('继续处理')
+    expect(wrapper.get('.cody-composer-settings').isVisible()).toBe(false)
+    expect(wrapper.get('[aria-label="已添加附件"]').isVisible()).toBe(true)
+    await wrapper.get('[aria-label="停止当前回复"]').trigger('click')
+    expect(wrapper.emitted('stop')).toHaveLength(1)
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.emitted('send')).toHaveLength(1)
+    await wrapper.get('[aria-label="展开输入设置"]').trigger('click')
+    expect(wrapper.emitted('update:compact')).toEqual([[false]])
+    await wrapper.setProps({ compact: false })
+    expect(wrapper.get('select[aria-label="模型"]').element.value).toBe('model-a')
+    expect(wrapper.get('textarea').element.value).toBe('继续处理')
+    wrapper.unmount()
+  })
   it('emits every run-mode selection from the shared composer', async () => {
     const wrapper = mount(CodyComposer, {
       props: {

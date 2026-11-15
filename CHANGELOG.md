@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.45.0
+
+- Add an opt-in compact composer with controlled collapse state, preserving draft, attachment and Skill selection, send, and stop actions.
+- Grow compact multiline input to a bounded height while keeping existing expanded composer behavior.
+- Keep the runtime version identifier aligned with the package release.
+
 ## 0.44.0
 
 - Add shared attachment storage with bounded streaming, safe filenames and per-file size limits.
