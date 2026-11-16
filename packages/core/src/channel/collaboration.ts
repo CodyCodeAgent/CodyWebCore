@@ -95,19 +95,56 @@ export function collaborationCanRun(state: CollaborationState, slot: number, now
   return state.status === 'active' && now < Date.parse(state.deadline) && state.joined.includes(slot) && previous?.round !== state.round
 }
 
-/** Card callbacks carry protocol data without adding a machine JSON block to
- * the visible answer. Input is untrusted until the host verifies the sender. */
+const wirePrefix = 'cody-collab-v1='
+const maxWireLength = 20000
+
+/** A text/URL-fragment envelope: providers may discard callback values when
+ * forwarding cards. This is data, never a URL to fetch or an authority token. */
+export function serializeCollaborationEvent(event: CollaborationEvent): string {
+  const parsed = parseCollaborationEvent(event)
+  if (!parsed) throw new Error('Invalid collaboration event')
+  const bytes = new TextEncoder().encode(JSON.stringify(parsed))
+  const encoded = btoa(Array.from(bytes, byte => String.fromCharCode(byte)).join('')).replace(/\+/gu, '-').replace(/\//gu, '_').replace(/=+$/u, '')
+  if (encoded.length > maxWireLength) throw new Error('Collaboration event too large')
+  return wirePrefix + encoded
+}
+
+/** Supports original callback data and body text preserved by provider delivery
+ * and message-detail APIs. Sender, batch and topic authentication is mandatory
+ * in the host. Ambiguous cards fail closed rather than selecting one payload. */
 export function collaborationEventFromContent(value: unknown): CollaborationEvent | null {
   let visited = 0
-  const walk = (node: unknown, depth: number): CollaborationEvent | null => {
-    if (depth > 12 || ++visited > 2000) return null
-    if (Array.isArray(node)) { for (const item of node) { const found = walk(item, depth + 1); if (found) return found } return null }
-    const row = object(node)
-    if (!row) return null
-    const event = parseCollaborationEvent(row.codywork_collaboration)
-    if (event) return event
-    for (const item of Object.values(row)) { const found = walk(item, depth + 1); if (found) return found }
-    return null
+  let invalid = false
+  const found = new Map<string, CollaborationEvent>()
+  const add = (event: CollaborationEvent | null) => {
+    if (event) found.set(JSON.stringify(event), event)
+    else invalid = true
   }
-  return walk(value, 0)
+  const walk = (node: unknown, depth: number): void => {
+    if (depth > 12 || ++visited > 2000) { invalid = true; return }
+    if (typeof node === 'string') {
+      if (!node.includes(wirePrefix)) return
+      if (node.length > maxWireLength + 8000) { invalid = true; return }
+      const matches = node.matchAll(/(?:^|[\s#])cody-collab-v1=([A-Za-z0-9_-]+)(?=$|[\s)"<])/gu)
+      let count = 0
+      for (const match of matches) {
+        count++
+        try {
+          const encoded = match[1]!
+          if (encoded.length > maxWireLength) throw new Error('Oversized envelope')
+          const bytes = Uint8Array.from(atob(encoded.replace(/-/gu, '+').replace(/_/gu, '/')), char => char.charCodeAt(0))
+          add(parseCollaborationEvent(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes))))
+        } catch { invalid = true }
+      }
+      if (!count) invalid = true
+      return
+    }
+    if (Array.isArray(node)) { for (const item of node) walk(item, depth + 1); return }
+    const row = object(node)
+    if (!row) return
+    if ('codywork_collaboration' in row) add(parseCollaborationEvent(row.codywork_collaboration))
+    for (const [key, item] of Object.entries(row)) if (key !== 'codywork_collaboration') walk(item, depth + 1)
+  }
+  walk(value, 0)
+  return !invalid && found.size === 1 ? found.values().next().value! : null
 }
