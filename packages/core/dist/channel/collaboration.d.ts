@@ -40,7 +40,11 @@ export declare function createCollaborationState(input: Pick<CollaborationState,
  * message. At most one immutable decision per participant per round. */
 export declare function applyCollaborationEvent(state: CollaborationState, event: CollaborationEvent, now: number): CollaborationState;
 export declare function collaborationCanRun(state: CollaborationState, slot: number, now: number): boolean;
-/** Card callbacks carry protocol data without adding a machine JSON block to
- * the visible answer. Input is untrusted until the host verifies the sender. */
+/** A text/URL-fragment envelope: providers may discard callback values when
+ * forwarding cards. This is data, never a URL to fetch or an authority token. */
+export declare function serializeCollaborationEvent(event: CollaborationEvent): string;
+/** Supports original callback data and body text preserved by provider delivery
+ * and message-detail APIs. Sender, batch and topic authentication is mandatory
+ * in the host. Ambiguous cards fail closed rather than selecting one payload. */
 export declare function collaborationEventFromContent(value: unknown): CollaborationEvent | null;
 //# sourceMappingURL=collaboration.d.ts.map

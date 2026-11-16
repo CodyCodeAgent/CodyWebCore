@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyCollaborationEvent, collaborationCanRun, collaborationEventFromContent, createCollaborationState, parseCollaborationDecision } from './collaboration.js';
+import { applyCollaborationEvent, collaborationCanRun, collaborationEventFromContent, createCollaborationState, parseCollaborationDecision, serializeCollaborationEvent } from './collaboration.js';
 import { normalizeFeishuMessage, normalizeFeishuV2Card } from '../feishu/index.js';
 const now = Date.parse('2026-11-15T00:00:00Z');
 const event = (slot, patch = {}) => ({ version: 1, batch: 'human-1', topic: 'topic-1', slot, size: 2, kind: 'join', round: 1, maxRounds: 3, deadline: new Date(now + 900000).toISOString(), ...patch });
@@ -49,11 +49,39 @@ describe('decentralized collaboration', () => {
         expect(parseCollaborationDecision({ action: 'reply', reply: '长'.repeat(4000), reason: '', pendingIssues: [] })).toBeNull();
         expect(parseCollaborationDecision({ action: 'done', reply: '', reason: '', pendingIssues: ['未解决'] })).toBeNull();
     });
-    it('keeps protocol data through actual Feishu v2 conversion and inbound hydration', () => {
+    it('accepts legacy callback data when it is actually present (not a provider round-trip guarantee)', () => {
         const card = normalizeFeishuV2Card({ elements: [{ tag: 'action', actions: [{ tag: 'button', text: { tag: 'plain_text', content: '协作状态' }, value: { action: 'collaboration.status', codywork_collaboration: event(1) } }] }] });
         const inbound = normalizeFeishuMessage({ accountId: 'a', appId: 'cli_a', appSecret: 'test' }, { event: { sender: { sender_type: 'app', sender_id: { open_id: 'ou_peer' } }, message: { message_id: 'wire', chat_id: 'oc_group', message_type: 'interactive', content: JSON.stringify(card) } } });
         expect(collaborationEventFromContent(inbound?.content?.raw)).toEqual(event(1));
         expect(inbound?.sender.type).toBe('app');
+    });
+    it('reads preserved body links after Feishu strips callback value and flattens message detail', () => {
+        for (const wire of [event(1), decision(1, 'reply'), decision(1, 'done'), event(1, { kind: 'stop' })]) {
+            const href = `https://work.example/?view=settings#${serializeCollaborationEvent(wire)}`;
+            const peerEvent = { elements: [
+                    { tag: 'note', elements: [{ tag: 'lark_md', content: `[协作状态](${href})` }] },
+                    { tag: 'action', actions: [{ tag: 'button', custom_action_id: 'act_v1_redacted', behaviors: [{ type: 'callback' }] }] },
+                ] };
+            const detail = { title: '方案讨论', elements: [[{ tag: 'note', elements: [{ tag: 'a', href, text: '协作状态' }] }]] };
+            for (const content of [peerEvent, detail]) {
+                const inbound = normalizeFeishuMessage({ accountId: 'a', appId: 'cli_a', appSecret: 'test' }, { event: { sender: { sender_type: 'app', sender_id: { open_id: 'ou_peer' } }, message: { message_id: 'wire', chat_id: 'oc_group', message_type: 'interactive', content: JSON.stringify(content) } } });
+                expect(collaborationEventFromContent(inbound?.content?.raw)).toEqual(wire);
+            }
+        }
+        const stripped = { elements: [{ tag: 'action', actions: [{ tag: 'button', custom_action_id: 'act_v1_redacted', behaviors: [{ type: 'callback' }] }] }] };
+        expect(collaborationEventFromContent(stripped)).toBeNull();
+    });
+    it('bounds and validates envelopes, preserves Unicode and rejects ambiguous card data', () => {
+        const wire = decision(1, 'reply');
+        wire.decision.reply = '中文 / emoji 🧪\n```json\n{"x":"&<>"}\n```';
+        const token = serializeCollaborationEvent(wire);
+        expect(collaborationEventFromContent(token)).toEqual(wire);
+        expect(collaborationEventFromContent({ text: token, duplicate: token })).toEqual(wire);
+        expect(collaborationEventFromContent({ text: token, codywork_collaboration: event(0) })).toBeNull();
+        expect(collaborationEventFromContent('cody-collab-v1=invalid')).toBeNull();
+        expect(collaborationEventFromContent('cody-collab-v1=' + 'a'.repeat(20001))).toBeNull();
+        expect(collaborationEventFromContent('cody-collab-v1=' + btoa('{"version":99}'))).toBeNull();
+        expect(() => serializeCollaborationEvent({ ...wire, size: 1 })).toThrow();
     });
 });
 //# sourceMappingURL=collaboration.test.js.map
