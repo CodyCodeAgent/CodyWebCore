@@ -32,9 +32,35 @@ export type {
   SessionUpdate as AcpSessionUpdate,
 } from '@agentclientprotocol/sdk'
 
-export type AcpSessionHostOptions = { command: string; env?: NodeJS.ProcessEnv; clientName?: string }
+export type AcpSessionHostOptions = {
+  command: string
+  env?: NodeJS.ProcessEnv
+  clientName?: string
+  /** Optional ACP authentication method id (e.g. 'gemini-api-key' for Gemini CLI). */
+  authMethodId?: string
+  authMeta?: Record<string, unknown>
+}
 export type AcpSessionOpenOptions = { bindingId: string; cwd: string; sessionId?: string }
 export type AcpNativeSessionSummary = { sessionId: string; title?: string; cwd?: string }
+
+export const DEFAULT_ANTIGRAVITY_ACP_COMMAND = 'agy acp'
+export const DEFAULT_GEMINI_ACP_COMMAND = DEFAULT_ANTIGRAVITY_ACP_COMMAND
+
+export function createAntigravityAcpHostOptions(
+  options: Partial<AcpSessionHostOptions> = {},
+): AcpSessionHostOptions {
+  const command = options.command?.trim()
+    || globalThis.process.env.CODY_ANTIGRAVITY_COMMAND?.trim()
+    || globalThis.process.env.CODY_GEMINI_COMMAND?.trim()
+    || DEFAULT_ANTIGRAVITY_ACP_COMMAND
+  return {
+    clientName: 'cody-web-core',
+    ...options,
+    command,
+  }
+}
+
+export const createGeminiAcpHostOptions = createAntigravityAcpHostOptions
 
 export function splitAcpCommand(value: string): { command: string; args: string[] } {
   const parts = value.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g)?.map((part) => part.replace(/^("|')|("|')$/g, '')) ?? []
@@ -114,6 +140,18 @@ export class AcpSessionHost {
   private async openConnection(): Promise<{ process: ChildProcessWithoutNullStreams; connection: ClientConnection; capabilities: NonNullable<InitializeResponse['agentCapabilities']>; attach: (session: AcpSession) => void }> {
     const { command, args } = splitAcpCommand(this.options.command)
     const process = spawn(command, args, { stdio: ['pipe', 'pipe', 'pipe'], env: { ...globalThis.process.env, ...this.options.env } })
+    let stderrTail = ''
+    process.stderr.on('data', (chunk: Buffer) => {
+      stderrTail = (stderrTail + chunk.toString('utf8')).slice(-1500)
+    })
+    process.stdin.on('error', () => undefined)
+    const processExitedEarly = new Promise<never>((_, reject) => {
+      process.once('error', reject)
+      process.once('exit', (code, signal) => {
+        reject(new Error(`ACP 进程提前退出 (${signal ?? code ?? 'unknown'})`))
+      })
+    })
+    void processExitedEarly.catch(() => undefined)
     const app = client({ name: this.options.clientName ?? 'cody-web-core' })
     let session: AcpSession | undefined
     app.onNotification(methods.client.session.update, ({ params }) => { if (session && params.sessionId === session.sessionId) for (const listener of session.updateListeners) listener(params.update) })
@@ -124,9 +162,26 @@ export class AcpSessionHost {
     })
     const connection = app.connect(ndJsonStream(Writable.toWeb(process.stdin), Readable.toWeb(process.stdout) as unknown as ReadableStream<Uint8Array>))
     try {
-      const initialized = await connection.agent.request(methods.agent.initialize, { protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} })
+      const initialized = await Promise.race([
+        connection.agent.request(methods.agent.initialize, { protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} }),
+        processExitedEarly,
+      ])
+      if (this.options.authMethodId?.trim()) {
+        await Promise.race([
+          connection.agent.request(methods.agent.authenticate, {
+            methodId: this.options.authMethodId.trim(),
+            ...(this.options.authMeta ? { _meta: this.options.authMeta } : {}),
+          }),
+          processExitedEarly,
+        ])
+      }
       return { process, connection, capabilities: initialized.agentCapabilities ?? {}, attach: (value) => { session = value } }
-    } catch (error) { connection.close(error); process.kill(); throw new Error('ACP 初始化失败') }
+    } catch (error) {
+      connection.close(error)
+      if (!process.killed) process.kill()
+      const detail = stderrTail.trim() || (error instanceof Error ? error.message : '')
+      throw new Error(detail ? `ACP 初始化失败：${detail}` : 'ACP 初始化失败')
+    }
   }
   private async loadOrResume(opened: Awaited<ReturnType<AcpSessionHost['openConnection']>>, sessionId: string, cwd: string): Promise<unknown> {
     if (opened.capabilities.loadSession) return await opened.connection.agent.request(methods.agent.session.load, { sessionId, cwd, mcpServers: [] })

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.46.0
+
+- Update default ACP host command to Antigravity CLI (`agy acp`) with `createAntigravityAcpHostOptions` helper while keeping `createGeminiAcpHostOptions` and `DEFAULT_GEMINI_ACP_COMMAND` compatibility aliases.
+- Harden `AcpSessionHost` process spawn error, early exit, and stdin pipe error handling so missing binaries or transport failures reject cleanly instead of crashing the Node process.
+- Keep the runtime version identifier aligned with the package release.
+
 ## 0.45.0
 
 - Add an opt-in compact composer with controlled collapse state, preserving draft, attachment and Skill selection, send, and stop actions.
