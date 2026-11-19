@@ -20,6 +20,9 @@ export type AcpSessionHostOptions = {
     command: string;
     env?: NodeJS.ProcessEnv;
     clientName?: string;
+    /** Optional ACP authentication method id (e.g. 'gemini-api-key' for Gemini CLI). */
+    authMethodId?: string;
+    authMeta?: Record<string, unknown>;
 };
 export type AcpSessionOpenOptions = {
     bindingId: string;
@@ -31,6 +34,10 @@ export type AcpNativeSessionSummary = {
     title?: string;
     cwd?: string;
 };
+export declare const DEFAULT_ANTIGRAVITY_ACP_COMMAND = "agy acp";
+export declare const DEFAULT_GEMINI_ACP_COMMAND = "agy acp";
+export declare function createAntigravityAcpHostOptions(options?: Partial<AcpSessionHostOptions>): AcpSessionHostOptions;
+export declare const createGeminiAcpHostOptions: typeof createAntigravityAcpHostOptions;
 export declare function splitAcpCommand(value: string): {
     command: string;
     args: string[];

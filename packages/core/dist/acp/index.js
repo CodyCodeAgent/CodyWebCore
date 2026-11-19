@@ -1,6 +1,20 @@
 import { spawn } from 'node:child_process';
 import { Readable, Writable } from 'node:stream';
 import { client, methods, ndJsonStream, PROTOCOL_VERSION, } from '@agentclientprotocol/sdk';
+export const DEFAULT_ANTIGRAVITY_ACP_COMMAND = 'agy acp';
+export const DEFAULT_GEMINI_ACP_COMMAND = DEFAULT_ANTIGRAVITY_ACP_COMMAND;
+export function createAntigravityAcpHostOptions(options = {}) {
+    const command = options.command?.trim()
+        || globalThis.process.env.CODY_ANTIGRAVITY_COMMAND?.trim()
+        || globalThis.process.env.CODY_GEMINI_COMMAND?.trim()
+        || DEFAULT_ANTIGRAVITY_ACP_COMMAND;
+    return {
+        clientName: 'cody-web-core',
+        ...options,
+        command,
+    };
+}
+export const createGeminiAcpHostOptions = createAntigravityAcpHostOptions;
 export function splitAcpCommand(value) {
     const parts = value.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g)?.map((part) => part.replace(/^("|')|("|')$/g, '')) ?? [];
     if (!parts[0])
@@ -96,6 +110,18 @@ export class AcpSessionHost {
     async openConnection() {
         const { command, args } = splitAcpCommand(this.options.command);
         const process = spawn(command, args, { stdio: ['pipe', 'pipe', 'pipe'], env: { ...globalThis.process.env, ...this.options.env } });
+        let stderrTail = '';
+        process.stderr.on('data', (chunk) => {
+            stderrTail = (stderrTail + chunk.toString('utf8')).slice(-1500);
+        });
+        process.stdin.on('error', () => undefined);
+        const processExitedEarly = new Promise((_, reject) => {
+            process.once('error', reject);
+            process.once('exit', (code, signal) => {
+                reject(new Error(`ACP 进程提前退出 (${signal ?? code ?? 'unknown'})`));
+            });
+        });
+        void processExitedEarly.catch(() => undefined);
         const app = client({ name: this.options.clientName ?? 'cody-web-core' });
         let session;
         app.onNotification(methods.client.session.update, ({ params }) => { if (session && params.sessionId === session.sessionId)
@@ -109,13 +135,27 @@ export class AcpSessionHost {
         });
         const connection = app.connect(ndJsonStream(Writable.toWeb(process.stdin), Readable.toWeb(process.stdout)));
         try {
-            const initialized = await connection.agent.request(methods.agent.initialize, { protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} });
+            const initialized = await Promise.race([
+                connection.agent.request(methods.agent.initialize, { protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} }),
+                processExitedEarly,
+            ]);
+            if (this.options.authMethodId?.trim()) {
+                await Promise.race([
+                    connection.agent.request(methods.agent.authenticate, {
+                        methodId: this.options.authMethodId.trim(),
+                        ...(this.options.authMeta ? { _meta: this.options.authMeta } : {}),
+                    }),
+                    processExitedEarly,
+                ]);
+            }
             return { process, connection, capabilities: initialized.agentCapabilities ?? {}, attach: (value) => { session = value; } };
         }
         catch (error) {
             connection.close(error);
-            process.kill();
-            throw new Error('ACP 初始化失败');
+            if (!process.killed)
+                process.kill();
+            const detail = stderrTail.trim() || (error instanceof Error ? error.message : '');
+            throw new Error(detail ? `ACP 初始化失败：${detail}` : 'ACP 初始化失败');
         }
     }
     async loadOrResume(opened, sessionId, cwd) {
