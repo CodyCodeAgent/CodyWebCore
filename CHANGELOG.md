@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.47.0
+
+- Retain ACP commands announced at session startup and expose the current list to clients for Skill discovery.
+- Support caller-specified timeouts when initializing ACP and opening sessions.
+
 ## 0.46.0
 
 - Update default ACP host command to Antigravity CLI (`agy acp`) with `createAntigravityAcpHostOptions` helper while keeping `createGeminiAcpHostOptions` and `DEFAULT_GEMINI_ACP_COMMAND` compatibility aliases.
