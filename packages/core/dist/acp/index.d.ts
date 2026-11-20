@@ -7,10 +7,14 @@ export type AcpSession = {
     readonly connection: ClientConnection;
     readonly capabilities: NonNullable<InitializeResponse['agentCapabilities']>;
     configOptions: SessionConfigOption[];
+    availableCommands?: AcpAvailableCommand[];
     closed: boolean;
     updateListeners: Set<(update: SessionUpdate) => void>;
     permissionHandler: ((request: AcpPermissionRequest) => Promise<string | null> | string | null) | null;
 };
+export type AcpAvailableCommand = Extract<SessionUpdate, {
+    sessionUpdate: 'available_commands_update';
+}>['availableCommands'][number];
 export type AcpPermissionRequest = {
     options: PermissionOption[];
     toolCall: unknown;
@@ -28,6 +32,7 @@ export type AcpSessionOpenOptions = {
     bindingId: string;
     cwd: string;
     sessionId?: string;
+    timeoutMs?: number;
 };
 export type AcpNativeSessionSummary = {
     sessionId: string;
@@ -49,10 +54,11 @@ export declare class AcpSessionHost {
     private readonly sessions;
     constructor(options: AcpSessionHostOptions);
     get size(): number;
-    probe(): Promise<void>;
+    probe(timeoutMs?: number): Promise<void>;
     open(options: AcpSessionOpenOptions): Promise<AcpSession>;
     require(bindingId: string): AcpSession;
     subscribe(session: AcpSession, listener: (update: SessionUpdate) => void): () => void;
+    listAvailableCommands(session: AcpSession, timeoutMs?: number): Promise<AcpAvailableCommand[]>;
     setPermissionHandler(session: AcpSession, handler: AcpSession['permissionHandler']): void;
     prompt(session: AcpSession, prompt: Array<{
         type: 'text';

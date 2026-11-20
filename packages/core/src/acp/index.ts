@@ -19,10 +19,13 @@ export type AcpSession = {
   readonly connection: ClientConnection
   readonly capabilities: NonNullable<InitializeResponse['agentCapabilities']>
   configOptions: SessionConfigOption[]
+  availableCommands?: AcpAvailableCommand[]
   closed: boolean
   updateListeners: Set<(update: SessionUpdate) => void>
   permissionHandler: ((request: AcpPermissionRequest) => Promise<string | null> | string | null) | null
 }
+
+export type AcpAvailableCommand = Extract<SessionUpdate, { sessionUpdate: 'available_commands_update' }>['availableCommands'][number]
 
 export type AcpPermissionRequest = { options: PermissionOption[]; toolCall: unknown }
 
@@ -40,7 +43,7 @@ export type AcpSessionHostOptions = {
   authMethodId?: string
   authMeta?: Record<string, unknown>
 }
-export type AcpSessionOpenOptions = { bindingId: string; cwd: string; sessionId?: string }
+export type AcpSessionOpenOptions = { bindingId: string; cwd: string; sessionId?: string; timeoutMs?: number }
 export type AcpNativeSessionSummary = { sessionId: string; title?: string; cwd?: string }
 
 export const DEFAULT_ANTIGRAVITY_ACP_COMMAND = 'agy acp'
@@ -68,6 +71,14 @@ export function splitAcpCommand(value: string): { command: string; args: string[
   return { command: parts[0], args: parts.slice(1) }
 }
 
+function withTimeout<T>(request: Promise<T>, timeoutMs: number | undefined, label: string): Promise<T> {
+  if (timeoutMs === undefined) return request
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label}超时`)), timeoutMs)
+    void request.then(value => { clearTimeout(timer); resolve(value) }, error => { clearTimeout(timer); reject(error) })
+  })
+}
+
 /** Provider-neutral ACP process/session owner. Core owns transport and native
  * Session lifecycle; products map updates into their own presentation model. */
 export class AcpSessionHost {
@@ -75,7 +86,7 @@ export class AcpSessionHost {
   constructor(private readonly options: AcpSessionHostOptions) {}
   get size(): number { return this.sessions.size }
 
-  async probe(): Promise<void> { const opened = await this.openConnection(); await this.closeConnection(opened) }
+  async probe(timeoutMs?: number): Promise<void> { const opened = await this.openConnection(timeoutMs); await this.closeConnection(opened) }
 
   async open(options: AcpSessionOpenOptions): Promise<AcpSession> {
     const existing = this.sessions.get(options.bindingId)
@@ -83,11 +94,11 @@ export class AcpSessionHost {
       if (options.sessionId && existing.sessionId !== options.sessionId) throw new Error('ACP 会话绑定与请求的原生 Session 不一致')
       return existing
     }
-    const opened = await this.openConnection()
+    const opened = await this.openConnection(options.timeoutMs)
     try {
-      const response = options.sessionId
-        ? await this.loadOrResume(opened, options.sessionId, options.cwd)
-        : await opened.connection.agent.request(methods.agent.session.new, { cwd: options.cwd, mcpServers: [] })
+      const response = await withTimeout(options.sessionId
+        ? this.loadOrResume(opened, options.sessionId, options.cwd)
+        : opened.connection.agent.request(methods.agent.session.new, { cwd: options.cwd, mcpServers: [] }), options.timeoutMs, 'ACP 会话启动')
       const sessionId = options.sessionId ?? (response as { sessionId: string }).sessionId
       const session: AcpSession = {
         bindingId: options.bindingId, sessionId, process: opened.process, connection: opened.connection,
@@ -108,6 +119,21 @@ export class AcpSessionHost {
 
   subscribe(session: AcpSession, listener: (update: SessionUpdate) => void): () => void {
     this.assertOwned(session); session.updateListeners.add(listener); return () => session.updateListeners.delete(listener)
+  }
+  async listAvailableCommands(session: AcpSession, timeoutMs = 1000): Promise<AcpAvailableCommand[]> {
+    this.assertOwned(session)
+    if (session.availableCommands !== undefined) return session.availableCommands
+    return new Promise(resolve => {
+      const timer = setTimeout(() => finish([]), timeoutMs)
+      const stop = this.subscribe(session, update => {
+        if (update.sessionUpdate === 'available_commands_update') finish(update.availableCommands)
+      })
+      function finish(commands: AcpAvailableCommand[]): void {
+        clearTimeout(timer)
+        stop()
+        resolve(commands)
+      }
+    })
   }
   setPermissionHandler(session: AcpSession, handler: AcpSession['permissionHandler']): void { this.assertOwned(session); session.permissionHandler = handler }
   async prompt(session: AcpSession, prompt: Array<{ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }>): Promise<{ stopReason?: string }> {
@@ -137,7 +163,7 @@ export class AcpSessionHost {
   async closeAll(): Promise<void> { await Promise.all([...this.sessions.values()].map((session) => this.close(session))) }
   static supportsImage(session: AcpSession): boolean { return session.capabilities.promptCapabilities?.image === true }
 
-  private async openConnection(): Promise<{ process: ChildProcessWithoutNullStreams; connection: ClientConnection; capabilities: NonNullable<InitializeResponse['agentCapabilities']>; attach: (session: AcpSession) => void }> {
+  private async openConnection(timeoutMs?: number): Promise<{ process: ChildProcessWithoutNullStreams; connection: ClientConnection; capabilities: NonNullable<InitializeResponse['agentCapabilities']>; attach: (session: AcpSession) => void }> {
     const { command, args } = splitAcpCommand(this.options.command)
     const process = spawn(command, args, { stdio: ['pipe', 'pipe', 'pipe'], env: { ...globalThis.process.env, ...this.options.env } })
     let stderrTail = ''
@@ -154,7 +180,14 @@ export class AcpSessionHost {
     void processExitedEarly.catch(() => undefined)
     const app = client({ name: this.options.clientName ?? 'cody-web-core' })
     let session: AcpSession | undefined
-    app.onNotification(methods.client.session.update, ({ params }) => { if (session && params.sessionId === session.sessionId) for (const listener of session.updateListeners) listener(params.update) })
+    let initialCommands: { sessionId: string; commands: AcpAvailableCommand[] } | undefined
+    app.onNotification(methods.client.session.update, ({ params }) => {
+      if (params.update.sessionUpdate === 'available_commands_update') {
+        if (!session) initialCommands = { sessionId: params.sessionId, commands: params.update.availableCommands }
+        else if (params.sessionId === session.sessionId) session.availableCommands = params.update.availableCommands
+      }
+      if (session && params.sessionId === session.sessionId) for (const listener of session.updateListeners) listener(params.update)
+    })
     app.onRequest(methods.client.session.requestPermission, async ({ params }) => {
       if (!session || params.sessionId !== session.sessionId) return { outcome: { outcome: 'cancelled' } }
       const optionId = await session.permissionHandler?.({ options: params.options, toolCall: params.toolCall })
@@ -162,10 +195,10 @@ export class AcpSessionHost {
     })
     const connection = app.connect(ndJsonStream(Writable.toWeb(process.stdin), Readable.toWeb(process.stdout) as unknown as ReadableStream<Uint8Array>))
     try {
-      const initialized = await Promise.race([
+      const initialized = await withTimeout(Promise.race([
         connection.agent.request(methods.agent.initialize, { protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} }),
         processExitedEarly,
-      ])
+      ]), timeoutMs, 'ACP 初始化')
       if (this.options.authMethodId?.trim()) {
         await Promise.race([
           connection.agent.request(methods.agent.authenticate, {
@@ -175,7 +208,14 @@ export class AcpSessionHost {
           processExitedEarly,
         ])
       }
-      return { process, connection, capabilities: initialized.agentCapabilities ?? {}, attach: (value) => { session = value } }
+      return {
+        process, connection, capabilities: initialized.agentCapabilities ?? {},
+        attach: (value) => {
+          session = value
+          if (initialCommands?.sessionId === value.sessionId) value.availableCommands = initialCommands.commands
+          initialCommands = undefined
+        },
+      }
     } catch (error) {
       connection.close(error)
       if (!process.killed) process.kill()

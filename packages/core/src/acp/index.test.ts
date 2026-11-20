@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { methods } from '@agentclientprotocol/sdk'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import {
   AcpSessionHost,
   createAntigravityAcpHostOptions,
@@ -42,5 +45,31 @@ describe('ACP runtime primitives', () => {
     await host.cancel(session)
 
     expect(notify).toHaveBeenCalledWith(methods.agent.session.cancel, { sessionId: 'native-session' })
+  })
+
+  it('retains a command list published before the session/new response', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'core-acp-commands-'))
+    const script = join(directory, 'agent.cjs')
+    writeFileSync(script, `
+      const send = msg => console.log(JSON.stringify({ jsonrpc: '2.0', ...msg }))
+      require('node:readline').createInterface({ input: process.stdin }).on('line', line => {
+        const { id, method } = JSON.parse(line)
+        if (method === 'initialize') send({ id, result: { protocolVersion: 1, agentCapabilities: {} } })
+        if (method === 'session/new') {
+          send({ method: 'session/update', params: { sessionId: 'native',
+            update: { sessionUpdate: 'available_commands_update', availableCommands: [{ name: 'review', description: 'Review' }] }
+          } })
+          send({ id, result: { sessionId: 'native' } })
+        }
+      })
+    `)
+    const host = new AcpSessionHost({ command: `"${process.execPath}" "${script}"` })
+    try {
+      const session = await host.open({ bindingId: 'binding', cwd: directory })
+      expect(await host.listAvailableCommands(session)).toEqual([{ name: 'review', description: 'Review' }])
+    } finally {
+      await host.closeAll()
+      rmSync(directory, { recursive: true, force: true })
+    }
   })
 })
